@@ -1,0 +1,22 @@
+{
+  "name": "competitive-intel",
+  "version": "0.1.0",
+  "description": "검색어 기반 경쟁 분석 + YouTube 반응 수집 — 로컬 Mac 전용",
+  "private": true,
+  "type": "commonjs",
+  "main": "server/index.js",
+  "scripts": {
+    "start": "node server/index.js",
+    "dev": "node --watch server/index.js"
+  },
+  "dependencies": {
+    "@langchain/langgraph-sdk": "^0.0.35",
+    "@langchain/react": "^0.3.3",
+    "cors": "^2.8.6",
+    "express": "^4.22.1",
+    "uuid": "^11.1.0"
+  },
+  "engines": {
+    "node": ">=20.0.0"
+  }
+}

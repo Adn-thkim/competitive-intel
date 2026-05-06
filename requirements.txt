@@ -1,0 +1,21 @@
+# Python 의존성 — LangGraph FastAPI 서버
+# 설치: pip install -r requirements.txt
+
+# ── FastAPI 서버 ──────────────────────────────────────────────────────────────
+fastapi==0.115.12
+uvicorn[standard]==0.34.2
+
+# ── LangGraph / LangChain ────────────────────────────────────────────────────
+langgraph==0.4.1
+langchain-core==0.3.57
+
+# ── Anthropic Claude SDK ─────────────────────────────────────────────────────
+anthropic==0.52.0
+
+# ── 유틸리티 ─────────────────────────────────────────────────────────────────
+python-dotenv==1.1.0
+jsonschema==4.23.0
+pydantic==2.11.4
+
+# ── HTTP 클라이언트 (URL 검증용) ─────────────────────────────────────────────
+requests==2.32.3
