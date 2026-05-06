@@ -1,0 +1,101 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/domain-taxonomy/output.schema.json",
+  "title": "DomainTaxonomyOutput",
+  "description": "feature_url_mapper가 URL 수집 전략을 결정하기 위해 참조하는 도메인 taxonomy.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "domain_slug",
+    "domain_type",
+    "active_purposes",
+    "purpose_config"
+  ],
+  "properties": {
+    "domain_slug": {
+      "type": "string",
+      "description": "도메인 식별 슬러그 (파일명 기준). 예: consumer_remittance_app",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "minLength": 3
+    },
+    "domain_type": {
+      "type": "string",
+      "description": "도메인 시장 유형. 영문 snake_case. 예: consumer_remittance, b2b_saas_hr",
+      "pattern": "^[a-z][a-z0-9_]*$",
+      "minLength": 3
+    },
+    "active_purposes": {
+      "type": "array",
+      "description": "이 도메인에서 실질적으로 의미 있는 분석 목적 ID 목록.",
+      "minItems": 2,
+      "maxItems": 8,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$",
+        "minLength": 3
+      },
+      "uniqueItems": true
+    },
+    "purpose_config": {
+      "type": "object",
+      "description": "active_purposes 각 항목에 대한 상세 설정. 키는 active_purposes의 값과 일치해야 한다.",
+      "minProperties": 2,
+      "additionalProperties": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "features", "feature_labels", "url_types", "url_type_priority"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "분석 목적 한국어 레이블. 예: 수수료 비교",
+            "minLength": 2
+          },
+          "features": {
+            "type": "array",
+            "description": "이 목적 분석에 필요한 feature ID 목록 (snake_case). URL에서 추출 가능한 개념이어야 한다.",
+            "minItems": 3,
+            "maxItems": 8,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "minLength": 3
+            },
+            "uniqueItems": true
+          },
+          "feature_labels": {
+            "type": "object",
+            "description": "feature ID → 한국어 레이블 매핑. features 배열의 모든 항목을 포함해야 한다.",
+            "additionalProperties": {
+              "type": "string",
+              "minLength": 1
+            }
+          },
+          "url_types": {
+            "type": "array",
+            "description": "이 목적의 feature를 수집하기에 적합한 웹페이지 유형 목록. 실제 존재하는 페이지 유형이어야 한다.",
+            "minItems": 2,
+            "maxItems": 6,
+            "items": {
+              "type": "string",
+              "pattern": "^[a-z][a-z0-9_]*$",
+              "minLength": 3
+            },
+            "uniqueItems": true
+          },
+          "url_type_priority": {
+            "type": "object",
+            "description": "url_types 각 항목의 우선순위 (1이 최고). url_types의 모든 항목을 포함해야 한다.",
+            "additionalProperties": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      }
+    },
+    "enrichment_note": {
+      "type": "string",
+      "description": "기존 taxonomy를 enrichment한 경우 변경 요약. 최초 생성 시 생략 가능."
+    }
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/feature-url-mapper/input.schema.json",
+  "title": "FeatureUrlMapperInput",
+  "description": "도메인 taxonomy + 검증된 URL 목록을 받아 purpose별 feature × candidate 커버리지를 매핑한다.\n\ntaxonomy가 비교 feature와 URL 유형(url_types)을 사전 정의하므로 LLM은 feature를 자체 생성하지 않고 커버리지 판단과 additional_urls 제안에만 집중한다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["domain", "own_product", "candidates", "active_purposes", "purpose_config"],
+  "properties": {
+    "domain": {
+      "type": "string",
+      "description": "분석 대상 도메인 설명. 예: '소비자용 해외송금 앱', '해외여행 체크카드'",
+      "minLength": 2
+    },
+    "own_product": {
+      "type": "object",
+      "description": "자사 상품 식별 정보.",
+      "additionalProperties": false,
+      "required": ["brand", "product_name"],
+      "properties": {
+        "brand": {
+          "type": "string",
+          "description": "자사 브랜드명. 예: '신한카드'",
+          "minLength": 1
+        },
+        "product_name": {
+          "type": "string",
+          "description": "자사 상품명. 예: 'SOL트래블 체크카드'",
+          "minLength": 1
+        }
+      }
+    },
+    "active_purposes": {
+      "type": "array",
+      "description": "domain_modeling_node가 도출한 분석 목적 ID 목록. 이 목록의 순서가 출력 feature 그룹의 순서가 된다.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "pattern": "^[a-z][a-z0-9_]*$"
+      }
+    },
+    "purpose_config": {
+      "type": "object",
+      "description": "purpose ID → 설정 매핑. 각 purpose의 features(비교 항목 ID 목록), feature_labels(한국어 레이블), url_types(우선 수집 URL 유형), url_type_priority(우선순위 정수)를 포함한다.",
+      "additionalProperties": {
+        "type": "object",
+        "required": ["label", "features", "feature_labels", "url_types", "url_type_priority"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "description": "purpose 한국어 레이블. 예: '수수료 비교'"
+          },
+          "features": {
+            "type": "array",
+            "description": "이 purpose에서 비교할 feature ID 목록 (feat_ 접두사 없는 snake_case). 노드 코드가 feat_ 접두사를 붙여 LLM에 전달한다.",
+            "items": { "type": "string" }
+          },
+          "feature_labels": {
+            "type": "object",
+            "description": "feature ID(접두사 없음) → 한국어 레이블. 예: {\"transaction_fee_rate\": \"거래 수수료율\"}",
+            "additionalProperties": { "type": "string" }
+          },
+          "url_types": {
+            "type": "array",
+            "description": "이 purpose의 feature를 수집하기 적합한 URL 유형 목록. additional_urls 제안 시 우선 참고한다. 예: ['pricing_page', 'fee_calculator', 'help_center_fees']",
+            "items": { "type": "string" }
+          },
+          "url_type_priority": {
+            "type": "object",
+            "description": "url_types 각 항목의 우선순위 정수 (1이 최고). 낮은 숫자일수록 additional_urls 제안에서 먼저 탐색해야 한다.",
+            "additionalProperties": { "type": "integer", "minimum": 1 }
+          }
+        }
+      }
+    },
+    "candidates": {
+      "type": "array",
+      "description": "비교 분석 대상 후보 목록. own_* / comp_* / func_* 접두사를 가진 candidate_id를 포함한다.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "source_type", "validated_urls"],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "description": "후보 고유 식별자. own_* / comp_* / func_* 접두사 포함.",
+            "minLength": 1
+          },
+          "source_type": {
+            "type": "string",
+            "description": "official — own_* / comp_* 브랜드 상품 (primary_url 1개 기준). reference — func_* 기능적 대안 (기관 레퍼런스 URL 복수).",
+            "enum": ["official", "reference"]
+          },
+          "validated_urls": {
+            "type": "array",
+            "description": "HTTP 검증을 통과한 URL 목록과 page meta. official 항목은 일반적으로 1개, reference 항목은 복수 가능.",
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["url"],
+              "properties": {
+                "url": {
+                  "type": "string",
+                  "format": "uri",
+                  "description": "HTTP 검증을 통과한 최종 URL (리다이렉트 반영)."
+                },
+                "page_title": {
+                  "type": "string",
+                  "description": "페이지 <title> 태그 텍스트. 노드가 HTTP GET으로 수집해 주입한다."
+                },
+                "meta_description": {
+                  "type": "string",
+                  "description": "페이지 <meta name='description'> content 값. 노드가 HTTP GET으로 수집해 주입한다."
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

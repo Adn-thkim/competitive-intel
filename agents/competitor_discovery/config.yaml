@@ -1,0 +1,50 @@
+agent:
+  name: CompetitorDiscoveryAgent
+  version: 0.1.0
+  description: First-pass competitor discovery agent for structured downstream validation.
+
+runtime:
+  model: gpt-5.4
+  temperature: 0.2
+  max_output_tokens: 4000
+  timeout_ms: 120000
+
+files:
+  spec: ./agents/competitor_discovery/spec.md
+  system_prompt: ./agents/competitor_discovery/system_prompt.md
+  input_schema: ./agents/competitor_discovery/input.schema.json
+  output_schema: ./agents/competitor_discovery/output.schema.json
+
+validation:
+  require_json_output: true
+  validate_input_schema: true
+  validate_output_schema: true
+  fail_on_schema_error: true
+
+discovery_rules:
+  target_candidate_range:
+    min: 5
+    max: 15
+  allow_broad_first_pass: true
+  prefer_product_level_entities: true
+  keep_uncertain_candidates_if_flagged: true
+
+classification_thresholds:
+  direct_min_strong_matches: 4
+  indirect_min_strong_matches: 2
+  indirect_max_strong_matches: 3
+
+confidence_bands:
+  high:
+    min: 0.8
+    max: 1.0
+  medium:
+    min: 0.55
+    max: 0.79
+  low:
+    min: 0.3
+    max: 0.54
+
+output_defaults:
+  needs_validation_default: true
+  include_excluded_or_deferred: true

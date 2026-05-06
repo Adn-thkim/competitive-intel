@@ -1,0 +1,274 @@
+{
+  "domain_slug": "sk_telecom_mno",
+  "domain_type": "mobile_network_operator",
+  "active_purposes": [
+    "network_quality_comparison",
+    "plan_price_comparison",
+    "membership_benefit_comparison",
+    "platform_ecosystem_comparison",
+    "enterprise_iot_solution_comparison",
+    "roaming_service_comparison",
+    "mvno_wholesale_comparison",
+    "offline_channel_accessibility"
+  ],
+  "purpose_config": {
+    "network_quality_comparison": {
+      "label": "5G/LTE 네트워크 커버리지 및 품질 비교",
+      "features": [
+        "x_5g_coverage_ratio_nationwide",
+        "lte_coverage_ratio_nationwide",
+        "x_5g_download_speed_avg",
+        "x_5g_upload_speed_avg",
+        "network_latency_ms",
+        "indoor_coverage_quality",
+        "network_complaint_rate"
+      ],
+      "feature_labels": {
+        "x_5g_coverage_ratio_nationwide": "전국 5G 커버리지 비율",
+        "lte_coverage_ratio_nationwide": "전국 LTE 커버리지 비율",
+        "x_5g_download_speed_avg": "5G 평균 다운로드 속도",
+        "x_5g_upload_speed_avg": "5G 평균 업로드 속도",
+        "network_latency_ms": "네트워크 평균 지연시간(ms)",
+        "indoor_coverage_quality": "실내 커버리지 품질",
+        "network_complaint_rate": "네트워크 품질 불만 비율"
+      },
+      "url_types": [
+        "network_coverage_map_page",
+        "x_5g_quality_announcement_page",
+        "network_technology_info_page",
+        "government_telecom_quality_report"
+      ],
+      "url_type_priority": {
+        "network_coverage_map_page": 1,
+        "x_5g_quality_announcement_page": 2,
+        "network_technology_info_page": 3,
+        "government_telecom_quality_report": 4
+      }
+    },
+    "plan_price_comparison": {
+      "label": "요금제 다양성 및 가격 경쟁력 비교",
+      "features": [
+        "monthly_plan_price_range",
+        "data_allowance_per_plan",
+        "voice_minutes_included",
+        "unlimited_plan_price",
+        "entry_plan_minimum_price",
+        "family_discount_rate",
+        "long_term_loyalty_discount"
+      ],
+      "feature_labels": {
+        "monthly_plan_price_range": "월정액 요금제 가격 범위",
+        "data_allowance_per_plan": "요금제별 데이터 제공량",
+        "voice_minutes_included": "기본 음성통화 포함 여부 및 분량",
+        "unlimited_plan_price": "완전 무제한 요금제 가격",
+        "entry_plan_minimum_price": "최저가 요금제 가격",
+        "family_discount_rate": "가족 결합 할인율",
+        "long_term_loyalty_discount": "장기 고객 할인 혜택"
+      },
+      "url_types": [
+        "plan_listing_page",
+        "plan_comparison_page",
+        "family_plan_page",
+        "discount_benefit_page"
+      ],
+      "url_type_priority": {
+        "plan_listing_page": 1,
+        "plan_comparison_page": 2,
+        "family_plan_page": 3,
+        "discount_benefit_page": 4
+      }
+    },
+    "membership_benefit_comparison": {
+      "label": "부가혜택·제휴 서비스·멤버십 프로그램 비교",
+      "features": [
+        "membership_program_name",
+        "membership_tier_structure",
+        "partner_affiliate_count",
+        "monthly_benefit_value_estimate",
+        "streaming_service_bundle",
+        "ott_subscription_discount",
+        "reward_point_policy"
+      ],
+      "feature_labels": {
+        "membership_program_name": "멤버십 프로그램 명칭",
+        "membership_tier_structure": "멤버십 등급 구조",
+        "partner_affiliate_count": "제휴 파트너 수",
+        "monthly_benefit_value_estimate": "월 평균 혜택 추정 금액",
+        "streaming_service_bundle": "스트리밍 서비스 번들 포함 여부",
+        "ott_subscription_discount": "OTT 구독 할인 여부 및 수준",
+        "reward_point_policy": "포인트 적립·사용 정책"
+      },
+      "url_types": [
+        "membership_program_page",
+        "affiliate_partner_list_page",
+        "benefit_detail_page",
+        "subscription_bundle_page"
+      ],
+      "url_type_priority": {
+        "membership_program_page": 1,
+        "benefit_detail_page": 2,
+        "subscription_bundle_page": 3,
+        "affiliate_partner_list_page": 4
+      }
+    },
+    "platform_ecosystem_comparison": {
+      "label": "AI·미디어·플랫폼 연계 생태계 비교",
+      "features": [
+        "proprietary_platform_count",
+        "ai_service_integration",
+        "media_streaming_service_owned",
+        "subscription_bundle_universe",
+        "smart_home_iot_integration",
+        "cloud_service_offering"
+      ],
+      "feature_labels": {
+        "proprietary_platform_count": "자체 플랫폼·서비스 수",
+        "ai_service_integration": "AI 서비스 연계 여부 및 종류",
+        "media_streaming_service_owned": "자체 미디어 스트리밍 서비스 보유 여부",
+        "subscription_bundle_universe": "구독 번들 패키지(우주 등) 제공 여부",
+        "smart_home_iot_integration": "스마트홈·IoT 연동 서비스 여부",
+        "cloud_service_offering": "클라우드 서비스 제공 여부"
+      },
+      "url_types": [
+        "platform_service_intro_page",
+        "ai_service_page",
+        "media_bundle_page",
+        "subscription_universe_page"
+      ],
+      "url_type_priority": {
+        "platform_service_intro_page": 1,
+        "subscription_universe_page": 2,
+        "ai_service_page": 3,
+        "media_bundle_page": 4
+      }
+    },
+    "enterprise_iot_solution_comparison": {
+      "label": "기업·법인·IoT 통신 솔루션 비교",
+      "features": [
+        "enterprise_plan_availability",
+        "dedicated_enterprise_account_management",
+        "iot_connectivity_solution",
+        "private_5g_network_offering",
+        "enterprise_security_service",
+        "sla_guarantee_level",
+        "b2b_api_offering"
+      ],
+      "feature_labels": {
+        "enterprise_plan_availability": "기업 전용 요금제 제공 여부",
+        "dedicated_enterprise_account_management": "전담 기업 고객 관리 여부",
+        "iot_connectivity_solution": "IoT 전용 회선·솔루션 제공 여부",
+        "private_5g_network_offering": "프라이빗 5G 네트워크 구축 서비스 여부",
+        "enterprise_security_service": "기업 보안 서비스 제공 여부",
+        "sla_guarantee_level": "기업 SLA 품질 보증 수준",
+        "b2b_api_offering": "B2B API·플랫폼 제공 여부"
+      },
+      "url_types": [
+        "enterprise_solution_page",
+        "iot_service_page",
+        "private_5g_page",
+        "b2b_product_catalog_page"
+      ],
+      "url_type_priority": {
+        "enterprise_solution_page": 1,
+        "iot_service_page": 2,
+        "private_5g_page": 3,
+        "b2b_product_catalog_page": 4
+      }
+    },
+    "roaming_service_comparison": {
+      "label": "로밍 서비스 품질 및 요금 비교",
+      "features": [
+        "roaming_country_count",
+        "daily_roaming_flat_rate",
+        "roaming_data_speed_cap",
+        "roaming_voice_rate_per_min",
+        "roaming_auto_activation",
+        "esim_roaming_support"
+      ],
+      "feature_labels": {
+        "roaming_country_count": "로밍 가능 국가 수",
+        "daily_roaming_flat_rate": "일별 정액 로밍 요금",
+        "roaming_data_speed_cap": "로밍 데이터 속도 제한 기준",
+        "roaming_voice_rate_per_min": "로밍 음성통화 분당 요금",
+        "roaming_auto_activation": "로밍 자동 개통 지원 여부",
+        "esim_roaming_support": "eSIM 로밍 지원 여부"
+      },
+      "url_types": [
+        "roaming_service_page",
+        "roaming_plan_comparison_page",
+        "roaming_country_list_page",
+        "esim_guide_page"
+      ],
+      "url_type_priority": {
+        "roaming_service_page": 1,
+        "roaming_plan_comparison_page": 2,
+        "roaming_country_list_page": 3,
+        "esim_guide_page": 4
+      }
+    },
+    "mvno_wholesale_comparison": {
+      "label": "MVNO 알뜰폰 도매 네트워크 및 가격 경쟁 비교",
+      "features": [
+        "mvno_hosted_count",
+        "mvno_wholesale_network_share",
+        "mvno_plan_minimum_price",
+        "mvno_data_speed_limit",
+        "mvno_customer_support_channel",
+        "mvno_signup_process_online"
+      ],
+      "feature_labels": {
+        "mvno_hosted_count": "망 제공 MVNO 사업자 수",
+        "mvno_wholesale_network_share": "MVNO 도매망 점유율",
+        "mvno_plan_minimum_price": "알뜰폰 최저 요금제 가격",
+        "mvno_data_speed_limit": "알뜰폰 데이터 속도 제한 여부",
+        "mvno_customer_support_channel": "알뜰폰 고객지원 채널 유형",
+        "mvno_signup_process_online": "알뜰폰 온라인 개통 가능 여부"
+      },
+      "url_types": [
+        "mvno_brand_listing_page",
+        "mvno_plan_comparison_page",
+        "mvno_signup_guide_page"
+      ],
+      "url_type_priority": {
+        "mvno_brand_listing_page": 1,
+        "mvno_plan_comparison_page": 2,
+        "mvno_signup_guide_page": 3
+      }
+    },
+    "offline_channel_accessibility": {
+      "label": "오프라인 유통망 및 고객 서비스 접근성 비교",
+      "features": [
+        "retail_store_count_nationwide",
+        "online_self_service_capability",
+        "chatbot_ai_support_availability",
+        "call_center_wait_time",
+        "after_sales_service_center_count",
+        "in_store_device_purchase_support"
+      ],
+      "feature_labels": {
+        "retail_store_count_nationwide": "전국 공식 매장(T월드 등) 수",
+        "online_self_service_capability": "온라인 셀프 개통·변경 가능 여부",
+        "chatbot_ai_support_availability": "AI 챗봇 고객지원 제공 여부",
+        "call_center_wait_time": "콜센터 평균 대기 시간",
+        "after_sales_service_center_count": "AS 센터 수 및 접근성",
+        "in_store_device_purchase_support": "오프라인 매장 단말기 구매 지원 여부"
+      },
+      "url_types": [
+        "store_locator_page",
+        "customer_service_center_page",
+        "online_membership_self_service_page",
+        "contact_us_page"
+      ],
+      "url_type_priority": {
+        "store_locator_page": 1,
+        "customer_service_center_page": 2,
+        "online_membership_self_service_page": 3,
+        "contact_us_page": 4
+      }
+    }
+  },
+  "domain_id": "1",
+  "created_at": "2026-05-01T05:52:39.533796+00:00",
+  "updated_at": "2026-05-01T05:52:39.533796+00:00",
+  "version": 1
+}

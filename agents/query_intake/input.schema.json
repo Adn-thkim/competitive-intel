@@ -1,0 +1,98 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/query-intake/input.schema.json",
+  "title": "QueryIntakeAgentInput",
+  "description": "QueryIntakeAgent의 입력 스키마. 사용자가 직접 입력하는 raw_query 외의 모든 필드는 Express 서버가 요청 컨텍스트에서 자동 수집해 주입한다. 사용자가 직접 채우는 필드는 raw_query 하나뿐이다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "request_id",
+    "raw_query"
+  ],
+  "properties": {
+    "request_id": {
+      "type": "string",
+      "description": "웹 요청을 식별하는 ID. Express 서버가 요청 수신 시 자동 생성해 주입한다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["req_20260424_001"]
+    },
+    "run_id": {
+      "type": "string",
+      "description": "이 분석 파이프라인 실행을 식별하는 ID. orchestrator(LangGraph compiled graph)가 실행 시작 시 생성해 주입한다. 미제공 시 agent가 임시값을 생성하지만, orchestrator가 이후 정식 run_id로 덮어쓴다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["run_2026-04-24_120000_kst"]
+    },
+    "raw_query": {
+      "type": "string",
+      "description": "사용자가 웹 검색창에 직접 입력한 원문 검색어. 이 필드만으로 CompetitorDiscoveryAgent 입력 초안 전체를 추론한다. 검색어 특성상 200자 이내로 제한한다.",
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": ["토스 트래블카드"]
+    },
+    "geography_hint": {
+      "type": "string",
+      "description": "시장 및 경쟁사 분석 기준 지역 힌트. Express 서버가 사용자 IP 또는 브라우저 설정에서 자동 추출한다. geography_hint가 있으면 locale보다 우선해 geography를 추론한다.",
+      "minLength": 1,
+      "maxLength": 50,
+      "examples": ["KR"]
+    },
+    "locale": {
+      "type": "string",
+      "description": "UI 표시 언어 및 날짜 포맷 기준. 브라우저 Accept-Language 헤더에서 자동 추출한다. geography_hint가 없을 경우에만 지역 추론 보조 수단으로 사용한다.",
+      "minLength": 1,
+      "maxLength": 20,
+      "examples": ["ko-KR"]
+    },
+    "ui_context": {
+      "type": "object",
+      "description": "검색이 발생한 UI 위치 정보. Express 서버가 프론트엔드 요청에서 자동 수집한다. LLM이 검색 의도를 보정하는 데 활용할 수 있다.",
+      "additionalProperties": false,
+      "properties": {
+        "entrypoint": {
+          "type": "string",
+          "description": "검색이 시작된 UI 진입점 식별자.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["main_search"]
+        },
+        "page": {
+          "type": "string",
+          "description": "검색이 발생한 현재 페이지 또는 화면 이름.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["home"]
+        }
+      }
+    },
+    "known_context": {
+      "type": "object",
+      "description": "서버나 UI가 이미 보유한 보조 힌트. 자동완성 선택 데이터, 이전 세션, 사용자 프로필 등에서 추출한다. raw_query만으로 추론하기 어려운 필드의 신뢰도를 높이는 데 사용된다.",
+      "additionalProperties": false,
+      "properties": {
+        "brand_hint": {
+          "type": "string",
+          "description": "브랜드 추론 보조 힌트.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["토스"]
+        },
+        "product_hint": {
+          "type": "string",
+          "description": "상품명 추론 보조 힌트.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["토스 트래블카드"]
+        },
+        "category_hint": {
+          "type": "string",
+          "description": "카테고리 추론 보조 힌트.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["travel payment card"]
+        }
+      }
+    }
+  }
+}

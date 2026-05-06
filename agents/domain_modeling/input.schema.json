@@ -1,0 +1,82 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/domain-taxonomy/input.schema.json",
+  "title": "DomainTaxonomyInput",
+  "description": "domain_modeling_node가 LLM에 전달하는 입력 구조체.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "domain_name",
+    "own_product",
+    "problem_statement",
+    "target_user",
+    "core_value_props",
+    "competition_axes"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "domain_name": {
+      "type": "string",
+      "description": "분석 대상 도메인 명칭. 예: 소비자용 해외송금 앱",
+      "minLength": 1
+    },
+    "own_product": {
+      "type": "object",
+      "description": "자사 상품 정보 (human_review_node 확정값).",
+      "required": ["brand", "product_name"],
+      "properties": {
+        "brand": { "type": "string" },
+        "product_name": { "type": "string" },
+        "product_id": { "type": "string" }
+      },
+      "additionalProperties": true
+    },
+    "own_product_summary": {
+      "type": "object",
+      "description": "competitor_discovery_node가 생성한 자사 상품 시장 포지션 요약.",
+      "properties": {
+        "market_position": { "type": "string" },
+        "primary_use_cases": {
+          "type": "array",
+          "items": { "type": "string" }
+        }
+      },
+      "additionalProperties": true
+    },
+    "problem_statement": {
+      "type": "string",
+      "description": "자사 상품이 해결하는 핵심 문제."
+    },
+    "target_user": {
+      "type": "array",
+      "description": "주요 타겟 사용자 세그먼트.",
+      "items": { "type": "string" }
+    },
+    "core_value_props": {
+      "type": "array",
+      "description": "자사 상품의 핵심 가치 제안.",
+      "items": { "type": "string" }
+    },
+    "competition_axes": {
+      "type": "array",
+      "description": "competitor_discovery_node가 도출한 경쟁 분석 축. taxonomy purpose 선택의 핵심 신호.",
+      "minItems": 1,
+      "items": { "type": "string" }
+    },
+    "existing_taxonomy": {
+      "type": "object",
+      "description": "기존 taxonomy JSON (캐시에서 로드). 존재하면 add-only enrichment 모드로 동작.",
+      "additionalProperties": true
+    },
+    "mode": {
+      "type": "string",
+      "description": "생성 모드: 'create' (최초 생성) | 'enrich' (기존 taxonomy 보강)",
+      "enum": ["create", "enrich"],
+      "default": "create"
+    }
+  }
+}

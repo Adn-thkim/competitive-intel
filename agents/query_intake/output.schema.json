@@ -1,0 +1,272 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/query-intake/output.schema.json",
+  "title": "QueryIntakeAgentOutput",
+  "description": "QueryIntakeAgent의 출력 스키마. 사용자가 검토·수정할 수 있는 CompetitorDiscoveryAgent용 초안 입력과 웹 UI 렌더링 메타데이터를 포함한다. draft_competitor_discovery_input은 competitor_discovery/input.schema.json의 계약을 만족해야 한다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "run_id",
+    "request_id",
+    "raw_query",
+    "draft_competitor_discovery_input",
+    "display_fields",
+    "assumptions",
+    "uncertain_fields",
+    "needs_user_confirmation",
+    "created_at"
+  ],
+  "properties": {
+    "run_id": {
+      "type": "string",
+      "description": "분석 파이프라인 실행 식별자. 입력에서 제공된 경우 그대로 반환하고, 미제공 시 임시값을 생성한다. orchestrator가 이후 정식 run_id로 덮어쓸 수 있다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["run_2026-04-24_120000_kst"]
+    },
+    "request_id": {
+      "type": "string",
+      "description": "입력으로 받은 요청 ID를 그대로 반환한다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["req_20260424_001"]
+    },
+    "raw_query": {
+      "type": "string",
+      "description": "입력으로 받은 원문 검색어를 그대로 반환한다.",
+      "minLength": 1,
+      "maxLength": 200,
+      "examples": ["토스 트래블카드"]
+    },
+    "draft_competitor_discovery_input": {
+      "type": "object",
+      "description": "CompetitorDiscoveryAgent에 전달할 검토용 초안 입력. competitor_discovery/input.schema.json의 계약을 만족해야 한다. own_product.product_id와 run_id는 orchestrator가 사용자 승인 후 주입하므로 LLM이 생성하지 않는다.",
+      "additionalProperties": false,
+      "required": [
+        "project_id",
+        "domain_name",
+        "own_product",
+        "problem_statement",
+        "target_user",
+        "core_value_props",
+        "geography"
+      ],
+      "properties": {
+        "project_id": {
+          "type": "string",
+          "description": "후속 분석에 사용할 프로젝트 ID 초안. orchestrator가 사용자 승인 후 확정 슬러그로 덮어쓴다.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["proj_toss_travel_card"]
+        },
+        "domain_name": {
+          "type": "string",
+          "description": "분석 도메인명 초안. raw_query에서 추론한다.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["해외 결제/환전 특화 카드"]
+        },
+        "own_product": {
+          "type": "object",
+          "description": "자사 상품 기본 정보 초안.",
+          "additionalProperties": false,
+          "required": ["brand", "name", "category"],
+          "properties": {
+            "product_id": {
+              "type": "string",
+              "description": "자사 상품 고유 식별자. LLM이 생성하지 않으며, orchestrator가 사용자 승인 후 own_product.name 기반 슬러그로 생성해 주입한다. 이 초안 단계에서는 포함하지 않는다.",
+              "pattern": "^own_",
+              "minLength": 1,
+              "maxLength": 100
+            },
+            "brand": {
+              "type": "string",
+              "description": "자사 브랜드명 초안.",
+              "minLength": 1,
+              "maxLength": 100,
+              "examples": ["토스"]
+            },
+            "name": {
+              "type": "string",
+              "description": "자사 상품명 초안.",
+              "minLength": 1,
+              "maxLength": 100,
+              "examples": ["토스 트래블카드"]
+            },
+            "category": {
+              "type": "string",
+              "description": "상품 카테고리 초안. 확실하지 않은 경우 낮은 신뢰도로 채우고 uncertain_fields에 포함한다.",
+              "minLength": 1,
+              "maxLength": 100,
+              "examples": ["여행 특화 카드 상품"]
+            },
+            "provider": {
+              "type": "string",
+              "description": "상품 운영 법인명 초안. raw_query 또는 known_context에서 추론 가능한 경우에만 채운다.",
+              "minLength": 1,
+              "maxLength": 100,
+              "examples": ["비바리퍼블리카"]
+            },
+            "official_brand_url": {
+              "type": "string",
+              "description": "자사 공식 브랜드 URL 초안. 추론 불가능한 경우 생략한다. OfficialSourceResolverAgent가 이후 검증한다.",
+              "format": "uri",
+              "examples": ["https://toss.im/"]
+            }
+          }
+        },
+        "problem_statement": {
+          "type": "string",
+          "description": "사용자가 해결하려는 핵심 문제 초안. raw_query와 상품 카테고리에서 보수적으로 추론한다.",
+          "minLength": 1,
+          "maxLength": 500,
+          "examples": ["해외여행 시 환전과 결제를 간편하고 유리하게 처리하고 싶다"]
+        },
+        "target_user": {
+          "type": "array",
+          "description": "핵심 사용자군 초안.",
+          "minItems": 1,
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "examples": [["해외여행자", "단기 출장자"]]
+        },
+        "core_value_props": {
+          "type": "array",
+          "description": "핵심 가치 제안 초안. 수수료·가격 관련 가치도 이 항목에 포함한다.",
+          "minItems": 1,
+          "maxItems": 7,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "examples": [["환전 편의성", "해외 결제 편의성", "수수료 절감"]]
+        },
+        "known_keywords": {
+          "type": "array",
+          "description": "경쟁사 탐색에 활용할 연관 키워드 초안.",
+          "maxItems": 20,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 100
+          },
+          "examples": [["트래블카드", "해외결제", "환율우대"]]
+        },
+        "usage_context": {
+          "type": "array",
+          "description": "이 상품이 주로 사용되는 상황 초안.",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "examples": [["여행 전 환전", "여행 중 결제"]]
+        },
+        "geography": {
+          "type": "string",
+          "description": "경쟁사 식별 기준 시장 지역 초안. geography_hint 또는 locale에서 추론하며, 추론 불가 시 '대한민국'으로 기본 설정한다.",
+          "minLength": 1,
+          "maxLength": 100,
+          "default": "대한민국",
+          "examples": ["대한민국"]
+        },
+        "business_constraints": {
+          "type": "array",
+          "description": "경쟁사 식별 범위 제한 조건 초안.",
+          "maxItems": 5,
+          "items": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 200
+          },
+          "examples": [["국내 서비스 우선"]]
+        }
+      }
+    },
+    "display_fields": {
+      "type": "array",
+      "description": "웹 UI가 편집 폼으로 바로 사용할 필드 메타데이터 목록. draft_competitor_discovery_input의 핵심 필드(domain_name, own_product.brand, own_product.name, own_product.category, problem_statement, target_user, core_value_props, geography)는 반드시 포함해야 한다.",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["field_path", "label", "value", "editable", "confidence"],
+        "properties": {
+          "field_path": {
+            "type": "string",
+            "description": "draft_competitor_discovery_input 내 해당 필드의 점 표기 경로.",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": ["own_product.name", "geography"]
+          },
+          "label": {
+            "type": "string",
+            "description": "웹 UI에 표시할 사람이 읽기 쉬운 라벨.",
+            "minLength": 1,
+            "maxLength": 100,
+            "examples": ["상품명", "분석 기준 시장"]
+          },
+          "value": {
+            "description": "현재 추정값. 단일 문자열 또는 문자열 배열.",
+            "oneOf": [
+              { "type": "string" },
+              { "type": "array", "items": { "type": "string" } }
+            ]
+          },
+          "editable": {
+            "type": "boolean",
+            "description": "사용자가 폼에서 직접 수정 가능한 필드인지 여부."
+          },
+          "confidence": {
+            "type": "number",
+            "description": "이 필드의 추정 신뢰도. 0.8 이상: 검색어에 명시됨. 0.55~0.79: 가능성 높음. 0.3~0.54: 약한 추론. 0.3 미만: 일반적으로 사용 안 함.",
+            "minimum": 0,
+            "maximum": 1
+          },
+          "reason": {
+            "type": "string",
+            "description": "신뢰도가 낮거나 추론 근거를 사용자에게 설명해야 할 경우 표시할 메시지.",
+            "maxLength": 300
+          }
+        }
+      }
+    },
+    "assumptions": {
+      "type": "array",
+      "description": "이번 초안 생성에서 사용한 주요 가정 목록. 사용자가 초안의 맥락을 이해하는 데 사용된다.",
+      "minItems": 1,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 300
+      },
+      "examples": [["검색어가 자사 상품명을 의미한다고 가정함", "한국 시장 기준으로 해석함"]]
+    },
+    "uncertain_fields": {
+      "type": "array",
+      "description": "사용자 확인이 특히 필요한 필드 경로 목록. display_fields의 field_path 값과 일치해야 한다.",
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "examples": [["domain_name", "own_product.category"]]
+    },
+    "needs_user_confirmation": {
+      "type": "boolean",
+      "description": "후속 agent 실행 전 사용자의 초안 검토가 필요한지 여부. uncertain_fields가 하나 이상이거나 핵심 필드의 confidence가 0.8 미만이면 true로 설정한다."
+    },
+    "created_at": {
+      "type": "string",
+      "description": "결과 생성 시각. ISO 8601 형식. 서버가 주입하는 것을 권장하며, 미제공 시 LLM이 생성한다.",
+      "format": "date-time",
+      "examples": ["2026-04-24T10:30:00+09:00"]
+    }
+  }
+}

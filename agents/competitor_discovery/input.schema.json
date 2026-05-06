@@ -1,0 +1,167 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "schemas/competitor-discovery/input.schema.json",
+  "title": "CompetitorDiscoveryAgentInput",
+  "description": "CompetitorDiscoveryAgent의 입력 스키마. 사용자가 입력한 도메인 또는 상품 정보를 기반으로 경쟁사/경쟁 상품 후보군을 식별하는 데 필요한 모든 컨텍스트를 정의한다.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "domain_name",
+    "own_product",
+    "problem_statement",
+    "target_user",
+    "core_value_props",
+    "geography"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "description": "이 분석이 속한 프로젝트 식별자. 모든 agent 산출물은 이 ID를 기준으로 저장된다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["proj_toss_travel_card"]
+    },
+    "run_id": {
+      "type": "string",
+      "description": "이 agent 실행이 속한 run 식별자. orchestrator가 주입하며, agent_steps.json에 실행 이력을 귀속시키는 데 사용된다. 생략 시 orchestrator가 자동 할당한다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["run_2026-04-20_120000_kst"]
+    },
+    "domain_name": {
+      "type": "string",
+      "description": "분석 대상 도메인 또는 상품명. 경쟁사 식별의 중심 기준점이 된다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "examples": ["토스 트래블카드"]
+    },
+    "own_product": {
+      "type": "object",
+      "description": "자사 기준 상품 정의. 경쟁 후보를 평가하는 기준 상품으로 사용된다.",
+      "additionalProperties": false,
+      "required": [
+        "product_id",
+        "brand",
+        "name",
+        "category"
+      ],
+      "properties": {
+        "product_id": {
+          "type": "string",
+          "description": "자사 상품 고유 식별자. 파이프라인 전체에서 이 상품을 참조하는 공통 키. 'own_' 접두사를 사용한다.",
+          "pattern": "^own_",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["own_toss_travel_card"]
+        },
+        "brand": {
+          "type": "string",
+          "description": "자사 브랜드명.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["토스"]
+        },
+        "name": {
+          "type": "string",
+          "description": "자사 상품명.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["토스 트래블카드"]
+        },
+        "category": {
+          "type": "string",
+          "description": "상품 카테고리. 경쟁 범위를 정의하는 데 사용된다.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["여행 특화 카드 상품"]
+        },
+        "provider": {
+          "type": "string",
+          "description": "상품 운영 법인명. 브랜드와 법인이 다를 경우 공식 출처 검증에 활용된다.",
+          "minLength": 1,
+          "maxLength": 100,
+          "examples": ["비바리퍼블리카"]
+        },
+        "official_brand_url": {
+          "type": "string",
+          "description": "자사 공식 브랜드 URL. OfficialSourceResolverAgent가 자사 공식 도메인 검증의 기준점으로 사용한다.",
+          "format": "uri",
+          "examples": ["https://toss.im/"]
+        }
+      }
+    },
+    "problem_statement": {
+      "type": "string",
+      "description": "이 상품이 해결하려는 핵심 사용자 문제. 경쟁 범위를 결정하는 기준 문장으로 사용된다. 동일한 문제를 해결하는 대안 상품이 경쟁 후보로 식별된다.",
+      "minLength": 1,
+      "maxLength": 500,
+      "examples": ["해외여행 시 결제 수수료 부담 없이 외화를 사용하고 싶다"]
+    },
+    "target_user": {
+      "type": "array",
+      "description": "이 상품의 주요 타겟 사용자 유형 목록. 동일한 사용자를 대상으로 하는 경쟁 상품을 식별하는 기준이 된다.",
+      "minItems": 1,
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "examples": [["해외여행 빈도 높은 직장인", "배낭여행자", "디지털 노마드"]]
+    },
+    "core_value_props": {
+      "type": "array",
+      "description": "자사 상품이 제공하는 핵심 가치 명제 목록. 경쟁사가 동일하거나 유사한 가치를 제공하는지 판단하는 기준으로 사용된다. 수수료·가격 관련 가치도 이 항목에 포함한다. 예: '해외 결제 수수료 0%', '실시간 환전 기능'.",
+      "minItems": 1,
+      "maxItems": 7,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "examples": [["해외 결제 수수료 0%", "앱 기반 실시간 환전", "여행 특화 혜택"]]
+    },
+    "known_keywords": {
+      "type": "array",
+      "description": "경쟁사 탐색에 활용할 수 있는 사전 인지 키워드 목록. 사용자가 알고 있는 경쟁 브랜드명, 카테고리 키워드 등을 포함한다.",
+      "maxItems": 20,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 100
+      },
+      "examples": [["트래블로그", "Wise", "환전카드", "해외결제"]]
+    },
+    "usage_context": {
+      "type": "array",
+      "description": "이 상품이 주로 사용되는 상황이나 시나리오 목록. 사용 맥락이 겹치는 대안 상품을 경쟁 후보로 포함하는 데 사용된다.",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "examples": [["해외 오프라인 결제", "여행 전 환전", "공항 ATM 출금"]]
+    },
+    "geography": {
+      "type": "string",
+      "description": "경쟁사 식별 기준 시장 지역. 동일 도메인이라도 지역에 따라 경쟁 구도가 달라지므로 필수 항목이다.",
+      "minLength": 1,
+      "maxLength": 100,
+      "default": "대한민국",
+      "examples": ["대한민국"]
+    },
+    "business_constraints": {
+      "type": "array",
+      "description": "경쟁사 식별 범위를 제한하는 사업적 조건 목록. 특정 카테고리 제외, 특정 시장 제한 등의 조건을 포함한다.",
+      "maxItems": 5,
+      "items": {
+        "type": "string",
+        "minLength": 1,
+        "maxLength": 200
+      },
+      "examples": [["은행 발급 체크카드만 포함", "국내 서비스 한정"]]
+    }
+  }
+}

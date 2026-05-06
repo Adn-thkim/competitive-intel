@@ -1,0 +1,253 @@
+{
+  "domain_slug": "toss_travel_card",
+  "domain_type": "fintech_travel_prepaid_card",
+  "active_purposes": [
+    "fee_comparison",
+    "fx_rate_transparency",
+    "atm_benefit_comparison",
+    "card_issuance_ux",
+    "app_travel_management",
+    "travel_safety_features",
+    "charging_payment_structure",
+    "brand_trust_accessibility"
+  ],
+  "purpose_config": {
+    "fee_comparison": {
+      "label": "해외결제 수수료 비교",
+      "features": [
+        "overseas_payment_fee_rate",
+        "overseas_payment_fee_free_limit",
+        "annual_fee",
+        "domestic_usage_fee",
+        "currency_conversion_markup_rate"
+      ],
+      "feature_labels": {
+        "overseas_payment_fee_rate": "해외결제 수수료율",
+        "overseas_payment_fee_free_limit": "해외결제 수수료 무료 한도",
+        "annual_fee": "연회비",
+        "domestic_usage_fee": "국내 사용 수수료",
+        "currency_conversion_markup_rate": "환율 마진율"
+      },
+      "url_types": [
+        "pricing_page",
+        "fee_schedule_page",
+        "product_detail_page",
+        "faq_fees"
+      ],
+      "url_type_priority": {
+        "pricing_page": 1,
+        "fee_schedule_page": 2,
+        "product_detail_page": 3,
+        "faq_fees": 4
+      }
+    },
+    "fx_rate_transparency": {
+      "label": "환율 투명성 및 실시간성",
+      "features": [
+        "fx_rate_type",
+        "fx_rate_update_frequency",
+        "base_rate_reference",
+        "fx_rate_display_in_app",
+        "pre_conversion_requirement"
+      ],
+      "feature_labels": {
+        "fx_rate_type": "적용 환율 유형 (실시간/고시환율 등)",
+        "fx_rate_update_frequency": "환율 갱신 주기",
+        "base_rate_reference": "기준 환율 출처",
+        "fx_rate_display_in_app": "앱 내 환율 노출 여부",
+        "pre_conversion_requirement": "사전 환전 필요 여부"
+      },
+      "url_types": [
+        "product_detail_page",
+        "faq_exchange_rate",
+        "help_center_fx",
+        "exchange_rate_guide_page"
+      ],
+      "url_type_priority": {
+        "product_detail_page": 1,
+        "faq_exchange_rate": 2,
+        "help_center_fx": 3,
+        "exchange_rate_guide_page": 4
+      }
+    },
+    "atm_benefit_comparison": {
+      "label": "해외 ATM 출금 혜택 비교",
+      "features": [
+        "atm_withdrawal_fee_overseas",
+        "atm_free_withdrawal_count_per_month",
+        "atm_free_withdrawal_limit_amount",
+        "atm_network_coverage",
+        "atm_currency_support"
+      ],
+      "feature_labels": {
+        "atm_withdrawal_fee_overseas": "해외 ATM 출금 수수료",
+        "atm_free_withdrawal_count_per_month": "월 무료 ATM 출금 횟수",
+        "atm_free_withdrawal_limit_amount": "무료 ATM 출금 한도 금액",
+        "atm_network_coverage": "지원 ATM 네트워크 (Visa/Mastercard 등)",
+        "atm_currency_support": "출금 가능 통화 수"
+      },
+      "url_types": [
+        "product_detail_page",
+        "fee_schedule_page",
+        "faq_atm_withdrawal",
+        "help_center_overseas_cash"
+      ],
+      "url_type_priority": {
+        "product_detail_page": 1,
+        "fee_schedule_page": 2,
+        "faq_atm_withdrawal": 3,
+        "help_center_overseas_cash": 4
+      }
+    },
+    "card_issuance_ux": {
+      "label": "카드 발급 편의성",
+      "features": [
+        "issuance_channel",
+        "issuance_time",
+        "kyc_requirement",
+        "minimum_age_requirement",
+        "required_existing_account"
+      ],
+      "feature_labels": {
+        "issuance_channel": "발급 채널 (비대면/대면)",
+        "issuance_time": "발급 소요 시간",
+        "kyc_requirement": "본인인증 요건",
+        "minimum_age_requirement": "발급 가능 최소 연령",
+        "required_existing_account": "기존 계좌 연동 필요 여부"
+      },
+      "url_types": [
+        "card_apply_page",
+        "onboarding_guide_page",
+        "faq_issuance",
+        "product_detail_page"
+      ],
+      "url_type_priority": {
+        "card_apply_page": 1,
+        "onboarding_guide_page": 2,
+        "faq_issuance": 3,
+        "product_detail_page": 4
+      }
+    },
+    "app_travel_management": {
+      "label": "앱 기반 여행 통합 관리 편의성",
+      "features": [
+        "in_app_fx_exchange",
+        "balance_topup_method",
+        "transaction_history_realtime",
+        "multi_currency_wallet_support",
+        "budget_tracking_feature"
+      ],
+      "feature_labels": {
+        "in_app_fx_exchange": "앱 내 외화 환전 기능",
+        "balance_topup_method": "잔액 충전 방법 및 경로",
+        "transaction_history_realtime": "실시간 거래 내역 조회",
+        "multi_currency_wallet_support": "다통화 지갑 지원 여부",
+        "budget_tracking_feature": "여행 예산 관리 기능"
+      },
+      "url_types": [
+        "app_feature_page",
+        "product_detail_page",
+        "help_center_app_usage",
+        "travel_guide_page"
+      ],
+      "url_type_priority": {
+        "app_feature_page": 1,
+        "product_detail_page": 2,
+        "help_center_app_usage": 3,
+        "travel_guide_page": 4
+      }
+    },
+    "travel_safety_features": {
+      "label": "여행 중 안전·분실 대응 기능",
+      "features": [
+        "card_lock_unlock_in_app",
+        "lost_card_report_process",
+        "emergency_card_replacement_overseas",
+        "transaction_alert_push",
+        "temporary_limit_adjustment"
+      ],
+      "feature_labels": {
+        "card_lock_unlock_in_app": "앱 즉시 카드 잠금·해제",
+        "lost_card_report_process": "분실 신고 절차 및 소요 시간",
+        "emergency_card_replacement_overseas": "해외 긴급 카드 재발급 지원",
+        "transaction_alert_push": "결제 즉시 푸시 알림",
+        "temporary_limit_adjustment": "한도 임시 조정 기능"
+      },
+      "url_types": [
+        "security_feature_page",
+        "faq_lost_card",
+        "help_center_card_management",
+        "product_detail_page"
+      ],
+      "url_type_priority": {
+        "security_feature_page": 1,
+        "faq_lost_card": 2,
+        "help_center_card_management": 3,
+        "product_detail_page": 4
+      }
+    },
+    "charging_payment_structure": {
+      "label": "충전식 vs 후불 결제 구조 비교",
+      "features": [
+        "payment_structure_type",
+        "prepaid_balance_limit",
+        "auto_topup_support",
+        "linkable_bank_account",
+        "credit_line_availability"
+      ],
+      "feature_labels": {
+        "payment_structure_type": "결제 구조 유형 (선불/후불/하이브리드)",
+        "prepaid_balance_limit": "선불 충전 한도",
+        "auto_topup_support": "자동 충전 기능 지원 여부",
+        "linkable_bank_account": "연결 가능 은행 계좌 범위",
+        "credit_line_availability": "신용 한도 제공 여부"
+      },
+      "url_types": [
+        "product_detail_page",
+        "faq_topup_charging",
+        "pricing_page",
+        "help_center_balance_management"
+      ],
+      "url_type_priority": {
+        "product_detail_page": 1,
+        "faq_topup_charging": 2,
+        "pricing_page": 3,
+        "help_center_balance_management": 4
+      }
+    },
+    "brand_trust_accessibility": {
+      "label": "브랜드 신뢰도 및 국내 사용자 접근성",
+      "features": [
+        "domestic_brand_recognition",
+        "customer_support_channel",
+        "regulatory_compliance_disclosure",
+        "user_review_rating_score",
+        "partner_bank_affiliation"
+      ],
+      "feature_labels": {
+        "domestic_brand_recognition": "국내 브랜드 인지도 및 금융기관 제휴 여부",
+        "customer_support_channel": "고객센터 채널 (앱 내 챗봇·전화·이메일 등)",
+        "regulatory_compliance_disclosure": "금융당국 인허가 및 규제 준수 공시",
+        "user_review_rating_score": "앱스토어·플레이스토어 사용자 평점",
+        "partner_bank_affiliation": "제휴 은행 또는 발급 기관 신뢰도"
+      },
+      "url_types": [
+        "about_company_page",
+        "customer_support_page",
+        "regulatory_disclosure_page",
+        "app_store_listing_page"
+      ],
+      "url_type_priority": {
+        "about_company_page": 1,
+        "customer_support_page": 2,
+        "regulatory_disclosure_page": 3,
+        "app_store_listing_page": 4
+      }
+    }
+  },
+  "enrichment_note": "existing_taxonomy v3 기반 enrich 모드 검토 결과: competition_axes 9개 항목이 기존 8개 purpose(fee_comparison, fx_rate_transparency, atm_benefit_comparison, card_issuance_ux, app_travel_management, travel_safety_features, charging_payment_structure, brand_trust_accessibility)에 완전히 매핑되어 있으며, active_purposes 상한(8개)에 도달한 상태입니다. 누락된 purpose·feature·url_type이 확인되지 않아 기존 taxonomy를 그대로 유지합니다. 기존 항목은 일체 변경하지 않았습니다.",
+  "domain_id": "3",
+  "created_at": "2026-05-03T06:48:34.343544+00:00",
+  "updated_at": "2026-05-03T07:55:04.292299+00:00",
+  "version": 4
+}

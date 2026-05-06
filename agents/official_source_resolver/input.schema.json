@@ -1,0 +1,182 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/official-source-resolver/input.schema.json",
+  "title": "OfficialSourceResolverAgentInput",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "project_id",
+    "own_product",
+    "competitor_candidates"
+  ],
+  "properties": {
+    "project_id": {
+      "type": "string",
+      "minLength": 1
+    },
+    "own_product": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "brand",
+        "name",
+        "category"
+      ],
+      "properties": {
+        "brand": {
+          "type": "string",
+          "minLength": 1
+        },
+        "name": {
+          "type": "string",
+          "minLength": 1
+        },
+        "category": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "competitor_candidates": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "brand",
+          "product_name",
+          "category"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1
+          },
+          "brand": {
+            "type": "string",
+            "minLength": 1
+          },
+          "product_name": {
+            "type": "string",
+            "minLength": 1
+          },
+          "category": {
+            "type": "string",
+            "minLength": 1
+          },
+          "competition_type": {
+            "type": "string",
+            "enum": [
+              "direct",
+              "indirect",
+              "substitute"
+            ]
+          },
+          "needs_validation": {
+            "type": "boolean"
+          }
+        }
+      }
+    },
+    "geography": {
+      "type": "string",
+      "minLength": 1
+    },
+    "locale": {
+      "type": "string",
+      "minLength": 1
+    },
+    "source_preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "preferred_source_types": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "enum": [
+              "official_site",
+              "official_product_page",
+              "official_help_center",
+              "official_pricing_page",
+              "official_faq"
+            ]
+          }
+        },
+        "reject_domains": {
+          "type": "array",
+          "items": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "require_https": {
+          "type": "boolean"
+        }
+      }
+    },
+    "known_official_domains": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "brand",
+          "domains"
+        ],
+        "properties": {
+          "brand": {
+            "type": "string",
+            "minLength": 1
+          },
+          "domains": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "string",
+              "minLength": 1
+            }
+          }
+        }
+      }
+    },
+    "search_context": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "max_domain_candidates_per_target": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "max_page_candidates_per_domain": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "allow_search_engine_queries": {
+          "type": "boolean"
+        }
+      }
+    },
+    "validation_preferences": {
+      "type": "object",
+      "additionalProperties": false,
+      "properties": {
+        "require_live_page_check": {
+          "type": "boolean"
+        },
+        "capture_redirect_chain": {
+          "type": "boolean"
+        },
+        "capture_canonical_url": {
+          "type": "boolean"
+        },
+        "min_confidence_for_verified": {
+          "type": "number",
+          "minimum": 0,
+          "maximum": 1
+        }
+      }
+    }
+  }
+}
