@@ -33,3 +33,6 @@ logs/
 .vscode/
 .idea/
 *.swp
+
+# ── 로컬 개발 가이드 (Claude/Cowork 전용) ──────────────
+CLAUDE.md
