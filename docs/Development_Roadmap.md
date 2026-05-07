@@ -1,11 +1,11 @@
 # 개발 로드맵 — Domain Analysis 버전
 
-> **적용 환경**: Mac 로컬 전용 (외부 배포 없음)
-> **아키텍처 방향**: React(Vite) + Express.js + Python FastAPI + LangGraph StateGraph + JSON 저장 + Multi-Agent Orchestration
-> **현재 저장 방식**: JSON 파일 (`data/cache/`, `data/taxonomy/`)
-> **향후 저장 방식**: SQLite 연동 예정
-> **최종 목표**: 검색어 입력 → 도메인 분류 → 경쟁사 식별 → 공식 홈페이지 기능 비교 → YouTube 사용자 반응 분석 → 인사이트 리포트 생성
-> **문서 버전**: v2.0 | 최초 작성: 2026-04-20 | 업데이트: 2026-05-05
+> - **적용 환경**: Mac 로컬 전용 (외부 배포 없음)
+> - **아키텍처 방향**: React(Vite) + Express.js + Python FastAPI + LangGraph StateGraph + JSON 저장 + Multi-Agent Orchestration
+> - **현재 저장 방식**: JSON 파일 (`data/cache/`, `data/taxonomy/`)
+> - **향후 저장 방식**: SQLite 연동 예정
+> - **최종 목표**: 검색어 입력 → 도메인 분류 → 경쟁사 식별 → 공식 홈페이지 기능 비교 → YouTube 사용자 반응 분석 → 인사이트 리포트 생성
+> - **문서 버전**: v2.0 | 최초 작성: 2026-04-20 | 업데이트: 2026-05-05
 
 ---
 
