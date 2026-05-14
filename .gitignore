@@ -36,3 +36,9 @@ logs/
 
 # ── 로컬 개발 가이드 (Claude/Cowork 전용) ──────────────
 CLAUDE.md
+
+# ── 로컬 작업 메모 / 리팩터링 백업 ──────────────────────
+# 리팩터링 전 원본의 임시 백업 디렉터리(git history로 복원 가능하므로 추적 제외)
+backup/
+# 개인 작업 예정 메모(GitHub Issues/Projects에서 관리하는 것이 표준)
+docs/To Do List.md
