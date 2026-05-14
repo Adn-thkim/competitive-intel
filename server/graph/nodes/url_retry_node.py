@@ -46,7 +46,10 @@ from server.graph.agent_cache import (
     make_cache_context,
     store_agent_output,
 )
-from server.graph.nodes.official_source_resolver_node import _validate_url
+from server.graph.nodes.official_source_resolver_node import (
+    _validate_url_cached as _validate_url,
+    _validate_with_llm,
+)
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
@@ -70,32 +73,33 @@ def url_retry_node(state: DomainAnalysisState, config: dict | None = None) -> di
 
     official_sources: list[dict] = list(state.get("official_sources") or [])
     if not official_sources:
-        return _pass(started_at)
+        return _pass(started_at, thread_id)
 
     # ── Phase 1: 실패 항목 수집 ───────────────────────────────────────────────
     failed_p1 = _collect_failed(official_sources)
     if not failed_p1:
         logger.info("url_retry_node: 실패 항목 없음 — pass-through")
-        return _pass(started_at)
+        return _pass(started_at, thread_id)
 
-    # ── 자동 LLM 재탐색 (interrupt 전 bypass 시도) ───────────────────────────
-    # manual_urls 빈 dict → 실패 항목 전체를 LLM 재탐색 대상으로 처리
-    logger.info("url_retry_node: 자동 LLM 재탐색 시작 (실패 %d개)", len(failed_p1))
+    # ── 자동 Brave+LLM 재탐색 (interrupt 전 bypass 시도) ───────────────────────────
+    # manual_urls 빈 dict → 실패 항목 전체를 Brave 검색 + LLM 검증으로 재탐색
+    logger.info("url_retry_node: 자동 Brave+LLM 재탐색 시작 (실패 %d개)", len(failed_p1))
     if thread_id:
         set_progress(
             thread_id, "url_retry_llm",
-            detail=f"{len(failed_p1)}개 항목 LLM 재탐색",
+            detail=f"{len(failed_p1)}개 항목 Brave+LLM 재탐색",
             total=len(failed_p1),
         )
     auto_sources = _retry_phase1(
         official_sources, {}, fail_status_field="_auto_retry_fail_status",
+        use_search_api=True, use_llm_validation=True,
         thread_id=thread_id,
     )
 
     still_failed = _collect_failed(auto_sources)
     if not still_failed:
         logger.info("url_retry_node: 자동 LLM 재탐색 성공 — interrupt 생략")
-        return _make_result(auto_sources, started_at)
+        return _make_result(auto_sources, started_at, thread_id)
 
     logger.info(
         "url_retry_node: 자동 재탐색 후에도 실패 %d개 — Phase 1 interrupt 진행",
@@ -123,6 +127,7 @@ def url_retry_node(state: DomainAnalysisState, config: dict | None = None) -> di
         auto_sources, manual_urls_p1,
         fail_status_field="_phase1_fail_status",
         use_search_api=True,
+        use_llm_validation=True,
         thread_id=thread_id,
     )
 
@@ -130,7 +135,7 @@ def url_retry_node(state: DomainAnalysisState, config: dict | None = None) -> di
     failed_p2 = _collect_failed_with_case(updated_sources)
     if not failed_p2:
         logger.info("url_retry_node: Phase 1 재시도 성공 — Phase 2 생략")
-        return _make_result(updated_sources, started_at)  # own_* 체크 포함
+        return _make_result(updated_sources, started_at, thread_id)  # own_* 체크 포함
 
     logger.info("url_retry_node: Phase 2 interrupt() (실패 %d개)", len(failed_p2))
 
@@ -150,7 +155,7 @@ def url_retry_node(state: DomainAnalysisState, config: dict | None = None) -> di
         updated_sources, manual_urls_p2, remove_ids, remove_ref_urls
     )
 
-    return _make_result(final_sources, started_at)  # own_* 체크 포함
+    return _make_result(final_sources, started_at, thread_id)  # own_* 체크 포함
 
 
 # ──────────────────────────────────────────────── Phase 1 재시도 ─────────────
@@ -160,6 +165,7 @@ def _retry_phase1(
     manual_urls: dict[str, str],
     fail_status_field: str = "_auto_retry_fail_status",
     use_search_api: bool = False,
+    use_llm_validation: bool = False,
     thread_id: str = "",
 ) -> list[dict]:
     """
@@ -170,12 +176,16 @@ def _retry_phase1(
 
     fail_status_field
         검증 실패 시 HTTP 상태 코드를 저장할 source dict 키.
-        "_auto_retry_fail_status" : 자동 LLM 재탐색 단계 (interrupt 전)
+        "_auto_retry_fail_status" : 자동 Brave+LLM 재탐색 단계 (interrupt 전)
         "_phase1_fail_status"     : Phase 1 사용자 재시도 단계 (interrupt 후)
 
     use_search_api
-        True  → Brave Search API로 재탐색 (Phase 1 사용자 재시도)
-        False → LLM 재탐색 (자동 bypass 단계)
+        True  → Brave Search API로 재탐색
+        False → LLM 재탐색 (레거시, _llm_research 경로)
+
+    use_llm_validation
+        True  → Brave 탐색 결과에 _validate_with_llm을 추가 실행해 URL 선택 품질 향상.
+                 use_search_api=True일 때만 효과가 있다.
     """
     # ── LLM 재탐색 대상 수집 ─────────────────────────────────────────────────
     llm_items: list[dict] = []
@@ -222,6 +232,67 @@ def _retry_phase1(
         if use_search_api:
             logger.info("_retry_phase1: Brave Search API 재탐색 (%d개)", len(llm_items))
             llm_resolutions, had_api_error = _search_research(llm_items)
+
+            # ── LLM 검증으로 URL 선택 품질 향상 ──────────────────────────────
+            if use_llm_validation and llm_resolutions:
+                item_by_cid = {it["candidate_id"]: it for it in llm_items}
+                for cid, res in list(llm_resolutions.items()):
+                    item = item_by_cid.get(cid)
+                    if not item:
+                        continue
+                    stype = item.get("type", "")
+
+                    # resolution에서 URL 목록 추출
+                    if stype == "official":
+                        urls = [e.get("url") for e in res.get("candidate_urls", []) if e.get("url")]
+                    else:
+                        urls = [e.get("url") for e in res.get("reference_sources", []) if e.get("url")]
+                    if not urls:
+                        continue
+
+                    # _validate_with_llm이 기대하는 candidate 형식으로 변환
+                    candidates = [
+                        {
+                            "url": url, "title": "", "meta_description": "",
+                            "text_snippet": "", "canonical_url": None, "rank": i,
+                        }
+                        for i, url in enumerate(urls)
+                    ]
+                    try:
+                        val = _validate_with_llm(item, candidates)
+                    except Exception as exc:  # noqa: BLE001
+                        logger.warning("_retry_phase1 LLM 검증 실패 [%s]: %s", cid, exc)
+                        continue
+
+                    if not val or not val.get("selected_url"):
+                        continue
+
+                    selected = val["selected_url"]
+                    # LLM이 선택한 URL을 첫 번째로 재정렬하고 confidence 갱신
+                    if stype == "official":
+                        orig = res.get("candidate_urls", [])
+                        reordered = (
+                            [e for e in orig if e.get("url") == selected] +
+                            [e for e in orig if e.get("url") != selected]
+                        )
+                        if reordered:
+                            reordered[0] = {
+                                **reordered[0],
+                                "url_confidence": val.get("confidence", reordered[0].get("url_confidence", 0.7)),
+                            }
+                        llm_resolutions[cid] = {**res, "candidate_urls": reordered}
+                    else:  # reference
+                        orig = res.get("reference_sources", [])
+                        reordered = (
+                            [e for e in orig if e.get("url") == selected] +
+                            [e for e in orig if e.get("url") != selected]
+                        )
+                        llm_resolutions[cid] = {**res, "reference_sources": reordered}
+
+                    logger.debug(
+                        "_retry_phase1 LLM 검증[%s]: selected=%s (confidence=%.2f)",
+                        cid, selected, val.get("confidence", 0),
+                    )
         else:
             logger.info("_retry_phase1: LLM 재탐색 (%d개)", len(llm_items))
             llm_resolutions, had_api_error = _llm_research(llm_items)
@@ -821,24 +892,46 @@ def _apply_phase2(
 # ─────────────────────────────────────────── 실패 항목 수집 ──────────────────
 
 def _collect_failed(sources: list[dict]) -> list[dict]:
-    """Phase 1 interrupt에 포함할 실패 항목 목록을 구성한다."""
+    """
+    Phase 1 interrupt에 포함할 실패 항목 목록을 구성한다.
+
+    포함 조건:
+      - 모든 candidate: validated=False (HTTP 검증 실패)
+      - own_* candidate 추가 조건: validated=True이더라도 llm_selected=False이면 포함.
+          LLM이 공식 URL을 선택하지 못해 Brave fallback이 사용된 경우,
+          HTTP 도달 가능성만으로는 "올바른 공식 URL"임을 보장할 수 없으므로
+          사람이 직접 확인해야 한다.
+    """
     failed = []
     for src in sources:
-        if src.get("validated"):
-            continue
-        stype = src.get("source_type")
         cid   = src["candidate_id"]
+        stype = src.get("source_type")
+
+        is_validated  = bool(src.get("validated"))
+        llm_selected  = bool(src.get("llm_selected", True))  # 기본값 True: 기존 캐시 호환
+        is_own        = cid.startswith("own_")
+
+        # 완전히 검증된 항목 스킵:
+        #   - HTTP 성공(validated=True) + LLM URL 선택(llm_selected=True) → 신뢰 가능
+        #   - comp_* / func_*: HTTP만 통과해도 pass (own_*보다 중요도 낮음)
+        if is_validated and (llm_selected or not is_own):
+            continue
 
         if stype == "official":
-            failed.append({
-                "candidate_id":         cid,
-                "source_type":          "official",
-                "brand":                src.get("brand", ""),
-                "product_name":         src.get("product_name", ""),
-                "tried_url":            src.get("primary_url"),
-                "llm_confidence":       src.get("llm_confidence"),
+            entry: dict = {
+                "candidate_id":           cid,
+                "source_type":            "official",
+                "brand":                  src.get("brand", ""),
+                "product_name":           src.get("product_name", ""),
+                "tried_url":              src.get("primary_url"),
+                "llm_confidence":         src.get("llm_confidence"),
                 "auto_retry_fail_status": src.get("_auto_retry_fail_status"),
-            })
+            }
+            # HTTP는 통과했으나 LLM 미선택인 own_* — UI에 원인 안내
+            if is_own and is_validated and not llm_selected:
+                entry["llm_not_selected"] = True
+            failed.append(entry)
+
         elif stype == "reference":
             failed_refs = [
                 r.get("final_url") or r.get("url")
@@ -915,7 +1008,7 @@ def _collect_failed_with_case(sources: list[dict]) -> list[dict]:
 
 # ──────────────────────────────────────────────────────── 헬퍼 ───────────────
 
-def _make_result(sources: list[dict], started_at: str) -> dict:
+def _make_result(sources: list[dict], started_at: str, thread_id: str = "") -> dict:
     """
     url_retry_node 최종 결과를 조립한다.
 
@@ -931,6 +1024,17 @@ def _make_result(sources: list[dict], started_at: str) -> dict:
         "url_retry_node: 완료 (검증 성공 %d/%d)",
         validated_count, len(sources),
     )
+
+    # ── 종료 시 명시적 stage 전환 ─────────────────────────────────────────────
+    if thread_id:
+        try:
+            set_progress(
+                thread_id, "url_retry_done",
+                detail=f"검증 성공 {validated_count}/{len(sources)}",
+                current=validated_count, total=len(sources),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(url_retry_done) 실패 — 무시: %s", exc)
 
     # ── own_* 미검증 체크 — 파이프라인 강제 종료 ─────────────────────────────
     unvalidated_own = [
@@ -968,8 +1072,14 @@ def _make_result(sources: list[dict], started_at: str) -> dict:
     return result
 
 
-def _pass(started_at: str) -> dict:
+def _pass(started_at: str, thread_id: str = "") -> dict:
     """실패 항목 없음 — interrupt 없이 pass-through."""
+    if thread_id:
+        try:
+            set_progress(thread_id, "url_retry_done", detail="재시도 불필요")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(url_retry_done, pass-through) 실패 — 무시: %s", exc)
+
     step: AgentStep = {
         "step_name":   "UrlRetry",
         "status":      "completed",
