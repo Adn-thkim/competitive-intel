@@ -43,9 +43,15 @@ AGENTS_DIR = BASE_DIR / "agents"
 CACHE_DIR = Path(os.getenv("CACHE_DIR", str(BASE_DIR / "data" / "cache")))
 
 # 캐시 하위 경로 (CACHE_DIR 변경 시 자동으로 따라간다)
-PRODUCT_NAME_CACHE_PATH = CACHE_DIR / "product_name_normalization.json"
-ANALYSIS_CACHE_PATH     = CACHE_DIR / "analysis_runs.json"
-AGENT_OUTPUT_CACHE_DIR  = CACHE_DIR / "agent_outputs"
+PRODUCT_NAME_CACHE_PATH    = CACHE_DIR / "product_name_normalization.json"
+ANALYSIS_CACHE_PATH        = CACHE_DIR / "analysis_runs.json"
+AGENT_OUTPUT_CACHE_DIR     = CACHE_DIR / "agent_outputs"
+OFFICIAL_SOURCE_STORE_PATH = CACHE_DIR / "official_sources.json"
+
+# OfficialSourceStore TTL (일 단위).
+# 한 번 검증된 상품 공식 URL은 이 기간 동안 재탐색 없이 재사용된다.
+# 캐시 hit 시에도 HTTP 재검증 1회를 수행하므로 죽은 링크는 자동으로 폐기된다.
+OFFICIAL_SOURCE_STORE_TTL_DAYS = int(os.getenv("OFFICIAL_SOURCE_STORE_TTL_DAYS", "30"))
 
 
 # ── 캐시 TTL ─────────────────────────────────────────────────────────────────
@@ -69,14 +75,32 @@ CLI_TIMEOUT = int(os.getenv("CLI_TIMEOUT", "120"))
 FEATURE_URL_MAPPER_PARALLEL = int(os.getenv("FEATURE_URL_MAPPER_PARALLEL", "2"))
 
 # OfficialSourceResolverAgent 병렬 처리 설정.
-# candidate별로 LLM 호출을 분리해 병렬 실행한다.
+# candidate별로 Brave 탐색·HTTP 검증을 병렬 실행한다.
 #   - 캐시 키가 candidate 단위로 분리되어 재실행 시 캐시 히트율이 높아진다.
-#   - 예: 6개 candidate, max_workers=6 → 1라운드 × ~40s = 약 40초 (단일 호출 대비 ~85% 단축)
-# 값을 높이면 속도가 빨라지지만 Claude 구독 Rate Limit 위험이 증가한다.
-# 기본값 상향(2 → 6, 2026-05): 일반 시나리오의 candidate 수(자사 1 + 경쟁사 3~5)를
-# 한 라운드에 처리할 수 있는 수준. 분당 호출 한도 초과 시 환경변수로 하향 조정 권장.
-# 환경변수로 조정: OFFICIAL_SOURCE_RESOLVER_PARALLEL=6
-OFFICIAL_SOURCE_RESOLVER_PARALLEL = int(os.getenv("OFFICIAL_SOURCE_RESOLVER_PARALLEL", "6"))
+# ⚠️ (2026-05 개편) LLM 호출은 candidate 단위가 아니라 batch 단위(A-1)로 묶이므로
+#    PARALLEL은 주로 Brave 탐색·페이지 메타·HTTP 검증의 I/O 병렬도를 결정한다.
+#    LLM Rate Limit 위험은 batch 호출 1~2회로 한정되어 크게 완화되었다.
+# 환경변수로 조정: OFFICIAL_SOURCE_RESOLVER_PARALLEL=2 (기존 호환 기본값)
+OFFICIAL_SOURCE_RESOLVER_PARALLEL = int(os.getenv("OFFICIAL_SOURCE_RESOLVER_PARALLEL", "2"))
+
+# A-3 동적 PARALLEL 상한.
+# candidate 수 N에 대해 실제 워커 수 = min(N, OFFICIAL_SOURCE_RESOLVER_PARALLEL_MAX).
+# LLM 호출이 batch로 통합되었으므로 I/O 위주 단계에는 상한을 넉넉히 둔다.
+OFFICIAL_SOURCE_RESOLVER_PARALLEL_MAX = int(
+    os.getenv("OFFICIAL_SOURCE_RESOLVER_PARALLEL_MAX", "6")
+)
+
+# A-1 batch LLM 검증 설정.
+# 한 번의 LLM 호출에 묶을 candidate 수 상한. 5 이하 권장(프롬프트 토큰 폭증 방지).
+OFFICIAL_SOURCE_RESOLVER_LLM_BATCH_SIZE = int(
+    os.getenv("OFFICIAL_SOURCE_RESOLVER_LLM_BATCH_SIZE", "5")
+)
+
+# E-1 Brave 검색 결과 캐시 TTL(시간). 동일 (브랜드, 상품명) 쿼리는 이 기간 동안 재사용.
+BRAVE_RESULT_CACHE_TTL_HOURS = int(os.getenv("BRAVE_RESULT_CACHE_TTL_HOURS", "24"))
+
+# E-2 HTTP 검증 결과 캐시 TTL(분). 동일 URL은 이 기간 동안 재검증을 생략.
+HTTP_VALIDATION_CACHE_TTL_MINUTES = int(os.getenv("HTTP_VALIDATION_CACHE_TTL_MINUTES", "60"))
 
 
 # ── Claude API 설정 ──────────────────────────────────────────────────────────
@@ -86,10 +110,19 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 
 
 # ── Brave Search API ─────────────────────────────────────────────────────────
-# Phase 1 URL 재탐색(검색 기반)에 사용.
+# Phase 1 URL 재탐색(검색 기반) 및 OfficialSourceResolver 초기 탐색에 사용.
 # https://api.search.brave.com 에서 API Key를 발급한다.
 # 무료 크레딧: $5/월 자동 충전 → Search 플랜 기준 약 1,000 쿼리/월 무료.
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
+
+# OfficialSourceResolver Brave 탐색 결과 수 (쿼리당).
+# 후보 N개 × 2쿼리(한국어+영어) 기준 쿼터 소비:
+#   count=5 → 최대 10개 후보  (기본, 정확도·쿼터 균형)
+#   count=3 → 최대 6개 후보   (쿼터 절감, 정확도 소폭 감소)
+# 환경변수로 조정: OFFICIAL_SOURCE_RESOLVER_BRAVE_COUNT=3
+OFFICIAL_SOURCE_RESOLVER_BRAVE_COUNT = int(
+    os.getenv("OFFICIAL_SOURCE_RESOLVER_BRAVE_COUNT", "5")
+)
 
 # API 기반 LLM에서 사용할 모델 (temperature=0 결정론적 처리용)
 API_MODEL = os.getenv("API_MODEL", "claude-sonnet-4-6")
