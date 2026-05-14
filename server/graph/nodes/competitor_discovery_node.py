@@ -24,12 +24,15 @@ CompetitorDiscoveryAgentInput을 조립하고, Claude CLI를 통해 경쟁사 �
     officialSourceResolverNode.js는 normalize 이후 state를 읽어야 한다.
 """
 
+import copy
 import json
 import logging
 from datetime import datetime, timezone
 from pathlib import Path
 
-from server.config import AGENTS_DIR, CLI_MODEL, CLI_TIMEOUT
+import jsonschema
+
+from server.config import AGENT_OUTPUT_CACHE_DIR, AGENTS_DIR, CLI_MODEL, CLI_TIMEOUT
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -110,7 +113,25 @@ def competitor_discovery_node(state: DomainAnalysisState) -> dict:
         output_schema=output_schema,
         prompt_version="competitor_discovery:v1",
     )
-    cache_input = {k: v for k, v in cd_input.items() if k != "run_id"}
+    # 캐시 키는 안정적인 식별 필드만 포함한다.
+    #
+    # 제외 이유:
+    #   - run_id        : 매 실행마다 새로 생성되는 UUID
+    #   - problem_statement, core_value_props, target_user, geography :
+    #       human_review_node의 LLM 출력으로 채워지는 필드로, 동일 검색어라도
+    #       매 실행마다 표현이 미세하게 달라져 불필요한 캐시 미스를 유발한다.
+    #
+    # 포함 이유:
+    #   - project_id  : raw_query에서 결정론적으로 파생되는 식별자
+    #   - domain_name : 사용자가 human_review에서 의도적으로 변경할 경우
+    #                   경쟁 구도가 달라지므로 재실행이 필요
+    #   - own_product : 자사 제품의 핵심 메타데이터(brand/name/category 등);
+    #                   구조가 compact하고 제품 변경 시 재실행 필요
+    cache_input = {
+        "project_id":  cd_input.get("project_id", ""),
+        "domain_name": cd_input.get("domain_name", ""),
+        "own_product": cd_input.get("own_product", {}),
+    }
     raw_output = load_agent_output(
         agent_id="competitor_discovery",
         cache_input=cache_input,
@@ -118,6 +139,29 @@ def competitor_discovery_node(state: DomainAnalysisState) -> dict:
         output_schema=output_schema,
         logger=logger,
     )
+
+    # ── 레거시 폴백: project_id 기반 기존 entry 재활용 ────────────────────────
+    # 캐시 키 구조가 변경된 경우(또는 최초 실행 시) 새 키로 miss가 발생한다.
+    # 이때 project_id가 동일한 기존 entry를 스캔해 재활용하고,
+    # 신규 키로 재저장하여 이후 실행은 빠른 직접 히트가 되도록 한다.
+    if raw_output is None:
+        raw_output = _find_cached_by_project_id(
+            project_id=cache_input["project_id"],
+            output_schema=output_schema,
+            logger=logger,
+        )
+        if raw_output is not None:
+            store_agent_output(
+                agent_id="competitor_discovery",
+                cache_input=cache_input,
+                context=cache_context,
+                output=raw_output,
+                logger=logger,
+            )
+            logger.info(
+                "competitor_discovery_node: 레거시 캐시 히트 (project_id=%s) → 신규 키로 재저장",
+                cache_input["project_id"],
+            )
 
     if raw_output is None:
         analyzer = ClaudeCodeCliAnalyzer(
@@ -197,6 +241,58 @@ def _load_json(path: Path) -> dict | None:
     except json.JSONDecodeError as exc:
         logger.warning("JSON 파싱 실패 (%s): %s", path, exc)
         return None
+
+
+def _find_cached_by_project_id(
+    project_id: str,
+    output_schema: dict | None,
+    logger: logging.Logger | None,
+) -> dict | None:
+    """
+    project_id가 일치하는 가장 최근 competitor_discovery 캐시 entry를 반환한다.
+
+    캐시 키 포맷 변경 등으로 직접 키 히트가 불가능할 때 폴백으로 호출된다.
+    유효한 entry가 발견되면 deep copy를 반환한다(호출자가 안전하게 수정 가능).
+    output_schema가 주어지면 entry의 output을 검증하며, 실패 시 None을 반환한다.
+    """
+    cache_file = AGENT_OUTPUT_CACHE_DIR / "competitor_discovery.json"
+    if not cache_file.exists():
+        return None
+
+    try:
+        data = json.loads(cache_file.read_text(encoding="utf-8"))
+    except (json.JSONDecodeError, OSError):
+        return None
+
+    candidates = [
+        entry
+        for entry in data.get("entries", {}).values()
+        if entry.get("input", {}).get("project_id") == project_id
+    ]
+    if not candidates:
+        return None
+
+    # updated_at → created_at 순으로 가장 최근 entry 선택
+    best = max(
+        candidates,
+        key=lambda e: e.get("updated_at", e.get("created_at", "")),
+    )
+    output = copy.deepcopy(best.get("output"))
+
+    if output_schema is not None:
+        try:
+            jsonschema.validate(output, output_schema)
+        except jsonschema.ValidationError as exc:
+            if logger:
+                logger.warning(
+                    "competitor_discovery _find_cached_by_project_id: "
+                    "레거시 entry schema 검증 실패 (project_id=%s): %s",
+                    project_id,
+                    str(exc)[:200],
+                )
+            return None
+
+    return output
 
 
 def _error(started_at: str, message: str) -> dict:
