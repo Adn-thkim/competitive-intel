@@ -6,61 +6,230 @@ const MAX_SELECT = 10;
 /* ─────────────────────────── 파이프라인 진행 상태 패널 ── */
 
 /**
- * OfficialSourceResolver + url_retry_node 실행 중 단계별 진행 상황을 표시한다.
+ * 분석 파이프라인 진행 상황 표시.
  *
- * 4개 단계:
- *   url_discovery        → URL 탐색 중     (LLM, candidate별 병렬)
- *   url_validation       → URL 검증 중     (HTTP 병렬)
- *   url_retry_llm        → 실패 URL 재탐색 중 (LLM)
- *   url_retry_validation → 재탐색 URL 검증 중 (HTTP)
+ * 서버 stage 흐름 (각 노드가 progress_store에 명시적 emit):
+ *   url_discovery        → URL 탐색·검증 (official_source_resolver_node 시작)
+ *   url_resolution_done  → URL 탐색·검증 완료
+ *   url_retry_llm        → 실패 URL 재탐색 중 (url_retry_node, 실패 시만)
+ *   url_phase1_llm       → Phase 1 사용자 재시도
+ *   url_retry_done       → URL 재시도 단계 완료 (실패 없으면 pass-through 시에도 emit)
+ *   feature_mapping      → 분석 항목 매핑 중 (feature_url_mapper_node)
+ *   feature_mapping_done → 분석 항목 매핑 완료
+ *
+ * UI는 위 stage 흐름을 3개 단계로 그룹핑해 표시한다.
  */
 
+// 화면에 표시하는 3개 큰 단계
 const PIPELINE_STAGES = [
   {
     id:      'url_discovery',
-    label:   'URL 탐색',
-    desc:    'AI가 각 경쟁사의 공식 URL 후보를 수집합니다.',
-  },
-  {
-    id:      'url_validation',
-    label:   'URL 검증',
-    desc:    '수집된 URL의 실제 접근 가능 여부를 확인합니다.',
+    label:   'URL 탐색·검증',
+    desc:    '각 경쟁사 공식 URL을 수집·검증합니다.',
+    matches: ['url_discovery', 'url_validation'],
   },
   {
     id:      'url_retry_llm',
-    label:   '실패 URL 재탐색',
-    desc:    '검증에 실패한 URL을 AI가 새로 탐색합니다.',
+    label:   '실패 URL 재시도',
+    desc:    '검증 실패 URL을 새로 탐색·재검증합니다. (해당 없으면 자동 통과)',
+    matches: ['url_retry_llm', 'url_retry_validation', 'url_phase1_llm', 'url_phase1_validation'],
   },
   {
-    id:      'url_retry_validation',
-    label:   '재탐색 URL 검증',
-    desc:    '재탐색된 URL의 접근 가능 여부를 다시 확인합니다.',
+    id:      'feature_mapping',
+    label:   '분석 항목 매핑',
+    desc:    'AI가 비교 분석 항목을 도출하고 URL을 매핑합니다.',
+    matches: ['feature_mapping'],
   },
 ];
 
+// stage → 인덱스 매핑 (서버가 보낸 raw stage를 UI 인덱스로 변환)
+const STAGE_INDEX = {
+  'url_discovery':         { idx: 0, state: 'active' },
+  'url_validation':        { idx: 0, state: 'active' },
+  'url_resolution_done':   { idx: 0, state: 'done'   },
+  'url_retry_llm':         { idx: 1, state: 'active' },
+  'url_retry_validation':  { idx: 1, state: 'active' },
+  'url_phase1_llm':        { idx: 1, state: 'active' },
+  'url_phase1_validation': { idx: 1, state: 'active' },
+  'url_retry_done':        { idx: 1, state: 'done'   },
+  'feature_mapping':       { idx: 2, state: 'active' },
+  'feature_mapping_done':  { idx: 2, state: 'done'   },
+};
+
+/**
+ * candidate.stage → 4단계 진행 세그먼트 수 매핑
+ *   pending(0) → brave(1) → llm/fast_path(2~3) → http(3) → done/failed(4)
+ *   fast_path는 LLM 단계를 스킵하므로 빠르게 3까지 진행한 것으로 표시한다.
+ */
+function stageSegments(stage) {
+  return {
+    pending:   0,
+    brave:     1,
+    llm:       2,
+    fast_path: 3,
+    cached:    4,   // 영구 캐시 hit — 모든 단계를 건너뛰고 즉시 확정
+    http:      3,
+    done:      4,
+    failed:    4,
+  }[stage] ?? 0;
+}
+
+/** candidate.stage / status → 한국어 상태 텍스트 */
+function candidateStageText(c) {
+  if (c.status === 'failed') return '실패';
+  if (c.status === 'done') {
+    if (c.validated === false) return '검증 실패';
+    if (c.stage === 'cached')  return '완료 (이전 결과)';
+    return '완료';
+  }
+  return {
+    pending:   '대기',
+    brave:     '검색 중',
+    fast_path: '자동 인정',
+    cached:    '이전 결과 사용',
+    llm:       'AI 검증 중',
+    http:      '도달성 확인 중',
+  }[c.stage] ?? '진행 중';
+}
+
+/**
+ * 각 candidate별 진행 상황 칩 목록 (C-1, C-2).
+ * 4-segment 미니 progress bar + 라벨 + 상태 + 경과 시간 + LLM 결과 URL(optimistic).
+ */
+function CandidateProgressList({ candidates }) {
+  if (!candidates || candidates.length === 0) return null;
+
+  return (
+    <div className="mt-3 pt-3 border-t border-indigo-200">
+      <p className="text-[11px] uppercase tracking-wide text-indigo-400 mb-2">
+        항목별 진행 상황
+      </p>
+      <ul className="space-y-1.5">
+        {candidates.map(c => {
+          const filled = stageSegments(c.stage);
+          const isDone   = c.status === 'done';
+          const isFailed = c.status === 'failed';
+          const isRunning = !isDone && !isFailed;
+
+          const barColor =
+            isFailed ? 'bg-red-400'
+            : isDone ? (c.validated === false ? 'bg-yellow-400' : 'bg-green-500')
+            : 'bg-indigo-500';
+
+          const textColor =
+            isFailed ? 'text-red-600'
+            : isDone ? (c.validated === false ? 'text-yellow-700' : 'text-green-700')
+            : 'text-indigo-600';
+
+          return (
+            <li key={c.candidate_id} className="flex items-center gap-2 text-xs">
+              {/* 4-segment 미니 progress bar */}
+              <div className="flex gap-0.5 shrink-0" aria-hidden="true">
+                {[0, 1, 2, 3].map(i => (
+                  <span
+                    key={i}
+                    className={[
+                      'w-2 h-3 rounded-[2px]',
+                      i < filled ? barColor : 'bg-gray-200',
+                    ].join(' ')}
+                  />
+                ))}
+              </div>
+
+              {/* candidate 라벨 + (선택적) optimistic URL */}
+              <div className="flex-1 min-w-0">
+                <span className="text-gray-800 truncate flex items-center gap-1">
+                  {c.stage === 'cached' && (
+                    <span
+                      className="text-[9px] font-semibold px-1 py-0.5 bg-purple-100 text-purple-700 rounded shrink-0"
+                      title="이전 분석에서 검증된 URL을 그대로 사용"
+                    >
+                      캐시
+                    </span>
+                  )}
+                  <span className="truncate">{c.label || c.candidate_id}</span>
+                </span>
+                {c.primary_url && (
+                  <span
+                    className="text-[10px] text-gray-400 truncate block"
+                    title={c.primary_url}
+                  >
+                    {c.primary_url}
+                  </span>
+                )}
+              </div>
+
+              {/* 상태 텍스트 + 경과 시간 */}
+              <span className={`shrink-0 text-xs ${textColor} flex items-center gap-1`}>
+                {isRunning && (
+                  <span className="block w-3 h-3 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin" />
+                )}
+                {candidateStageText(c)}
+                {isDone && c.elapsed_ms != null && (
+                  <span className="ml-1 text-gray-400">
+                    ({(c.elapsed_ms / 1000).toFixed(1)}s)
+                  </span>
+                )}
+              </span>
+            </li>
+          );
+        })}
+      </ul>
+    </div>
+  );
+}
+
 function PipelineProgressPanel({ progress, failedCount }) {
-  const currentIdx = PIPELINE_STAGES.findIndex(s => s.id === progress?.stage) ?? 0;
-  const safeIdx    = currentIdx < 0 ? 0 : currentIdx;
+  const candidates = progress?.candidates ?? [];
+  const doneCount  = candidates.filter(c => c.status === 'done' || c.status === 'failed').length;
+
+  // ── 서버가 명시적으로 emit한 stage를 그대로 사용 ──────────────────────────
+  // 각 노드가 진입·종료 시점에 set_progress(stage)를 호출하므로 UI는 추론하지 않는다.
+  const rawStage   = progress?.stage;
+  const stageInfo  = STAGE_INDEX[rawStage] ?? { idx: 0, state: 'active' };
+  const activeIdx  = stageInfo.idx;
+  const stageState = stageInfo.state;   // 'active' | 'done'
+
+  // 마지막 단계까지 done이면 전체 파이프라인 단계 완료 (후속은 interrupt로 진입)
+  const lastStageDone =
+    stageState === 'done' && activeIdx === PIPELINE_STAGES.length - 1;
+
+  // 헤더 표시 결정
+  const headerSpinning = !lastStageDone;
+  const headerMessage  = progress?.message ?? '분석 진행 중…';
 
   return (
     <div className="mb-4 p-4 bg-indigo-50 border border-indigo-200 rounded-xl">
       {/* 헤더 */}
       <div className="flex items-center gap-2 mb-3">
-        <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
-        <span className="text-sm font-semibold text-indigo-800">
-          {progress?.message ?? 'URL 탐색 중…'}
-        </span>
-        {progress?.detail && (
-          <span className="ml-auto text-xs text-indigo-500 shrink-0">{progress.detail}</span>
+        {headerSpinning ? (
+          <div className="w-4 h-4 border-2 border-indigo-500 border-t-transparent rounded-full animate-spin shrink-0" />
+        ) : (
+          <svg className="w-4 h-4 text-green-500 shrink-0" fill="none" viewBox="0 0 24 24" stroke="currentColor" strokeWidth={2.5}>
+            <path strokeLinecap="round" strokeLinejoin="round" d="M5 13l4 4L19 7" />
+          </svg>
         )}
+        <span className={`text-sm font-semibold ${lastStageDone ? 'text-green-800' : 'text-indigo-800'}`}>
+          {headerMessage}
+        </span>
+        {candidates.length > 0 && activeIdx === 0 ? (
+          <span className="ml-auto text-xs text-indigo-500 shrink-0">
+            {doneCount} / {candidates.length} 완료
+          </span>
+        ) : progress?.detail ? (
+          <span className="ml-auto text-xs text-indigo-500 shrink-0">{progress.detail}</span>
+        ) : null}
       </div>
 
       {/* 단계 목록 */}
       <ol className="space-y-1.5">
         {PIPELINE_STAGES.map((s, idx) => {
-          const isDone    = idx < safeIdx;
-          const isActive  = idx === safeIdx;
-          const isPending = idx > safeIdx;
+          // done 판단:
+          //   - 현재 활성 단계보다 인덱스가 작으면 무조건 done
+          //   - 현재 활성 단계가 done 상태이면 그 단계도 done
+          const isDone    = idx < activeIdx || (idx === activeIdx && stageState === 'done');
+          const isActive  = idx === activeIdx && stageState === 'active';
+          const isPending = !isDone && !isActive;
 
           return (
             <li key={s.id} className="flex items-start gap-2.5">
@@ -101,6 +270,9 @@ function PipelineProgressPanel({ progress, failedCount }) {
           );
         })}
       </ol>
+
+      {/* C-1·C-2: candidate별 진행 칩 */}
+      <CandidateProgressList candidates={candidates} />
     </div>
   );
 }

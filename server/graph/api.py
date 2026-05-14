@@ -83,12 +83,23 @@ class InvokeResponse(BaseModel):
 # ── 엔드포인트 ─────────────────────────────────────────────────────────────────
 
 @app.post("/invoke", response_model=InvokeResponse)
-async def invoke_graph(req: InvokeRequest) -> InvokeResponse:
+def invoke_graph(req: InvokeRequest) -> InvokeResponse:
     """
     그래프를 시작하거나 interrupt 이후 재개한다.
 
     신규 시작: raw_query 필수, resume은 null.
     재개:      resume 필수, raw_query는 무시.
+
+    ⚠️ 동기 def로 선언한 이유 (중요)
+    --------------------------------
+    compiled_graph.invoke()는 LangGraph의 동기 블로킹 호출이며, 한 번 실행되면
+    interrupt 또는 END에 도달할 때까지(수십 초~수 분) 반환되지 않는다.
+    이 함수를 async def로 선언하면 FastAPI 이벤트 루프가 그 시간 동안 통째로
+    정지하여 /progress/{thread_id} 폴링까지 응답 불능 상태가 된다.
+
+    sync def로 선언하면 FastAPI가 자동으로 별도 threadpool worker에서 실행해
+    이벤트 루프를 해방하며, /progress 폴링이 1.5초 주기로 정상 응답할 수 있다.
+    이는 C-1 per-candidate 진행 이벤트가 실시간으로 UI에 흘러가는 전제 조건이다.
     """
     config = {"configurable": {"thread_id": req.thread_id}}
 
@@ -157,18 +168,33 @@ async def get_pipeline_progress(thread_id: str) -> dict:
 
     응답 예시
     ----------
-    진행 중:
+    진행 중 (C-1 candidate별 이벤트 포함):
         {
           "thread_id": "abc",
           "progress": {
-            "stage":      "url_validation",
-            "message":    "URL 검증 중",
-            "detail":     "9개 URL 병렬 검증",
-            "current":    0,
-            "total":      9,
-            "updated_at": "2026-05-01T12:34:56Z"
+            "stage":      "url_discovery",
+            "message":    "URL 탐색 중",
+            "detail":     "5개 항목 LLM 검증 중",
+            "current":    3,
+            "total":      5,
+            "updated_at": "2026-05-13T12:34:56Z",
+            "candidates": [
+              {
+                "candidate_id": "own_tossbnk",
+                "label":        "토스뱅크 토스뱅크 카드",
+                "stage":        "done",     // pending|brave|fast_path|llm|http|done|failed
+                "status":       "done",     // pending|in_progress|done|failed
+                "primary_url":  "https://tossbank.com/...",
+                "validated":    true,
+                "elapsed_ms":   3210,
+                "updated_at":   "2026-05-13T12:34:55Z"
+              }
+            ]
           }
         }
+
+    프런트엔드는 candidates 배열을 사용해 candidate별 진행 칩(■■■□□)을 그려
+    사용자에게 단위 완료 피드백을 제공한다(C-1·C-2).
 
     완료 또는 interrupt 이후:
         { "thread_id": "abc", "progress": null }

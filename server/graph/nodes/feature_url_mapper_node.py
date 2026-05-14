@@ -61,6 +61,7 @@ from server.graph.agent_cache import (
     make_cache_context,
     store_agent_output,
 )
+from server.graph.progress_store import set_progress
 from server.graph.state import AnalysisFeature, DomainAnalysisState, AgentStep
 from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
 
@@ -78,8 +79,16 @@ _META_BODY_LIMIT = 8_000  # HTML 본문 파싱 최대 바이트 (메모리 절�
 
 # ─────────────────────────────────────────────────── 공개 노드 함수 ──────────
 
-def feature_url_mapper_node(state: DomainAnalysisState) -> dict:
+def feature_url_mapper_node(state: DomainAnalysisState, config: dict | None = None) -> dict:
     started_at = datetime.now(timezone.utc).isoformat()
+    thread_id  = (config or {}).get("configurable", {}).get("thread_id", "")
+
+    # ── 진입 시 progress 마킹 ────────────────────────────────────────────────
+    if thread_id:
+        try:
+            set_progress(thread_id, "feature_mapping", detail="분석 항목 매핑 준비")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(feature_mapping, entry) 실패 — 무시: %s", exc)
 
     # ── 에이전트 파일 로드 ───────────────────────────────────────────────────
     agent_dir     = AGENTS_DIR / "feature_url_mapper"
@@ -116,6 +125,11 @@ def feature_url_mapper_node(state: DomainAnalysisState) -> dict:
 
     # ── Step 1: 검증된 URL별 page meta 수집 ──────────────────────────────────
     logger.info("feature_url_mapper_node: Step 1 — page meta 수집 시작")
+    if thread_id:
+        try:
+            set_progress(thread_id, "feature_mapping", detail="페이지 메타 수집 중")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(feature_mapping, step1) 실패 — 무시: %s", exc)
     meta_by_url: dict[str, dict] = _collect_page_meta(official_sources)
     logger.info("feature_url_mapper_node: Step 1 완료 (%d개 URL 처리)", len(meta_by_url))
 
@@ -159,6 +173,15 @@ def feature_url_mapper_node(state: DomainAnalysisState) -> dict:
 
     if llm_output is None:
         # ── purpose별 병렬 LLM 호출 ──────────────────────────────────────────
+        if thread_id:
+            try:
+                set_progress(
+                    thread_id, "feature_mapping",
+                    detail=f"AI 매핑 ({len(active_purposes)}개 목적 분석)",
+                    total=len(active_purposes),
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("set_progress(feature_mapping, step2) 실패 — 무시: %s", exc)
         # 설계 배경:
         #   단일 호출 방식은 8 purposes × 7 features × N candidates = 156+ coverage
         #   항목을 한 번에 생성하므로 300초도 초과할 수 있다.
@@ -225,8 +248,15 @@ def feature_url_mapper_node(state: DomainAnalysisState) -> dict:
                     )
                     errors.append(f"{purpose_id}: {str(exc)[:120]}")
 
-        if errors:
-            return _error(started_at, f"일부 purpose LLM 호출 실패:\n" + "\n".join(errors))
+        if errors and not results_by_purpose:
+            # 모든 purpose 실패 시에만 전체 오류 반환
+            return _error(started_at, "모든 purpose LLM 호출 실패:\n" + "\n".join(errors))
+        elif errors:
+            # 일부 실패 — 성공한 purpose 결과로 계속 진행 (부분 분석)
+            logger.warning(
+                "feature_url_mapper_node: %d개 purpose 실패, %d개 성공 결과로 계속 진행\n%s",
+                len(errors), len(results_by_purpose), "\n".join(errors),
+            )
 
         # active_purposes 순서 보장 (as_completed는 완료 순 반환)
         all_features = []
@@ -249,10 +279,27 @@ def feature_url_mapper_node(state: DomainAnalysisState) -> dict:
 
     # ── Step 3: additional_urls 병렬 HTTP 검증 ───────────────────────────────
     logger.info("feature_url_mapper_node: Step 3 — additional_urls 검증 시작")
+    if thread_id:
+        try:
+            set_progress(thread_id, "feature_mapping", detail="추가 URL 도달성 검증")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(feature_mapping, step3) 실패 — 무시: %s", exc)
     analysis_features = _validate_additional_urls(raw_features)
     logger.info("feature_url_mapper_node: Step 3 완료")
 
     finished_at = datetime.now(timezone.utc).isoformat()
+
+    # ── 종료 시 명시적 stage 전환 ─────────────────────────────────────────────
+    if thread_id:
+        try:
+            set_progress(
+                thread_id, "feature_mapping_done",
+                detail=f"{len(analysis_features)}개 분석 항목 매핑 완료",
+                current=len(analysis_features),
+                total=len(analysis_features),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(feature_mapping_done) 실패 — 무시: %s", exc)
 
     step: AgentStep = {
         "step_name":   "FeatureUrlMapper",

@@ -6,14 +6,30 @@ LangGraph 파이프라인 노드의 실시간 진행 상태를 thread_id 별로 
 FastAPI /progress/{thread_id} 엔드포인트가 이 저장소를 읽어 프런트엔드에 반환하고,
 프런트엔드는 1~2초 간격으로 폴링해 현재 단계를 UI에 표시한다.
 
-단계(stage) 목록
-----------------
-  url_discovery        LLM이 candidate별 URL 후보를 탐색하는 단계
-  url_validation       ThreadPoolExecutor로 URL을 병렬 HTTP 검증하는 단계
-  url_retry_llm        url_retry_node의 자동 LLM 재탐색 단계 (interrupt 전)
-  url_retry_validation 자동 재탐색 후 URL을 병렬 HTTP 검증하는 단계
-  url_phase1_llm       Phase 1 사용자 재시도 — LLM/검색 재탐색 단계
-  url_phase1_validation Phase 1 사용자 재시도 — URL 병렬 검증 단계
+저장 구조 (per thread_id)
+-------------------------
+{
+  "stage":      str,            # 단계 식별자 (STAGE_MESSAGES 키)
+  "message":    str,            # 한국어 표시 메시지
+  "detail":     str,            # 보조 텍스트
+  "current":    int,            # 처리 완료 항목 수
+  "total":      int,            # 전체 항목 수
+  "updated_at": str,            # ISO 8601
+  "candidates": list[dict],     # ← C-1: candidate별 진행 이벤트 누적 목록
+}
+
+candidates 항목 구조
+--------------------
+{
+  "candidate_id": str,
+  "label":        str,          # UI 표시명 (brand + product_name 등)
+  "stage":        str,          # "brave" | "fast_path" | "llm" | "http" | "done" | "failed"
+  "status":       str,          # "pending" | "in_progress" | "done" | "failed"
+  "primary_url":  str | None,   # optimistic UI용: LLM 결과 도착 시점 임시 노출
+  "validated":    bool | None,  # HTTP 검증 완료 후에만 채워짐
+  "elapsed_ms":   int | None,   # candidate 처리 wall-clock
+  "updated_at":   str,
+}
 
 설계 원칙
 ---------
@@ -30,12 +46,28 @@ _store: dict[str, dict] = {}
 
 # stage → 한국어 표시 메시지 매핑
 STAGE_MESSAGES: dict[str, str] = {
-    "url_discovery":        "URL 탐색 중",
-    "url_validation":       "URL 검증 중",
-    "url_retry_llm":        "실패 URL 재탐색 중",
-    "url_retry_validation": "재탐색 URL 검증 중",
-    "url_phase1_llm":       "URL 재탐색 중",
+    "url_discovery":         "URL 탐색 중",
+    "url_validation":        "URL 검증 중",
+    "url_resolution_done":   "URL 탐색·검증 완료",
+    "url_retry_llm":         "실패 URL 재탐색 중",
+    "url_retry_validation":  "재탐색 URL 검증 중",
+    "url_phase1_llm":        "URL 재탐색 중",
     "url_phase1_validation": "URL 재검증 중",
+    "url_retry_done":        "URL 재시도 단계 완료",
+    "feature_mapping":       "분석 항목 매핑 중",
+    "feature_mapping_done":  "분석 항목 매핑 완료",
+}
+
+# candidate.stage → UI 라벨 (C-1)
+CANDIDATE_STAGE_LABELS: dict[str, str] = {
+    "pending":   "대기 중",
+    "brave":     "검색 중",
+    "fast_path": "즉시 인정",
+    "cached":    "이전 검증 결과 사용",
+    "llm":       "검증 중",
+    "http":      "도달성 확인 중",
+    "done":      "완료",
+    "failed":    "실패",
 }
 
 
@@ -47,7 +79,7 @@ def set_progress(
     total: int = 0,
 ) -> None:
     """
-    지정된 thread의 진행 상태를 갱신한다.
+    지정된 thread의 단계 진행 상태를 갱신한다.
 
     Parameters
     ----------
@@ -56,16 +88,121 @@ def set_progress(
     detail    : str   UI에 보조 텍스트로 표시할 추가 정보
     current   : int   현재 처리 완료된 항목 수 (0이면 미사용)
     total     : int   전체 항목 수 (0이면 미사용)
+
+    참고: candidates 목록은 보존되며, stage 전환 시에도 누적된 항목이 유지된다.
     """
     with _lock:
+        prev = _store.get(thread_id) or {}
+        prev_cands: list[dict] = prev.get("candidates", [])
+
+        # current/total이 0(미지정)이면 누적된 candidate 정보로 자동 보정한다.
+        # → update_candidate로 누적된 진행 카운트가 set_progress 호출로 사라지지 않도록.
+        derived_current = sum(
+            1 for c in prev_cands if c.get("status") in ("done", "failed")
+        )
+        derived_total = len(prev_cands)
+
         _store[thread_id] = {
             "stage":      stage,
             "message":    STAGE_MESSAGES.get(stage, stage),
             "detail":     detail,
-            "current":    current,
-            "total":      total,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
+            "current":    current if current > 0 else derived_current,
+            "total":      total   if total   > 0 else derived_total,
+            "updated_at": _now_iso(),
+            "candidates": prev_cands,
         }
+
+
+def init_candidates(thread_id: str, candidates: list[dict]) -> None:
+    """
+    candidate별 진행 상태 슬롯을 초기화한다(C-1).
+
+    candidates 인자는 [{"candidate_id": str, "label": str}, ...] 형태.
+    """
+    now = _now_iso()
+    init_entries = [
+        {
+            "candidate_id": c["candidate_id"],
+            "label":        c.get("label", c["candidate_id"]),
+            "stage":        "pending",
+            "status":       "pending",
+            "primary_url":  None,
+            "validated":    None,
+            "elapsed_ms":   None,
+            "updated_at":   now,
+        }
+        for c in candidates
+    ]
+    with _lock:
+        entry = _store.setdefault(thread_id, {
+            "stage":      "url_discovery",
+            "message":    STAGE_MESSAGES["url_discovery"],
+            "detail":     "",
+            "current":    0,
+            "total":      len(init_entries),
+            "updated_at": now,
+            "candidates": [],
+        })
+        entry["candidates"] = init_entries
+        entry["total"]      = len(init_entries)
+        entry["updated_at"] = now
+
+
+def update_candidate(
+    thread_id: str,
+    candidate_id: str,
+    *,
+    stage: str | None = None,
+    status: str | None = None,
+    primary_url: str | None = None,
+    validated: bool | None = None,
+    elapsed_ms: int | None = None,
+) -> None:
+    """
+    특정 candidate의 진행 이벤트를 갱신한다(C-1).
+
+    None으로 전달된 필드는 기존 값을 유지한다.
+    candidate가 init_candidates에서 사전 등록되지 않은 경우 자동으로 추가한다.
+    """
+    now = _now_iso()
+    with _lock:
+        entry = _store.setdefault(thread_id, {
+            "stage":      "url_discovery",
+            "message":    STAGE_MESSAGES["url_discovery"],
+            "detail":     "",
+            "current":    0,
+            "total":      0,
+            "updated_at": now,
+            "candidates": [],
+        })
+        cands: list[dict] = entry.setdefault("candidates", [])
+
+        for c in cands:
+            if c["candidate_id"] == candidate_id:
+                if stage       is not None: c["stage"]       = stage
+                if status      is not None: c["status"]      = status
+                if primary_url is not None: c["primary_url"] = primary_url
+                if validated   is not None: c["validated"]   = validated
+                if elapsed_ms  is not None: c["elapsed_ms"]  = elapsed_ms
+                c["updated_at"] = now
+                break
+        else:
+            cands.append({
+                "candidate_id": candidate_id,
+                "label":        candidate_id,
+                "stage":        stage or "pending",
+                "status":       status or "pending",
+                "primary_url":  primary_url,
+                "validated":    validated,
+                "elapsed_ms":   elapsed_ms,
+                "updated_at":   now,
+            })
+
+        # current = 완료(done/failed) candidate 수
+        entry["current"]    = sum(
+            1 for c in cands if c.get("status") in ("done", "failed")
+        )
+        entry["updated_at"] = now
 
 
 def get_progress(thread_id: str) -> dict | None:
@@ -78,3 +215,7 @@ def clear_progress(thread_id: str) -> None:
     """invoke 완료(또는 interrupt) 후 저장소에서 해당 thread 항목을 제거한다."""
     with _lock:
         _store.pop(thread_id, None)
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
