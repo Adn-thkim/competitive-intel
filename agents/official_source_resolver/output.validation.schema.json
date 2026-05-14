@@ -1,0 +1,50 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/official-source-validator/output.validation.schema.json",
+  "title": "OfficialSourceValidatorOutput",
+  "description": "Brave 검색 후보 URL에 대한 LLM 검증 결과. selected_url=null이면 공식 URL을 특정할 수 없음.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["validations"],
+  "properties": {
+    "validations": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "candidate_id",
+          "selected_url",
+          "is_official",
+          "confidence",
+          "validation_reason"
+        ],
+        "properties": {
+          "candidate_id": {
+            "type": "string",
+            "description": "처리 항목의 candidate_id. 입력값과 동일."
+          },
+          "selected_url": {
+            "type": ["string", "null"],
+            "description": "공식 URL로 판단된 URL. 적합한 후보 없으면 null."
+          },
+          "is_official": {
+            "type": "boolean",
+            "description": "selected_url이 실제 공식 페이지인지 여부. null이면 false."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0.0,
+            "maximum": 1.0,
+            "description": "판단의 신뢰도 (0.0~1.0). selected_url=null이면 0.0."
+          },
+          "validation_reason": {
+            "type": "string",
+            "description": "판단 근거. 30자 이내 한국어."
+          }
+        }
+      }
+    }
+  }
+}

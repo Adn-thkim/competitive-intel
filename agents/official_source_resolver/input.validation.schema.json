@@ -1,0 +1,35 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/official-source-validator/input.validation.schema.json",
+  "title": "OfficialSourceValidatorInput",
+  "description": "_validate_with_llm()이 LLM에 전달하는 입력 구조 문서. 실제 파일 로딩은 output.validation.schema.json만 사용하며 이 파일은 참조 문서 역할.",
+  "type": "object",
+  "required": ["candidate_id", "type", "candidates"],
+  "properties": {
+    "candidate_id": { "type": "string" },
+    "type": {
+      "type": "string",
+      "enum": ["official", "reference"]
+    },
+    "brand":         { "type": "string", "description": "official 유형 전용" },
+    "product_name":  { "type": "string", "description": "official 유형 전용" },
+    "method_name":   { "type": "string", "description": "reference 유형 전용" },
+    "provider_type": { "type": "string", "description": "reference 유형 전용" },
+    "candidates": {
+      "type": "array",
+      "description": "_discover_with_brave() 반환값",
+      "items": {
+        "type": "object",
+        "required": ["url", "rank"],
+        "properties": {
+          "url":              { "type": "string" },
+          "title":            { "type": "string" },
+          "meta_description": { "type": "string" },
+          "text_snippet":     { "type": "string" },
+          "canonical_url":    { "type": ["string", "null"] },
+          "rank":             { "type": "integer", "minimum": 0 }
+        }
+      }
+    }
+  }
+}
