@@ -16,7 +16,7 @@
 ## [Unreleased]
 
 ### Added
-- (해당 사항 없음)
+- - **(docs)** known_domains.json 역할 정의 및 준자동 학습 파이프라인 결정 기록 문서 추가 — `docs/design/known_domains_role_and_promotion_pipeline.md` (commit hash: `14566ea`)
 
 ### Changed
 - (해당 사항 없음)
