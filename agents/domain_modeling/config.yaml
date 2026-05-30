@@ -3,8 +3,9 @@ agent_name: DomainTaxonomyAgent
 version: "1.0.0"
 description: >
   자사 상품·경쟁 구조 컨텍스트를 기반으로 도메인 taxonomy를 LLM이 추론·생성한다.
-  생성된 taxonomy는 feature_url_mapper_node가 URL 수집 전략을 결정하는 데 사용된다.
-  캐시된 taxonomy가 있으면 add-only enrichment 모드로 동작한다.
+  v0.10 채택으로 `report_config` 7종 enum 단위 단일 호출 모드.
+  생성된 taxonomy는 feature_url_mapper_node가 Brave 검색 + LLM relevance로
+  URL을 수집하는 데 사용된다(search_query_hints 활용).
 
 # 실행 백엔드
 backend: claude_cli          # ClaudeCodeCliAnalyzer 사용
@@ -16,10 +17,6 @@ output_format: json          # call_with_schema() 사용
 taxonomy_cache_dir: data/taxonomy
 
 # taxonomy 유효 기간
-# 동일 domain_slug에 대해 이 시간이 지나면 enrichment 재실행
+# 동일 domain_slug에 대해 이 시간이 지나면 강제 갱신
+# v0.9 D2 재해석: 단일 호출 모드 — 1차/2차 분리 폐기로 enrichment 별도 트리거 불필요
 taxonomy_ttl_hours: 168      # 7일
-
-# enrichment 트리거 조건
-# competition_axes 중 기존 taxonomy의 active_purposes에 대응되지 않는 항목이
-# 이 비율 이상이면 enrichment를 실행한다
-enrichment_trigger_threshold: 0.3
