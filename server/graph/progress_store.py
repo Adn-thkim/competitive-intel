@@ -9,14 +9,24 @@ FastAPI /progress/{thread_id} 엔드포인트가 이 저장소를 읽어 프런�
 저장 구조 (per thread_id)
 -------------------------
 {
-  "stage":      str,            # 단계 식별자 (STAGE_MESSAGES 키)
+  "stage":      str,            # 단계 식별자 (STAGE_MESSAGES 키) — 분기 A의 단일 트랙
   "message":    str,            # 한국어 표시 메시지
   "detail":     str,            # 보조 텍스트
   "current":    int,            # 처리 완료 항목 수
   "total":      int,            # 전체 항목 수
   "updated_at": str,            # ISO 8601
   "candidates": list[dict],     # ← C-1: candidate별 진행 이벤트 누적 목록
+  "branches":   dict[str, str], # ← v0.10.4 분기 B 트래킹 — {"domain_modeling": "pending|running|done|failed", ...}
 }
+
+branches (v0.10.4 신설)
+-----------------------
+v0.9 토폴로지에서 `competitor_discovery → {normalize_competitor_ids, domain_modeling}` fan-out
+이후 두 분기가 동시에 흐르므로, stage 단일 값으로는 분기 B(domain_modeling)의 상태를
+표현할 수 없다. `branches` dict로 분기별 독립 상태를 추적한다.
+
+  키: 분기 식별자 ("domain_modeling")
+  값: "pending" | "running" | "done" | "failed"
 
 candidates 항목 구조
 --------------------
@@ -46,16 +56,22 @@ _store: dict[str, dict] = {}
 
 # stage → 한국어 표시 메시지 매핑
 STAGE_MESSAGES: dict[str, str] = {
-    "url_discovery":         "URL 탐색 중",
-    "url_validation":        "URL 검증 중",
-    "url_resolution_done":   "URL 탐색·검증 완료",
-    "url_retry_llm":         "실패 URL 재탐색 중",
-    "url_retry_validation":  "재탐색 URL 검증 중",
-    "url_phase1_llm":        "URL 재탐색 중",
-    "url_phase1_validation": "URL 재검증 중",
-    "url_retry_done":        "URL 재시도 단계 완료",
-    "feature_mapping":       "분석 항목 매핑 중",
-    "feature_mapping_done":  "분석 항목 매핑 완료",
+    "url_discovery":           "URL 탐색 중",
+    "url_validation":          "URL 검증 중",
+    "url_resolution_done":     "URL 탐색·검증 완료",
+    "url_retry_llm":           "실패 URL 재탐색 중",
+    "url_retry_validation":    "재탐색 URL 검증 중",
+    "url_phase1_llm":          "URL 재탐색 중",
+    "url_phase1_validation":   "URL 재검증 중",
+    "url_retry_done":          "URL 재시도 단계 완료",
+    # v0.10.9 — feature_url_mapper 4단계 노드 분리에 따른 stage 세분화
+    "feature_mapping_brave":   "Brave URL 검색 중",
+    "feature_mapping_meta":    "페이지 메타 수집 중",
+    "feature_mapping_llm":     "AI 분석 항목 매핑 중",
+    "feature_mapping_validate": "추가 URL 검증 중",
+    # 기존 호환 — 단일 feature_mapping 단계 (UI STAGE_INDEX 매핑용)
+    "feature_mapping":         "분석 항목 매핑 중",
+    "feature_mapping_done":    "분석 항목 매핑 완료",
 }
 
 # candidate.stage → UI 라벨 (C-1)
@@ -89,11 +105,12 @@ def set_progress(
     current   : int   현재 처리 완료된 항목 수 (0이면 미사용)
     total     : int   전체 항목 수 (0이면 미사용)
 
-    참고: candidates 목록은 보존되며, stage 전환 시에도 누적된 항목이 유지된다.
+    참고: candidates 목록 + branches dict는 보존되며, stage 전환 시에도 누적된 정보가 유지된다.
     """
     with _lock:
         prev = _store.get(thread_id) or {}
         prev_cands: list[dict] = prev.get("candidates", [])
+        prev_branches: dict[str, str] = prev.get("branches", {})
 
         # current/total이 0(미지정)이면 누적된 candidate 정보로 자동 보정한다.
         # → update_candidate로 누적된 진행 카운트가 set_progress 호출로 사라지지 않도록.
@@ -110,7 +127,38 @@ def set_progress(
             "total":      total   if total   > 0 else derived_total,
             "updated_at": _now_iso(),
             "candidates": prev_cands,
+            "branches":   prev_branches,
         }
+
+
+def set_branch_status(thread_id: str, branch: str, status: str) -> None:
+    """
+    v0.9 토폴로지의 병렬 분기 상태를 추적한다 (v0.10.4 신설).
+
+    stage 트랙(분기 A)과 별개로 분기 B의 노드 진행을 표현하기 위해 사용한다.
+    예: domain_modeling 노드가 진입 시 "running", 완료 시 "done"을 emit.
+
+    Parameters
+    ----------
+    thread_id : str   LangGraph thread_id
+    branch    : str   분기 식별자 (예: "domain_modeling")
+    status    : str   "pending" | "running" | "done" | "failed"
+    """
+    now = _now_iso()
+    with _lock:
+        entry = _store.setdefault(thread_id, {
+            "stage":      "url_discovery",
+            "message":    STAGE_MESSAGES["url_discovery"],
+            "detail":     "",
+            "current":    0,
+            "total":      0,
+            "updated_at": now,
+            "candidates": [],
+            "branches":   {},
+        })
+        branches = entry.setdefault("branches", {})
+        branches[branch] = status
+        entry["updated_at"] = now
 
 
 def init_candidates(thread_id: str, candidates: list[dict]) -> None:
@@ -142,10 +190,12 @@ def init_candidates(thread_id: str, candidates: list[dict]) -> None:
             "total":      len(init_entries),
             "updated_at": now,
             "candidates": [],
+            "branches":   {},
         })
         entry["candidates"] = init_entries
         entry["total"]      = len(init_entries)
         entry["updated_at"] = now
+        entry.setdefault("branches", {})
 
 
 def update_candidate(
@@ -174,8 +224,10 @@ def update_candidate(
             "total":      0,
             "updated_at": now,
             "candidates": [],
+            "branches":   {},
         })
         cands: list[dict] = entry.setdefault("candidates", [])
+        entry.setdefault("branches", {})
 
         for c in cands:
             if c["candidate_id"] == candidate_id:

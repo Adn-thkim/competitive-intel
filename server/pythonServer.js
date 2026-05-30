@@ -59,8 +59,11 @@ const PYTHON_BIN  =
     ? VENV_PYTHON
     : (process.env.PYTHON_BIN || 'python3');
 
-/** 기동 완료 감지 타임아웃 (ms) */
-const STARTUP_TIMEOUT_MS = 30_000;
+/** 기동 완료 감지 타임아웃 (ms). 환경변수 PYTHON_STARTUP_TIMEOUT_MS로 override 가능. */
+const STARTUP_TIMEOUT_MS = parseInt(
+  process.env.PYTHON_STARTUP_TIMEOUT_MS || '60000',
+  10
+);
 
 /** /health 폴링 간격 (ms) */
 const HEALTH_POLL_INTERVAL_MS = 500;

@@ -6,9 +6,9 @@ const MAX_SELECT = 10;
 /* ─────────────────────────── 파이프라인 진행 상태 패널 ── */
 
 /**
- * 분석 파이프라인 진행 상황 표시.
+ * 분석 파이프라인 진행 상황 표시 (v0.10.4 — 4단계 + 분기 B 트래킹).
  *
- * 서버 stage 흐름 (각 노드가 progress_store에 명시적 emit):
+ * 서버 stage 흐름 (분기 A 단일 트랙 — progress_store.stage):
  *   url_discovery        → URL 탐색·검증 (official_source_resolver_node 시작)
  *   url_resolution_done  → URL 탐색·검증 완료
  *   url_retry_llm        → 실패 URL 재탐색 중 (url_retry_node, 실패 시만)
@@ -17,10 +17,20 @@ const MAX_SELECT = 10;
  *   feature_mapping      → 분석 항목 매핑 중 (feature_url_mapper_node)
  *   feature_mapping_done → 분석 항목 매핑 완료
  *
- * UI는 위 stage 흐름을 3개 단계로 그룹핑해 표시한다.
+ * 분기 B 트래킹 (v0.10.4 — progress_store.branches):
+ *   branches.domain_modeling: "pending" | "running" | "done" | "failed"
+ *     domain_modeling_node가 진입/완료 시 set_branch_status로 emit.
+ *     v0.9 CD-fanout 토폴로지에서 competitor_discovery 직후 분기 B로 병렬 실행되며,
+ *     feature_url_mapper에서 fan-in 된다.
+ *
+ * UI는 위 흐름을 4개 단계로 그룹핑해 표시한다.
+ *   - 0: URL 탐색·검증
+ *   - 1: 실패 URL 재시도
+ *   - 2: 도메인 분석 (분기 B — branches.domain_modeling 기반 판정)
+ *   - 3: 분석 항목 매핑
  */
 
-// 화면에 표시하는 3개 큰 단계
+// 화면에 표시하는 4개 큰 단계 (v0.10.4)
 const PIPELINE_STAGES = [
   {
     id:      'url_discovery',
@@ -35,6 +45,14 @@ const PIPELINE_STAGES = [
     matches: ['url_retry_llm', 'url_retry_validation', 'url_phase1_llm', 'url_phase1_validation'],
   },
   {
+    // v0.10.4 신설 — 분기 B(domain_modeling) 상태 표시 단계.
+    // stage 트랙과 무관하게 progress.branches.domain_modeling 값으로 active/done 판정.
+    id:      'domain_modeling',
+    label:   '도메인 분석',
+    desc:    '리포트별 비교 feature와 검색 쿼리를 도출합니다. (URL 검증과 병렬 진행)',
+    branch:  'domain_modeling',                    // ← branches dict 키
+  },
+  {
     id:      'feature_mapping',
     label:   '분석 항목 매핑',
     desc:    'AI가 비교 분석 항목을 도출하고 URL을 매핑합니다.',
@@ -43,17 +61,26 @@ const PIPELINE_STAGES = [
 ];
 
 // stage → 인덱스 매핑 (서버가 보낸 raw stage를 UI 인덱스로 변환)
+// v0.10.4: feature_mapping은 idx=3으로 이동 (domain_modeling이 idx=2 차지)
+// v0.10.9: feature_url_mapper 4개 노드 분리 — 4개 sub-stage가 모두 idx=3 active 로 매핑됨.
+//          message/detail 텍스트는 progress_store STAGE_MESSAGES에서 결정되어 UI에 자동 노출.
 const STAGE_INDEX = {
-  'url_discovery':         { idx: 0, state: 'active' },
-  'url_validation':        { idx: 0, state: 'active' },
-  'url_resolution_done':   { idx: 0, state: 'done'   },
-  'url_retry_llm':         { idx: 1, state: 'active' },
-  'url_retry_validation':  { idx: 1, state: 'active' },
-  'url_phase1_llm':        { idx: 1, state: 'active' },
-  'url_phase1_validation': { idx: 1, state: 'active' },
-  'url_retry_done':        { idx: 1, state: 'done'   },
-  'feature_mapping':       { idx: 2, state: 'active' },
-  'feature_mapping_done':  { idx: 2, state: 'done'   },
+  'url_discovery':            { idx: 0, state: 'active' },
+  'url_validation':           { idx: 0, state: 'active' },
+  'url_resolution_done':      { idx: 0, state: 'done'   },
+  'url_retry_llm':            { idx: 1, state: 'active' },
+  'url_retry_validation':     { idx: 1, state: 'active' },
+  'url_phase1_llm':           { idx: 1, state: 'active' },
+  'url_phase1_validation':    { idx: 1, state: 'active' },
+  'url_retry_done':           { idx: 1, state: 'done'   },
+  // v0.10.9 — feature_url_mapper 4단계 노드 분리: 모두 idx=3 active 로 매핑
+  'feature_mapping_brave':    { idx: 3, state: 'active' },
+  'feature_mapping_meta':     { idx: 3, state: 'active' },
+  'feature_mapping_llm':      { idx: 3, state: 'active' },
+  'feature_mapping_validate': { idx: 3, state: 'active' },
+  // 기존 호환
+  'feature_mapping':          { idx: 3, state: 'active' },
+  'feature_mapping_done':     { idx: 3, state: 'done'   },
 };
 
 /**
@@ -190,6 +217,11 @@ function PipelineProgressPanel({ progress, failedCount }) {
   const activeIdx  = stageInfo.idx;
   const stageState = stageInfo.state;   // 'active' | 'done'
 
+  // v0.10.4: 분기 B(domain_modeling) 상태 — progress.branches에서 직접 읽음.
+  // stage 트랙과 독립적으로 진행되며 PIPELINE_STAGES[2]의 active/done 판정에 사용.
+  const branches = progress?.branches ?? {};
+  const dmStatus = branches.domain_modeling ?? 'pending';   // pending | running | done | failed
+
   // 마지막 단계까지 done이면 전체 파이프라인 단계 완료 (후속은 interrupt로 진입)
   const lastStageDone =
     stageState === 'done' && activeIdx === PIPELINE_STAGES.length - 1;
@@ -224,12 +256,22 @@ function PipelineProgressPanel({ progress, failedCount }) {
       {/* 단계 목록 */}
       <ol className="space-y-1.5">
         {PIPELINE_STAGES.map((s, idx) => {
-          // done 판단:
-          //   - 현재 활성 단계보다 인덱스가 작으면 무조건 done
-          //   - 현재 활성 단계가 done 상태이면 그 단계도 done
-          const isDone    = idx < activeIdx || (idx === activeIdx && stageState === 'done');
-          const isActive  = idx === activeIdx && stageState === 'active';
-          const isPending = !isDone && !isActive;
+          // ── v0.10.4: 분기 B(domain_modeling)는 branches 기반 독립 판정 ──
+          // s.branch가 정의된 단계는 stage 트랙이 아니라 progress.branches[s.branch] 값으로 판정.
+          let isDone, isActive, isPending;
+          if (s.branch) {
+            const status = branches[s.branch] ?? 'pending';
+            isDone    = status === 'done';
+            isActive  = status === 'running';
+            isPending = !isDone && !isActive;   // 'pending' 또는 'failed' 모두 pending UI
+          } else {
+            // 기존 stage 트랙 기반 판정:
+            //   - 현재 활성 단계보다 인덱스가 작으면 무조건 done
+            //   - 현재 활성 단계가 done 상태이면 그 단계도 done
+            isDone    = idx < activeIdx || (idx === activeIdx && stageState === 'done');
+            isActive  = idx === activeIdx && stageState === 'active';
+            isPending = !isDone && !isActive;
+          }
 
           return (
             <li key={s.id} className="flex items-start gap-2.5">

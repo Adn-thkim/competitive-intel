@@ -43,10 +43,36 @@
 
 const { randomUUID } = require('node:crypto');
 const express        = require('express');
+const { Agent }      = require('undici');
 
 const { PYTHON_SERVER_URL } = require('../pythonServer');
 
 const router = express.Router();
+
+// ── Python invoke 전용 long-timeout dispatcher (v0.10.11) ─────────────────────
+//
+// Node.js native fetch 는 undici 기반이며 기본 headersTimeout / bodyTimeout 이 300초(5분)다.
+// 그러나 Python `/invoke` 는 LangGraph 의 동기 호출이므로 모든 노드가 끝나야 응답 헤더가
+// 도착한다. feature_mapping_llm_node 가 단독으로 600초까지 timeout 을 가질 수 있고,
+// 다른 일반 노드도 300초까지 가능하므로, Express fetch 가 300초 시점에 강제 끊겨
+// `fetch failed` 가 발생한다. 본 dispatcher 는 invoke 의 가능한 최대 wall-clock 을
+// 안전하게 흡수하는 long timeout 을 부여한다.
+//
+// PYTHON_INVOKE_TIMEOUT_MS (기본 30분):
+//   - 모든 일반 LLM 노드 × CLI_TIMEOUT(300s)            ≈ 1500s
+//   - feature_mapping_llm × FEATURE_MAPPING_LLM_TIMEOUT(600s) ≈ 600s
+//   - 신규 수집·리포트 노드 추가 시 여유               + 마진
+//   = 약 30분(1,800,000 ms) 기본값. 운영자가 env 로 별도 조정 가능.
+//
+// 본 dispatcher 는 `/invoke` 전용이며, `/progress` polling fetch 에는 적용되지 않는다.
+const PYTHON_INVOKE_TIMEOUT_MS = parseInt(
+  process.env.PYTHON_INVOKE_TIMEOUT_MS || '1800000', 10
+);
+const pythonInvokeAgent = new Agent({
+  headersTimeout: PYTHON_INVOKE_TIMEOUT_MS,
+  bodyTimeout:    PYTHON_INVOKE_TIMEOUT_MS,
+  connect:        { timeout: 10000 },
+});
 
 // ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
 
@@ -61,9 +87,12 @@ async function callInvoke(body) {
   let res;
   try {
     res = await fetch(`${PYTHON_SERVER_URL}/invoke`, {
-      method:  'POST',
-      headers: { 'Content-Type': 'application/json' },
-      body:    JSON.stringify(body),
+      method:     'POST',
+      headers:    { 'Content-Type': 'application/json' },
+      body:       JSON.stringify(body),
+      // v0.10.11 — Python invoke 의 긴 wall-clock 을 흡수하는 long timeout dispatcher.
+      // 기본 fetch 의 300s headersTimeout 으로 인한 race(`fetch failed`) 차단.
+      dispatcher: pythonInvokeAgent,
     });
   } catch (networkErr) {
     const err = new Error('Python LangGraph 서버에 연결할 수 없습니다.');
