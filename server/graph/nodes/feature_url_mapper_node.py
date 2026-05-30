@@ -1,47 +1,37 @@
 """
-server/graph/nodes/feature_url_mapper_node.py
-----------------------------------------------
-FeatureUrlMapperAgent LangGraph 노드.
+server/graph/nodes/feature_url_mapper_node.py (v0.10.9 — 헬퍼 모듈)
+------------------------------------------------------------------
+v0.10.9 부터 본 파일은 노드 진입 함수가 아닌 **헬퍼 모듈**이다.
+옛 단일 노드 `feature_url_mapper_node()` 가 4개 노드로 분리됨에 따라, 본 모듈은 4개
+신규 노드가 공유하는 헬퍼 함수와 상수의 공통 위치 역할만 한다.
 
-처리 흐름 (3단계)
------------------
-  Step 1 — Page Meta 수집 (HTTP)
-      official_sources에서 validated URL을 추출하고
-      ThreadPoolExecutor로 병렬 GET → <title> + <meta name="description"> 수집.
-      수집 실패 시 공백 문자열로 처리하고 계속 진행.
+4단계 분리 (graph.py v0.10.9 토폴로지)
+--------------------------------------
+  ab_join
+    → url_discovery_brave_node            (Step 0 — Brave 검색)
+    → page_meta_collect_node              (Step 1 — page meta 수집)
+    → feature_mapping_llm_node            (Step 2 — LLM 호출, 가장 무거움)
+    → additional_urls_validation_node     (Step 3 — HTTP 검증)
+    → feature_selection (#4)
 
-  Step 2 — LLM 호출 (1회)
-      도메인 컨텍스트 + domain_taxonomy + URL 메타데이터를 input.schema.json 형식으로 조립.
-      taxonomy의 active_purposes·purpose_config를 포함해 LLM 1회 호출.
-      LLM은 feature를 직접 생성하지 않고, taxonomy feature 목록을 수신해
-      feature × candidate URL 커버리지 매핑과 additional_urls 제안에 집중한다.
-      taxonomy url_types + url_type_priority가 additional_urls 제안 우선순위를 결정한다.
+본 모듈이 제공하는 헬퍼·상수
+----------------------------
+- 상수: REPORT_TYPES (D4 enum 7종)
+- Brave: _brave_search, _discover_via_brave, _candidate_name_map, _substitute_tokens
+- Page Meta: _build_candidates_with_meta, _collect_page_meta, _fetch_meta, _MetaExtractor
+- LLM 입력 슬림화: _filter_candidates_for_report   (A안 v0.10.8)
+- 추출/필터: _extract_active_reports
+- 추가 URL 검증: _validate_additional_urls, _check_url_status
+- 출력 정규화: _normalize_feature, _strip_schema_patterns
+- 파일 IO: _load_text, _load_json
+- 오류 응답: _error
 
-  Step 3 — Additional URL HTTP 검증
-      LLM이 제안한 additional_urls를 ThreadPoolExecutor로 병렬 검증.
-      각 URL에 validated, http_status 필드를 추가.
-
-출력 state 키: analysis_features (list[AnalysisFeature])
-  각 feature에 purpose_id 필드 포함 → feature_selection UI에서 purpose 단위 그룹핑에 사용.
-
-taxonomy → feature_id 변환:
-  taxonomy feature ID (접두사 없음): "transaction_fee_rate"
-  출력 feature_id (feat_ 접두사):   "feat_transaction_fee_rate"
-  변환은 _build_llm_input()에서 purpose_config를 가공할 때 명시적으로 안내되고
-  LLM 프롬프트에도 규칙으로 기술된다. 노드는 LLM 출력의 feat_ 접두사를 그대로 신뢰한다.
-
-전제조건:
-  domain_modeling_node가 먼저 실행되어 state.domain_taxonomy가 존재해야 한다.
-
-official_sources 항목 구조 (입력 참고):
-  official 항목:
-    {candidate_id, source_type="official", brand, product_name,
-     primary_url, http_status, validated, fallback_urls, llm_confidence}
-
-  reference 항목:
-    {candidate_id, source_type="reference", method_name, provider_type,
-     reference_sources: [{url, validated, http_status, final_url, ...}],
-     note, validated, primary_url=None}
+v0.10 → v0.10.9 변경 흐름
+-------------------------
+v0.10:   report_config 단위 + Brave Search 패턴 도입 (단일 노드)
+v0.10.8: _filter_candidates_for_report 신설 (A안 — candidates 슬림화)
+v0.10.9: 4개 노드 분리 (옵션 A) + parallel 2→4 + UI 4단계 stage 분리 (옵션 2)
+         본 모듈은 노드 진입 함수를 폐기하고 헬퍼 모듈로 전환.
 """
 
 import json
@@ -51,300 +41,334 @@ from datetime import datetime, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
-import re
-
 import requests as req_lib
 
-from server.config import AGENTS_DIR, CLI_MODEL, CLI_TIMEOUT, FEATURE_URL_MAPPER_PARALLEL
+from server.config import BRAVE_SEARCH_API_KEY
 from server.graph.agent_cache import (
     load_agent_output,
-    make_cache_context,
     store_agent_output,
 )
-from server.graph.progress_store import set_progress
-from server.graph.state import AnalysisFeature, DomainAnalysisState, AgentStep
-from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
+from server.graph.state import AnalysisFeature
 
 logger = logging.getLogger(__name__)
 
+# v0.10.12 — 4개 노드 캐시 공통 TTL (시간 단위)
+_NODE_CACHE_TTL_HOURS = 24
+
+# ── HTTP·Brave 설정 ───────────────────────────────────────────────────────────
 _HTTP_CONNECT_TIMEOUT = 3
 _HTTP_READ_TIMEOUT    = 7
 _HTTP_TIMEOUT         = (_HTTP_CONNECT_TIMEOUT, _HTTP_READ_TIMEOUT)
-_USER_AGENT = (
-    "Mozilla/5.0 (compatible; FeatureUrlMapperBot/1.0)"
+_USER_AGENT           = "Mozilla/5.0 (compatible; FeatureUrlMapperBot/1.0)"
+_MAX_WORKERS          = 10
+_META_BODY_LIMIT      = 8_000
+
+_BRAVE_ENDPOINT       = "https://api.search.brave.com/res/v1/web/search"
+_BRAVE_COUNT          = 5    # 쿼리당 결과 수
+_BRAVE_MAX_QUERIES    = 3    # 리포트당 최대 쿼리 수 (rate limit 고려)
+
+# v0.10 D4 enum 7종 (output.schema.json + domain_modeling_node와 정합)
+REPORT_TYPES = (
+    "comparison_matrix",
+    "reaction_insight",
+    "marketing_social",
+    "battlecard",
+    "positioning_map",
+    "market_context_swot",
+    "executive_summary",
 )
-_MAX_WORKERS     = 10   # 병렬 HTTP 스레드 수
-_META_BODY_LIMIT = 8_000  # HTML 본문 파싱 최대 바이트 (메모리 절약)
 
 
-# ─────────────────────────────────────────────────── 공개 노드 함수 ──────────
+# ─────────────────────────────────── 헬퍼 모듈 (v0.10.9) ────────────────────
+#
+# v0.10.9 부터 본 모듈의 공개 노드 함수 `feature_url_mapper_node` 는 제거되었다.
+# 4개 신규 노드(url_discovery_brave / page_meta_collect / feature_mapping_llm /
+# additional_urls_validation)가 본 모듈의 헬퍼들을 import 하여 사용한다.
+#
+# 본 모듈은 다음 헬퍼들의 공유 위치다:
+#   - _extract_active_reports
+#   - _candidate_name_map / _substitute_tokens
+#   - _brave_search / _discover_via_brave
+#   - _build_candidates_with_meta / _collect_page_meta / _fetch_meta / _MetaExtractor
+#   - _filter_candidates_for_report          (A안 v0.10.8)
+#   - _validate_additional_urls / _check_url_status
+#   - _normalize_feature / _strip_schema_patterns
+#   - _load_text / _load_json / _error
+#   - REPORT_TYPES 상수
+# ────────────────────────────────────────────────────────────────────────────
 
-def feature_url_mapper_node(state: DomainAnalysisState, config: dict | None = None) -> dict:
-    started_at = datetime.now(timezone.utc).isoformat()
-    thread_id  = (config or {}).get("configurable", {}).get("thread_id", "")
+# v0.10.9 노드 분리 이후, 본 모듈은 노드 진입 함수를 제공하지 않는다.
+# 옛 `feature_url_mapper_node` 함수 본문은 4개 신규 노드 파일로 분리·이전되었다.
 
-    # ── 진입 시 progress 마킹 ────────────────────────────────────────────────
-    if thread_id:
-        try:
-            set_progress(thread_id, "feature_mapping", detail="분석 항목 매핑 준비")
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("set_progress(feature_mapping, entry) 실패 — 무시: %s", exc)
 
-    # ── 에이전트 파일 로드 ───────────────────────────────────────────────────
-    agent_dir     = AGENTS_DIR / "feature_url_mapper"
-    system_prompt = _load_text(agent_dir / "system_prompt_kr.md")
-    output_schema = _load_json(agent_dir / "output.schema.json")
+# ────────────────── Step 0: Brave 검색으로 URL 후보 발견 (v0.10) ─────────────
 
-    if system_prompt is None:
-        return _error(started_at, f"시스템 프롬프트 없음: {agent_dir}")
-    if output_schema is None:
-        return _error(started_at, f"출력 스키마 없음: {agent_dir}")
+def _extract_active_reports(domain_taxonomy: dict) -> dict[str, dict]:
+    """v0.10 report_config에서 active=true 리포트만 추출."""
+    report_config = domain_taxonomy.get("report_config") or {}
+    return {
+        rt: entry
+        for rt, entry in report_config.items()
+        if isinstance(entry, dict) and entry.get("active") is True
+    }
 
-    # ── 입력 수집 ────────────────────────────────────────────────────────────
-    official_sources: list[dict] = state.get("official_sources") or []
-    domain_name: str             = state.get("domain_name") or ""
-    own_product: dict            = state.get("own_product") or {}
-    domain_taxonomy: dict        = state.get("domain_taxonomy") or {}
 
-    if not official_sources:
-        return _error(started_at, "official_sources가 state에 없습니다.")
-    if not domain_name:
-        return _error(started_at, "domain_name이 state에 없습니다.")
-    if not domain_taxonomy:
-        return _error(
-            started_at,
-            "domain_taxonomy가 state에 없습니다. "
-            "domain_modeling_node가 먼저 실행되어야 합니다.",
-        )
-    if not domain_taxonomy.get("active_purposes"):
-        return _error(
-            started_at,
-            "domain_taxonomy.active_purposes가 비어 있습니다. "
-            "taxonomy 생성 결과를 확인하세요.",
-        )
+def _candidate_name_map(
+    own_product: dict, competitor_candidates: list[dict], selected_ids: list[str]
+) -> dict[str, str]:
+    """candidate_id → 검색용 한국어 명칭 매핑."""
+    name_map: dict[str, str] = {}
+    own_id = own_product.get("product_id") or "own"
+    own_name = own_product.get("name") or own_product.get("product_name") or ""
+    if own_name:
+        name_map[own_id] = own_name
+        name_map["own"] = own_name  # fallback
 
-    # ── Step 1: 검증된 URL별 page meta 수집 ──────────────────────────────────
-    logger.info("feature_url_mapper_node: Step 1 — page meta 수집 시작")
-    if thread_id:
-        try:
-            set_progress(thread_id, "feature_mapping", detail="페이지 메타 수집 중")
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("set_progress(feature_mapping, step1) 실패 — 무시: %s", exc)
-    meta_by_url: dict[str, dict] = _collect_page_meta(official_sources)
-    logger.info("feature_url_mapper_node: Step 1 완료 (%d개 URL 처리)", len(meta_by_url))
+    for cand in competitor_candidates:
+        cid = cand.get("candidate_id", "")
+        if cid and (not selected_ids or cid in selected_ids):
+            name = cand.get("product_name") or cand.get("brand", "")
+            if name:
+                name_map[cid] = name
+    return name_map
 
-    # ── Step 2: LLM 입력 조립 + 호출 ─────────────────────────────────────────
-    llm_input = _build_llm_input(
-        domain_name=domain_name,
-        own_product=own_product,
-        official_sources=official_sources,
-        meta_by_url=meta_by_url,
-        domain_taxonomy=domain_taxonomy,
-    )
 
-    active_purposes = domain_taxonomy.get("active_purposes", [])
-    purpose_config  = domain_taxonomy.get("purpose_config", {})
-    feature_count   = sum(
-        len(purpose_config.get(p, {}).get("features", []))
-        for p in active_purposes
-    )
-    logger.info(
-        "feature_url_mapper_node: Step 2 — LLM/cache 준비 "
-        "(purposes=%d, features=%d, candidates=%d, parallel=%d)",
-        len(active_purposes), feature_count,
-        len(llm_input["candidates"]), FEATURE_URL_MAPPER_PARALLEL,
-    )
+def _substitute_tokens(query_template: str, name_map: dict[str, str],
+                       candidate_name: str, own_product_name: str,
+                       domain_name: str) -> str:
+    """search_query_hints의 토큰 치환."""
+    q = query_template
+    q = q.replace("{competitor_name}", candidate_name)
+    q = q.replace("{own_product}", own_product_name)
+    q = q.replace("{domain_name}", domain_name)
+    return q.strip()
 
-    cache_context = make_cache_context(
-        agent_id="feature_url_mapper",
-        model=CLI_MODEL,
-        system_prompt=system_prompt,
-        output_schema=output_schema,
-        prompt_version="feature_url_mapper:v1",
-    )
-    cache_input = llm_input
-    llm_output = load_agent_output(
-        agent_id="feature_url_mapper",
+
+def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
+    """
+    Brave Search API 호출 (v0.10.12 B-1 24h TTL 캐시 적용).
+
+    캐시 조회 → 미스 시 실제 API 호출 → 결과 저장. 동일 쿼리 + count 조합에 대해
+    24시간 이내에는 항상 같은 결과를 반환하여 Brave rate limit 부담을 완화하고
+    feature_mapping_llm 의 cache_input(URL list) 안정성을 보장한다.
+
+    실패 시 빈 리스트를 반환하며, 빈 결과는 캐시하지 않는다(일시적 실패 재시도 가능).
+    """
+    if not BRAVE_SEARCH_API_KEY:
+        logger.warning("BRAVE_SEARCH_API_KEY 미설정 — Brave 검색 생략")
+        return []
+
+    # ── 캐시 조회 (v0.10.12) ────────────────────────────────────────────────
+    cache_input   = {"query": query, "count": count}
+    cache_context = {"agent_id": "url_discovery_brave", "v": 1}
+    cached = load_agent_output(
+        agent_id="url_discovery_brave",
         cache_input=cache_input,
         context=cache_context,
-        output_schema=output_schema,
         logger=logger,
+        ttl_hours=_NODE_CACHE_TTL_HOURS,
     )
+    if cached is not None:
+        return cached.get("results", [])
 
-    if llm_output is None:
-        # ── purpose별 병렬 LLM 호출 ──────────────────────────────────────────
-        if thread_id:
-            try:
-                set_progress(
-                    thread_id, "feature_mapping",
-                    detail=f"AI 매핑 ({len(active_purposes)}개 목적 분석)",
-                    total=len(active_purposes),
-                )
-            except Exception as exc:  # noqa: BLE001
-                logger.debug("set_progress(feature_mapping, step2) 실패 — 무시: %s", exc)
-        # 설계 배경:
-        #   단일 호출 방식은 8 purposes × 7 features × N candidates = 156+ coverage
-        #   항목을 한 번에 생성하므로 300초도 초과할 수 있다.
-        #   purpose별로 분리하면 각 호출이 ~21 coverage 항목만 생성 (입력 ~1KB).
-        #   ThreadPoolExecutor로 FEATURE_URL_MAPPER_PARALLEL개씩 병렬 실행한다.
-        #   (기본 2: 4라운드 × ~45s ≈ 3분 / 3으로 올리면 ≈ 2분)
-        # 캐시:
-        #   cache_input은 전체 llm_input 기준 — purpose별 분리는 LLM 호출 최적화일 뿐.
-        #   캐시 히트 시 병렬 호출 없이 즉시 반환된다.
-        analyzer      = ClaudeCodeCliAnalyzer(
-            model=CLI_MODEL, timeout=CLI_TIMEOUT, system_prompt=system_prompt
-        )
-        relaxed_schema = _strip_schema_patterns(output_schema)
-        candidates     = llm_input["candidates"]
-        own_product_slim = llm_input["own_product"]
-
-        def _call_for_purpose(purpose_id: str) -> list[dict]:
-            """단일 purpose에 대한 LLM 호출 (ThreadPoolExecutor 대상)."""
-            p_input = {
-                "domain":         domain_name,
-                "own_product":    own_product_slim,
-                "purpose_id":     purpose_id,
-                "purpose_config": {purpose_id: purpose_config.get(purpose_id, {})},
-                "candidates":     candidates,
-            }
-            p_prompt = (
-                "아래 입력 데이터를 분석하여 output schema를 만족하는 JSON만 반환하라.\n\n"
-                "규칙:\n"
-                "1. purpose_config의 해당 purpose_id features만 처리한다. 임의로 추가·삭제하지 않는다.\n"
-                "2. 각 feature_id는 taxonomy feature ID 앞에 feat_ 접두사를 붙인다.\n"
-                "   예) 'transaction_fee_rate' → 'feat_transaction_fee_rate'\n"
-                "3. purpose_id는 입력의 purpose_id 값을 그대로 사용한다.\n"
-                "4. additional_urls 제안 시 url_type_priority 오름차순으로 url_types를 참고한다.\n"
-                "5. coverage='sufficient'이면 additional_urls는 반드시 빈 배열 []을 반환한다.\n"
-                "6. 출력 features 순서는 purpose_config의 features 순서를 따른다.\n\n"
-                f"입력:\n{json.dumps(p_input, ensure_ascii=False, separators=(',', ':'))}"
-            )
-            result = analyzer.call_with_schema(
-                prompt=p_prompt, output_schema=relaxed_schema
-            )
-            return result.get("features", [])
-
-        results_by_purpose: dict[str, list[dict]] = {}
-        errors: list[str] = []
-
-        with ThreadPoolExecutor(max_workers=FEATURE_URL_MAPPER_PARALLEL) as pool:
-            future_map = {
-                pool.submit(_call_for_purpose, p): p
-                for p in active_purposes
-            }
-            for future in as_completed(future_map):
-                purpose_id = future_map[future]
-                try:
-                    feats = future.result()
-                    results_by_purpose[purpose_id] = feats
-                    logger.info(
-                        "feature_url_mapper_node: purpose=%s 완료 (features=%d)",
-                        purpose_id, len(feats),
-                    )
-                except RuntimeError as exc:
-                    logger.error(
-                        "feature_url_mapper_node: purpose=%s LLM 실패 — %s",
-                        purpose_id, exc,
-                    )
-                    errors.append(f"{purpose_id}: {str(exc)[:120]}")
-
-        if errors and not results_by_purpose:
-            # 모든 purpose 실패 시에만 전체 오류 반환
-            return _error(started_at, "모든 purpose LLM 호출 실패:\n" + "\n".join(errors))
-        elif errors:
-            # 일부 실패 — 성공한 purpose 결과로 계속 진행 (부분 분석)
-            logger.warning(
-                "feature_url_mapper_node: %d개 purpose 실패, %d개 성공 결과로 계속 진행\n%s",
-                len(errors), len(results_by_purpose), "\n".join(errors),
-            )
-
-        # active_purposes 순서 보장 (as_completed는 완료 순 반환)
-        all_features = []
-        for p in active_purposes:
-            all_features.extend(results_by_purpose.get(p, []))
-
-        llm_output = {"features": all_features}
-        store_agent_output(
-            agent_id="feature_url_mapper",
-            cache_input=cache_input,
-            context=cache_context,
-            output=llm_output,
-            logger=logger,
-        )
-
-    raw_features: list[dict] = llm_output.get("features", [])
-    logger.info(
-        "feature_url_mapper_node: Step 2 완료 (features=%d)", len(raw_features)
-    )
-
-    # ── Step 3: additional_urls 병렬 HTTP 검증 ───────────────────────────────
-    logger.info("feature_url_mapper_node: Step 3 — additional_urls 검증 시작")
-    if thread_id:
-        try:
-            set_progress(thread_id, "feature_mapping", detail="추가 URL 도달성 검증")
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("set_progress(feature_mapping, step3) 실패 — 무시: %s", exc)
-    analysis_features = _validate_additional_urls(raw_features)
-    logger.info("feature_url_mapper_node: Step 3 완료")
-
-    finished_at = datetime.now(timezone.utc).isoformat()
-
-    # ── 종료 시 명시적 stage 전환 ─────────────────────────────────────────────
-    if thread_id:
-        try:
-            set_progress(
-                thread_id, "feature_mapping_done",
-                detail=f"{len(analysis_features)}개 분석 항목 매핑 완료",
-                current=len(analysis_features),
-                total=len(analysis_features),
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("set_progress(feature_mapping_done) 실패 — 무시: %s", exc)
-
-    step: AgentStep = {
-        "step_name":   "FeatureUrlMapper",
-        "status":      "completed",
-        "started_at":  started_at,
-        "finished_at": finished_at,
+    # ── 캐시 미스 — 실제 Brave API 호출 ──────────────────────────────────────
+    headers = {
+        "Accept":               "application/json",
+        "Accept-Encoding":      "gzip",
+        "X-Subscription-Token": BRAVE_SEARCH_API_KEY,
     }
-    return {"analysis_features": analysis_features, "agent_steps": [step]}
+    try:
+        resp = req_lib.get(
+            _BRAVE_ENDPOINT, headers=headers,
+            params={"q": query, "count": count}, timeout=(3, 8),
+        )
+        resp.raise_for_status()
+        data = resp.json()
+        results = data.get("web", {}).get("results", [])
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("Brave 검색 실패 (%s): %s", query, exc)
+        return []
+
+    # ── 캐시 저장 (빈 결과는 캐시 안 함 — 일시 실패 재시도 보존) ─────────────
+    if results:
+        try:
+            store_agent_output(
+                agent_id="url_discovery_brave",
+                cache_input=cache_input,
+                context=cache_context,
+                output={"results": results},
+                logger=logger,
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("Brave 검색 캐시 저장 실패 (%s): %s", query, exc)
+    return results
 
 
-# ─────────────────────────────── Step 1: page meta 수집 ──────────────────────
-
-def _collect_page_meta(official_sources: list[dict]) -> dict[str, dict]:
+def _discover_via_brave(
+    *,
+    active_reports: dict[str, dict],
+    own_product: dict,
+    competitor_candidates: list[dict],
+    selected_ids: list[str],
+    domain_name: str,
+) -> dict[str, list[dict]]:
     """
-    official_sources에서 validated URL을 모두 추출하고
-    ThreadPoolExecutor로 병렬 HTTP GET → page_title, meta_description 수집.
+    각 active 리포트의 search_query_hints를 candidate별로 토큰 치환 후 Brave 호출.
 
     Returns
     -------
-    dict[str, dict]
-        {url: {"page_title": str, "meta_description": str}}
+    dict[candidate_id, list[{url, page_title, meta_description, origin, matched_report_types}]]
     """
-    # 수집 대상 URL 목록 (중복 제거)
-    urls_to_fetch: set[str] = set()
+    name_map = _candidate_name_map(own_product, competitor_candidates, selected_ids)
+    own_product_name = own_product.get("name") or own_product.get("product_name") or ""
+
+    # (candidate_id, query, [report_types]) 작업 목록 생성
+    tasks: list[tuple[str, str, list[str]]] = []
+    query_to_reports: dict[str, list[str]] = {}
+
+    for rt, entry in active_reports.items():
+        hints = entry.get("search_query_hints") or []
+        # 리포트당 최대 _BRAVE_MAX_QUERIES개 hint 사용
+        for hint in hints[:_BRAVE_MAX_QUERIES]:
+            for cand_id, cand_name in name_map.items():
+                if cand_id == "own":
+                    continue  # fallback 중복 회피
+                query = _substitute_tokens(
+                    hint, name_map, cand_name, own_product_name, domain_name,
+                )
+                if not query or "{" in query:
+                    # 치환 실패 (토큰 미치환) — 스킵
+                    continue
+                tasks.append((cand_id, query, [rt]))
+                query_to_reports.setdefault(query, []).append(rt)
+
+    # 동일 쿼리 dedup
+    deduped: dict[str, str] = {}  # query → candidate_id (첫 등장 기준)
+    for cand_id, query, _ in tasks:
+        if query not in deduped:
+            deduped[query] = cand_id
+
+    # Brave 호출 (병렬)
+    results_by_candidate: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        future_map = {
+            pool.submit(_brave_search, q): (q, deduped[q]) for q in deduped
+        }
+        for future in as_completed(future_map):
+            query, cand_id = future_map[future]
+            try:
+                results = future.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Brave 결과 처리 실패 (%s): %s", query, exc)
+                results = []
+            for r in results:
+                url = (r.get("url") or "").strip()
+                if not url:
+                    continue
+                results_by_candidate.setdefault(cand_id, []).append({
+                    "url":              url,
+                    "page_title":       (r.get("title") or "").strip(),
+                    "meta_description": (r.get("description") or "").strip(),
+                    "origin":           "brave_search",
+                    "matched_report_types": query_to_reports.get(query, []),
+                })
+    return results_by_candidate
+
+
+# ─────────────────── Step 1: Page Meta 수집 (병합) ───────────────────────────
+
+def _build_candidates_with_meta(
+    *,
+    official_sources: list[dict],
+    brave_urls_by_candidate: dict[str, list[dict]],
+) -> list[dict]:
+    """
+    official_sources + Brave 발견 URL을 candidate별로 병합하고, 누락된 URL은 page meta 수집.
+
+    official_source URL은 이미 검증되어 있으나 page meta가 없을 수 있어 별도 수집.
+    Brave URL은 검색 결과에 title·description이 포함되어 있어 추가 fetch 불필요(빠른 경로).
+    """
+    candidates_out: list[dict] = []
+
+    # 1) official_sources에서 candidate별 validated URL 수집 (origin=official_source)
+    official_by_candidate: dict[str, list[dict]] = {}
+    urls_to_fetch_meta: set[str] = set()
 
     for src in official_sources:
+        cid   = src.get("candidate_id", "")
         stype = src.get("source_type")
+
         if stype == "official":
             if src.get("validated") and src.get("primary_url"):
-                urls_to_fetch.add(src["primary_url"])
+                url = src["primary_url"]
+                official_by_candidate.setdefault(cid, []).append({
+                    "url":    url,
+                    "origin": "official_source",
+                })
+                urls_to_fetch_meta.add(url)
         elif stype == "reference":
             for ref in src.get("reference_sources", []):
-                if ref.get("validated") and ref.get("final_url"):
-                    urls_to_fetch.add(ref["final_url"])
-                elif ref.get("validated") and ref.get("url"):
-                    urls_to_fetch.add(ref["url"])
+                if not ref.get("validated"):
+                    continue
+                url = ref.get("final_url") or ref.get("url", "")
+                if url:
+                    official_by_candidate.setdefault(cid, []).append({
+                        "url":    url,
+                        "origin": "official_source",
+                    })
+                    urls_to_fetch_meta.add(url)
 
-    if not urls_to_fetch:
-        logger.warning("feature_url_mapper_node: 수집할 validated URL이 없습니다.")
+    # 2) Brave 검색 URL은 이미 title·description 포함 — meta fetch 불필요
+    #    (단 추가로 validated 여부는 LLM 판단에 맡김)
+
+    # 3) official URL의 page meta 병렬 수집
+    meta_by_url = _collect_page_meta(urls_to_fetch_meta)
+
+    # 4) candidate별로 URL 병합
+    all_candidate_ids = set(official_by_candidate.keys()) | set(brave_urls_by_candidate.keys())
+    for cid in sorted(all_candidate_ids):
+        validated_urls: list[dict] = []
+        # 4-a) official_source URL + meta
+        for item in official_by_candidate.get(cid, []):
+            url  = item["url"]
+            meta = meta_by_url.get(url, {})
+            validated_urls.append({
+                "url":              url,
+                "page_title":       meta.get("page_title", ""),
+                "meta_description": meta.get("meta_description", ""),
+                "origin":           "official_source",
+            })
+        # 4-b) Brave 발견 URL (title·description 포함, dedup)
+        seen_urls = {u["url"] for u in validated_urls}
+        for item in brave_urls_by_candidate.get(cid, []):
+            if item["url"] in seen_urls:
+                continue
+            validated_urls.append({
+                "url":                  item["url"],
+                "page_title":           item.get("page_title", ""),
+                "meta_description":     item.get("meta_description", ""),
+                "origin":               "brave_search",
+                "matched_report_types": item.get("matched_report_types", []),
+            })
+            seen_urls.add(item["url"])
+
+        # source_type 추정: official URL이 있으면 official, 아니면 reference
+        source_type = "official" if cid in official_by_candidate else "reference"
+        candidates_out.append({
+            "candidate_id":   cid,
+            "source_type":    source_type,
+            "validated_urls": validated_urls,
+        })
+    return candidates_out
+
+
+def _collect_page_meta(urls: set[str]) -> dict[str, dict]:
+    """병렬 HTTP GET으로 page_title + meta_description 수집."""
+    if not urls:
         return {}
-
     meta_by_url: dict[str, dict] = {}
-
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
-        future_map = {pool.submit(_fetch_meta, url): url for url in urls_to_fetch}
+        future_map = {pool.submit(_fetch_meta, url): url for url in urls}
         for future in as_completed(future_map):
             url = future_map[future]
             try:
@@ -353,59 +377,83 @@ def _collect_page_meta(official_sources: list[dict]) -> dict[str, dict]:
                 logger.debug("page meta 수집 예외 (%s): %s", url, exc)
                 meta = {"page_title": "", "meta_description": ""}
             meta_by_url[url] = meta
-
     return meta_by_url
 
 
 def _fetch_meta(url: str) -> dict:
     """
-    단일 URL에 GET 요청을 보내 <title>과 <meta name="description"> content를 반환한다.
-    실패 시 빈 문자열을 반환한다.
+    URL 의 <title> + <meta description> 수집 (v0.10.12 B-2 24h TTL 캐시 적용).
+
+    캐시 조회 → 미스 시 HTTP GET → 결과 저장. 동일 URL 에 대해 24시간 이내에는
+    동일한 page_title·meta_description 반환. page meta 의 페이지 운영자 미세 수정
+    영향을 흡수하고, page_meta_collect_node 의 wall-clock 을 최소화한다.
     """
+    # ── 캐시 조회 (v0.10.12) ────────────────────────────────────────────────
+    cache_input   = {"url": url}
+    cache_context = {"agent_id": "page_meta_collect", "v": 1}
+    cached = load_agent_output(
+        agent_id="page_meta_collect",
+        cache_input=cache_input,
+        context=cache_context,
+        logger=logger,
+        ttl_hours=_NODE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return {
+            "page_title":       cached.get("page_title", ""),
+            "meta_description": cached.get("meta_description", ""),
+        }
+
+    # ── 캐시 미스 — 실제 HTTP GET ───────────────────────────────────────────
     headers = {"User-Agent": _USER_AGENT, "Accept": "text/html"}
+    meta: dict = {"page_title": "", "meta_description": ""}
     try:
         resp = req_lib.get(
-            url,
-            headers=headers,
-            timeout=_HTTP_TIMEOUT,
-            allow_redirects=True,
-            stream=True,
+            url, headers=headers, timeout=_HTTP_TIMEOUT,
+            allow_redirects=True, stream=True,
         )
         if resp.status_code < 200 or resp.status_code >= 400:
-            return {"page_title": "", "meta_description": ""}
-
-        # Content-Type 확인: HTML이 아니면 파싱 불필요
-        ctype = resp.headers.get("Content-Type", "").lower()
-        if "html" not in ctype:
-            return {"page_title": "", "meta_description": ""}
-
-        # 메모리 절약을 위해 앞부분만 읽기
-        raw_bytes = b""
-        for chunk in resp.iter_content(chunk_size=2048):
-            raw_bytes += chunk
-            if len(raw_bytes) >= _META_BODY_LIMIT:
-                break
-
-        html_text = raw_bytes.decode("utf-8", errors="replace")
-        parser = _MetaExtractor()
-        parser.feed(html_text)
-        return {
-            "page_title":       (parser.title or "").strip(),
-            "meta_description": (parser.meta_desc or "").strip(),
-        }
+            meta = {"page_title": "", "meta_description": ""}
+        else:
+            ctype = resp.headers.get("Content-Type", "").lower()
+            if "html" not in ctype:
+                meta = {"page_title": "", "meta_description": ""}
+            else:
+                raw = b""
+                for chunk in resp.iter_content(chunk_size=2048):
+                    raw += chunk
+                    if len(raw) >= _META_BODY_LIMIT:
+                        break
+                html_text = raw.decode("utf-8", errors="replace")
+                parser = _MetaExtractor()
+                parser.feed(html_text)
+                meta = {
+                    "page_title":       (parser.title or "").strip(),
+                    "meta_description": (parser.meta_desc or "").strip(),
+                }
     except Exception as exc:  # noqa: BLE001
         logger.debug("_fetch_meta 예외 (%s): %s", url, exc)
-        return {"page_title": "", "meta_description": ""}
+
+    # ── 캐시 저장 (빈 결과도 캐시 — 동일 URL 의 반복 fetch 방지) ─────────────
+    try:
+        store_agent_output(
+            agent_id="page_meta_collect",
+            cache_input=cache_input,
+            context=cache_context,
+            output=meta,
+            logger=logger,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("_fetch_meta 캐시 저장 실패 (%s): %s", url, exc)
+    return meta
 
 
 class _MetaExtractor(HTMLParser):
-    """HTML 앞부분에서 <title>과 <meta name="description"> / <meta property="og:description">를 추출한다."""
-
     def __init__(self):
         super().__init__()
-        self.title: str | None      = None
-        self.meta_desc: str | None  = None
-        self._in_title: bool        = False
+        self.title: str | None     = None
+        self.meta_desc: str | None = None
+        self._in_title: bool       = False
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
@@ -420,115 +468,96 @@ class _MetaExtractor(HTMLParser):
 
     def handle_data(self, data: str) -> None:
         if self._in_title and self.title is None:
-            stripped = data.strip()
-            if stripped:
-                self.title = stripped
+            s = data.strip()
+            if s:
+                self.title = s
 
     def handle_endtag(self, tag: str) -> None:
         if tag.lower() == "title":
             self._in_title = False
 
 
-# ─────────────────────────────── Step 2: LLM 입력 조립 ──────────────────────
+# ──────────────────────── Step 2: 입력 슬림화 (A안 v0.10.8) ──────────────────
 
-def _build_llm_input(
-    domain_name: str,
-    own_product: dict,
-    official_sources: list[dict],
-    meta_by_url: dict[str, dict],
-    domain_taxonomy: dict,
-) -> dict:
+def _filter_candidates_for_report(
+    candidates_with_meta: list[dict],
+    report_type: str,
+) -> list[dict]:
     """
-    official_sources·page meta·domain_taxonomy를 조합해 input.schema.json 형식의 LLM 입력을 만든다.
+    report_type 단위 LLM 호출 입력용으로 candidates_with_meta 를 슬림화한다.
 
-    taxonomy 처리
-    -------------
-    - active_purposes, purpose_config를 그대로 포함한다.
-    - LLM이 feature_id 생성 시 feat_ 접두사를 붙이도록 user_prompt에서 안내되므로
-      이 함수에서는 taxonomy 원본 값을 변환 없이 전달한다.
+    설계 의도 (v0.10.8 A안)
+    -----------------------
+    v0.10.7 까지는 _call_for_report 가 매 report_type 호출에 candidates_with_meta
+    전체(자사 + 모든 선택 경쟁사 × validated_urls 전체) 를 통째로 LLM 입력에 포함하여
+    activate 리포트 7개 호출 시 동일 brave_search URL 이 최대 6회 중복 전송됨으로써
+    토큰을 낭비하고 단일 LLM 호출이 CLI_TIMEOUT(120s) 을 초과할 가능성을 높였다.
 
-    candidates 처리
-    ---------------
-    - validated=True인 항목만 validated_urls에 포함한다.
-    - validated URL이 없는 항목은 빈 validated_urls로 포함해
-      LLM이 not_found coverage를 부여할 수 있도록 한다.
+    A안: 본 헬퍼가 다음 규칙으로 report_type 별 입력을 슬림화한다.
+
+      - origin == "official_source" URL: 모든 report_type 에 공통이므로 그대로 유지.
+        (official_source_resolver 가 검증한 자사·경쟁사 공식 페이지)
+      - origin == "brave_search" URL: 본 URL 의 matched_report_types 에 본 report_type 이
+        포함된 경우에만 유지. 다른 report_type 에서 발견된 brave URL 은 제외.
+      - 유지되는 URL 이 하나도 없는 candidate 는 결과에서 제외하여 LLM 이 빈 candidate 로
+        잘못된 매핑(특히 'no_url_available' 잡음) 을 생성하는 것을 방지.
+
+    예상 효과
+    ---------
+    candidate 4명 × 평균 8 URL → 슬림화 후 평균 3–4 URL. report_type 별 입력에서
+    candidates 영역이 약 50–60% 감소. 활성 리포트 7개 합산 시 LLM 호출 총 토큰 약
+    30–40% 절감, Step 2 wall-clock 비례 감소 예상.
+
+    Parameters
+    ----------
+    candidates_with_meta : list[dict]
+        Step 1 _build_candidates_with_meta 가 생성한 후보 목록. 각 항목은
+        {"candidate_id", "source_type", "validated_urls": [{url, page_title,
+        meta_description, origin, [matched_report_types]}]} 구조.
+    report_type : str
+        REPORT_TYPES (v0.10 D4 enum 7종) 중 하나.
+
+    Returns
+    -------
+    list[dict]
+        슬림화된 candidates 목록. LLM 입력 구조는 candidates_with_meta 와 동일하지만
+        validated_urls 길이만 축소됨.
     """
-    candidates: list[dict] = []
-
-    for src in official_sources:
-        cid   = src.get("candidate_id", "")
-        stype = src.get("source_type")
-
-        if stype == "official":
-            validated_urls = []
-            if src.get("validated") and src.get("primary_url"):
-                url  = src["primary_url"]
-                meta = meta_by_url.get(url, {})
-                validated_urls.append({
-                    "url":              url,
-                    "page_title":       meta.get("page_title", ""),
-                    "meta_description": meta.get("meta_description", ""),
-                })
-            candidates.append({
-                "candidate_id":   cid,
-                "source_type":    "official",
-                "validated_urls": validated_urls,
+    out: list[dict] = []
+    for cand in candidates_with_meta:
+        kept_urls: list[dict] = []
+        for u in cand.get("validated_urls", []):
+            origin = u.get("origin")
+            if origin == "official_source":
+                kept_urls.append(u)
+            elif origin == "brave_search":
+                if report_type in (u.get("matched_report_types") or []):
+                    kept_urls.append(u)
+            # 알 수 없는 origin 은 보수적으로 제외 (현재 코드 경로상 발생 불가)
+        if kept_urls:
+            out.append({
+                "candidate_id":   cand["candidate_id"],
+                "source_type":    cand.get("source_type", ""),
+                "validated_urls": kept_urls,
             })
-
-        elif stype == "reference":
-            validated_urls = []
-            for ref in src.get("reference_sources", []):
-                if ref.get("validated"):
-                    url  = ref.get("final_url") or ref.get("url", "")
-                    meta = meta_by_url.get(url, {})
-                    validated_urls.append({
-                        "url":              url,
-                        "page_title":       meta.get("page_title", ""),
-                        "meta_description": meta.get("meta_description", ""),
-                    })
-            candidates.append({
-                "candidate_id":   cid,
-                "source_type":    "reference",
-                "validated_urls": validated_urls,
-            })
-
-    return {
-        "domain":           domain_name,
-        "own_product": {
-            "brand":        own_product.get("brand", ""),
-            "product_name": own_product.get("name", own_product.get("product_name", "")),
-        },
-        "active_purposes":  domain_taxonomy.get("active_purposes", []),
-        "purpose_config":   domain_taxonomy.get("purpose_config", {}),
-        "candidates":       candidates,
-    }
+    return out
 
 
-# ─────────────────────────── Step 3: additional_urls 검증 ────────────────────
+# ──────────────────────── Step 3: additional_urls 검증 ───────────────────────
 
 def _validate_additional_urls(raw_features: list[dict]) -> list[AnalysisFeature]:
-    """
-    LLM 출력의 additional_urls를 병렬 HTTP 검증하고
-    각 URL에 validated, http_status 필드를 추가한다.
-    coverage가 sufficient인 항목은 additional_urls = [] 이므로 검증 대상 없음.
-    """
-    # 검증 대상 수집: (feat_idx, cov_idx, url_idx, url)
     tasks: list[tuple[int, int, int, str]] = []
-
     for fi, feat in enumerate(raw_features):
         for ci, cov in enumerate(feat.get("candidate_coverage", [])):
             for ui, au in enumerate(cov.get("additional_urls", [])):
-                url = au.get("url", "").strip()
+                url = (au.get("url") or "").strip()
                 if url:
                     tasks.append((fi, ci, ui, url))
 
     if not tasks:
-        # 검증 대상 없음 — 그대로 반환 (validated 필드 미설정)
         return [_normalize_feature(f) for f in raw_features]
 
-    # 병렬 검증
-    val_results: dict[tuple[int, int, int], tuple[int | None]] = {}
-
+    val_results: dict[tuple[int, int, int], int | None] = {}
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
         future_map = {
             pool.submit(_check_url_status, url): (fi, ci, ui)
@@ -542,56 +571,83 @@ def _validate_additional_urls(raw_features: list[dict]) -> list[AnalysisFeature]
                 status = None
             val_results[key] = status
 
-    logger.info(
-        "feature_url_mapper_node: additional_urls 검증 완료 (%d개)", len(tasks)
-    )
+    logger.info("feature_url_mapper_node: additional_urls 검증 완료 (%d개)", len(tasks))
 
-    # 결과 반영
     for fi, ci, ui, _ in tasks:
         status = val_results.get((fi, ci, ui))
         au = raw_features[fi]["candidate_coverage"][ci]["additional_urls"][ui]
         au["validated"]   = bool(status and 200 <= status < 400)
         au["http_status"] = status
-
     return [_normalize_feature(f) for f in raw_features]
 
 
 def _check_url_status(url: str) -> int | None:
-    """HEAD → GET 순으로 HTTP 상태 코드만 반환한다."""
+    """
+    URL 도달성 검증 (v0.10.12 B-3 24h TTL 캐시 적용).
+
+    캐시 조회 → 미스 시 HEAD→GET 순차 시도 → 결과 저장. 동일 URL 의 24시간 이내
+    검증 결과를 재사용하여 additional_urls_validation_node 의 wall-clock 을 단축한다.
+    실패(None) 도 캐시하여 죽은 링크의 반복 검증을 방지한다.
+    """
+    # ── 캐시 조회 (v0.10.12) ────────────────────────────────────────────────
+    cache_input   = {"url": url}
+    cache_context = {"agent_id": "url_validation", "v": 1}
+    cached = load_agent_output(
+        agent_id="url_validation",
+        cache_input=cache_input,
+        context=cache_context,
+        logger=logger,
+        ttl_hours=_NODE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return cached.get("status")
+
+    # ── 캐시 미스 — 실제 HEAD→GET 시도 ──────────────────────────────────────
     headers = {"User-Agent": _USER_AGENT}
+    status: int | None = None
     for method in ("HEAD", "GET"):
         try:
             resp = req_lib.request(
-                method, url,
-                headers=headers,
-                timeout=_HTTP_TIMEOUT,
-                allow_redirects=True,
-                stream=(method == "GET"),
+                method, url, headers=headers, timeout=_HTTP_TIMEOUT,
+                allow_redirects=True, stream=(method == "GET"),
             )
             if method == "HEAD" and resp.status_code == 405:
                 continue
-            return resp.status_code
+            status = resp.status_code
+            break
         except req_lib.exceptions.SSLError:
             continue
-        except (req_lib.exceptions.ConnectionError,
-                req_lib.exceptions.Timeout):
-            return None
+        except (req_lib.exceptions.ConnectionError, req_lib.exceptions.Timeout):
+            status = None
+            break
         except Exception as exc:  # noqa: BLE001
             logger.debug("_check_url_status 예외 (%s): %s", url, exc)
-            return None
-    return None
+            status = None
+            break
+
+    # ── 캐시 저장 (None 도 저장 — 죽은 링크 재시도 방지) ─────────────────────
+    try:
+        store_agent_output(
+            agent_id="url_validation",
+            cache_input=cache_input,
+            context=cache_context,
+            output={"status": status},
+            logger=logger,
+        )
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("_check_url_status 캐시 저장 실패 (%s): %s", url, exc)
+    return status
 
 
 def _normalize_feature(raw: dict) -> AnalysisFeature:
-    """
-    LLM 출력 dict를 AnalysisFeature TypedDict 형태로 정규화한다.
-
-    - purpose_id: 대문자 혼용값이 있으면 lowercase snake_case로 변환
-    - additional_urls: validated/http_status 기본값 채우기
-    """
-    # purpose_id 정규화 (taxonomy ID와 일치시키기 위해)
-    if "purpose_id" in raw and isinstance(raw["purpose_id"], str):
-        raw["purpose_id"] = re.sub(r"[^a-zA-Z0-9]+", "_", raw["purpose_id"]).lower().strip("_") or "unknown"
+    """LLM 출력 정규화: report_type enum 검증, additional_urls 기본값 채움."""
+    # report_type enum 검증 (잘못된 값은 'comparison_matrix'로 fallback — 안전판)
+    rt = raw.get("report_type", "")
+    if rt not in REPORT_TYPES:
+        logger.warning(
+            "_normalize_feature: 잘못된 report_type '%s' → 'comparison_matrix'로 fallback", rt,
+        )
+        raw["report_type"] = "comparison_matrix"
 
     for cov in raw.get("candidate_coverage", []):
         for au in cov.get("additional_urls", []):
@@ -601,12 +657,6 @@ def _normalize_feature(raw: dict) -> AnalysisFeature:
 
 
 def _strip_schema_patterns(schema: object) -> object:
-    """
-    JSON Schema에서 모든 'pattern' 제약을 재귀적으로 제거한다.
-
-    LLM 호출 시 패턴 검증 실패로 인한 retry 루프를 방지하기 위해
-    relaxed schema를 사용한다. 출력은 _normalize_feature()로 보정한다.
-    """
     if isinstance(schema, dict):
         return {k: _strip_schema_patterns(v) for k, v in schema.items() if k != "pattern"}
     if isinstance(schema, list):
@@ -638,12 +688,16 @@ def _load_json(path: Path) -> dict | None:
 def _error(started_at: str, message: str) -> dict:
     logger.error("feature_url_mapper_node 오류: %s", message)
     return {
-        "errors": [{"node": "feature_url_mapper_node",
-                    "error": message,
-                    "timestamp": datetime.now(timezone.utc).isoformat()}],
-        "agent_steps": [{"step_name": "FeatureUrlMapper",
-                         "status": "failed",
-                         "started_at": started_at,
-                         "finished_at": datetime.now(timezone.utc).isoformat(),
-                         "error_message": message}],
+        "errors": [{
+            "node":      "feature_url_mapper_node",
+            "error":     message,
+            "timestamp": datetime.now(timezone.utc).isoformat(),
+        }],
+        "agent_steps": [{
+            "step_name":     "FeatureUrlMapper",
+            "status":        "failed",
+            "started_at":    started_at,
+            "finished_at":   datetime.now(timezone.utc).isoformat(),
+            "error_message": message,
+        }],
     }
