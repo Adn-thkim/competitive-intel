@@ -1,0 +1,384 @@
+{
+  "domain_slug": "kakaobank_installment_savings",
+  "domain_type": "internet_bank_savings",
+  "report_config": {
+    "comparison_matrix": {
+      "label": "비교 매트릭스",
+      "active": true,
+      "features": [
+        "base_interest_rate",
+        "max_interest_rate_with_conditions",
+        "monthly_deposit_limit",
+        "min_deposit_amount",
+        "contract_period_options",
+        "free_savings_availability",
+        "mobile_only_signup",
+        "auto_transfer_support",
+        "early_termination_penalty_rate",
+        "ecosystem_integration"
+      ],
+      "feature_labels": {
+        "base_interest_rate": "기본 금리(연%)",
+        "max_interest_rate_with_conditions": "우대금리 포함 최고 금리(연%)",
+        "monthly_deposit_limit": "월 납입 한도",
+        "min_deposit_amount": "최소 납입 금액",
+        "contract_period_options": "계약 기간 선택지",
+        "free_savings_availability": "자유적금 상품 운영 여부",
+        "mobile_only_signup": "모바일 전용 비대면 가입 여부",
+        "auto_transfer_support": "자동이체 지원 여부",
+        "early_termination_penalty_rate": "중도해지 시 적용 금리",
+        "ecosystem_integration": "연동 간편결제·송금 서비스"
+      },
+      "categories": [
+        "Pricing",
+        "Core Capability",
+        "Additional Benefit",
+        "Onboarding/Eligibility",
+        "UX/Support",
+        "생태계 연동 편의성"
+      ],
+      "search_query_hints": [
+        "{competitor_name} 적금 금리 2025",
+        "카카오뱅크 적금 금리 비교",
+        "{competitor_name} 자유적금 월 납입 한도",
+        "{competitor_name} 적금 우대금리 조건",
+        "인터넷전문은행 적금 금리 비교 표",
+        "{competitor_name} 적금 중도해지 이율",
+        "카카오뱅크 적금 가입 방법 비대면"
+      ],
+      "action_lens": {
+        "base_interest_rate": "both",
+        "max_interest_rate_with_conditions": "both",
+        "monthly_deposit_limit": "product_dev",
+        "min_deposit_amount": "product_dev",
+        "contract_period_options": "product_dev",
+        "free_savings_availability": "product_dev",
+        "mobile_only_signup": "marketing",
+        "auto_transfer_support": "product_dev",
+        "early_termination_penalty_rate": "product_dev",
+        "ecosystem_integration": "marketing"
+      }
+    },
+    "reaction_insight": {
+      "label": "고객 반응 인사이트",
+      "active": true,
+      "features": [
+        "app_ux_signup_experience",
+        "interest_rate_satisfaction",
+        "auto_transfer_convenience",
+        "customer_support_quality",
+        "ecosystem_linkage_satisfaction",
+        "savings_goal_achievement_feedback",
+        "early_termination_experience"
+      ],
+      "feature_labels": {
+        "app_ux_signup_experience": "앱 가입 UX 만족도",
+        "interest_rate_satisfaction": "금리 수준 체감 만족도",
+        "auto_transfer_convenience": "자동이체 편의성 평가",
+        "customer_support_quality": "고객 지원 품질",
+        "ecosystem_linkage_satisfaction": "카카오 생태계 연동 만족도",
+        "savings_goal_achievement_feedback": "목표 달성 및 만기 경험",
+        "early_termination_experience": "중도해지 경험 및 불만"
+      },
+      "categories": [
+        "Core Function Convenience",
+        "Pricing Perception",
+        "App UX Quality",
+        "Customer Support",
+        "Additional Benefit Perception",
+        "생태계 연동 체감",
+        "중도해지 경험"
+      ],
+      "search_query_hints": [
+        "카카오뱅크 적금 후기 앱 사용",
+        "{competitor_name} 적금 금리 불만 후기",
+        "카카오뱅크 적금 자동이체 오류 커뮤니티",
+        "인터넷전문은행 적금 만기 후기 블로그",
+        "카카오뱅크 적금 중도해지 경험 유튜브",
+        "{competitor_name} 적금 고객센터 불만"
+      ],
+      "aspect_codebook": [
+        {
+          "aspect_id": "app_signup_convenience",
+          "label": "앱 가입 편의성",
+          "definition": "모바일 앱에서 적금 개설까지의 절차가 얼마나 간편하고 빠른가",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "interest_rate_perception",
+          "label": "금리 체감 경쟁력",
+          "definition": "실제 수령 이자가 기대 금리 대비 충분하다고 느끼는지 여부",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "auto_transfer_reliability",
+          "label": "자동이체 안정성",
+          "definition": "매월 자동이체가 오류 없이 정확하게 처리되는지에 대한 신뢰도",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "app_ux_quality",
+          "label": "앱 UI/UX 품질",
+          "definition": "적금 관련 화면의 직관성, 가독성, 조작 편의성 전반",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "customer_support_responsiveness",
+          "label": "고객지원 응대 속도",
+          "definition": "문의·분쟁 시 고객센터 응대가 얼마나 빠르고 도움이 되는가",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "ecosystem_linkage_benefit",
+          "label": "카카오 생태계 연동 혜택",
+          "definition": "카카오페이·카카오뱅크 등 연동 서비스 활용 시 실질적 편의 또는 혜택 인식",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "early_termination_fairness",
+          "label": "중도해지 금리 형평성",
+          "definition": "중도해지 시 적용되는 금리 수준이 합리적이라고 느끼는지 여부",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "savings_goal_motivation",
+          "label": "목돈 마련 동기 부여",
+          "definition": "앱의 목표 저축 기능이나 진행률 표시가 저축 지속성에 도움이 되는가",
+          "domain_specific": true
+        }
+      ],
+      "action_lens": {
+        "app_ux_signup_experience": "both",
+        "interest_rate_satisfaction": "both",
+        "auto_transfer_convenience": "product_dev",
+        "customer_support_quality": "product_dev",
+        "ecosystem_linkage_satisfaction": "marketing",
+        "savings_goal_achievement_feedback": "both",
+        "early_termination_experience": "product_dev"
+      }
+    },
+    "marketing_social": {
+      "label": "마케팅·소셜 분석",
+      "active": true,
+      "features": [
+        "owned_channel_posting_frequency",
+        "paid_ad_keywords",
+        "influencer_content_volume",
+        "seo_keyword_coverage",
+        "community_mention_share",
+        "campaign_seasonality_pattern",
+        "content_topic_distribution"
+      ],
+      "feature_labels": {
+        "owned_channel_posting_frequency": "공식 채널 게시 빈도",
+        "paid_ad_keywords": "유료 광고 핵심 키워드",
+        "influencer_content_volume": "인플루언서 콘텐츠 수",
+        "seo_keyword_coverage": "검색 SEO 키워드 커버리지",
+        "community_mention_share": "커뮤니티 언급 비중",
+        "campaign_seasonality_pattern": "캠페인 시즌성 패턴",
+        "content_topic_distribution": "콘텐츠 주제 분포"
+      },
+      "categories": [
+        "PESO 분류",
+        "Channel Operations",
+        "Engagement",
+        "Content Keywords/Topics",
+        "Coverage Gap",
+        "Seasonality Correction"
+      ],
+      "search_query_hints": [
+        "카카오뱅크 적금 유튜브 광고",
+        "{competitor_name} 적금 인스타그램 마케팅",
+        "카카오뱅크 적금 블로그 바이럴 콘텐츠",
+        "{competitor_name} 적금 연초 금리 이벤트",
+        "인터넷전문은행 적금 커뮤니티 언급량 비교",
+        "카카오뱅크 적금 검색광고 키워드"
+      ],
+      "action_lens": {
+        "owned_channel_posting_frequency": "marketing",
+        "paid_ad_keywords": "marketing",
+        "influencer_content_volume": "marketing",
+        "seo_keyword_coverage": "marketing",
+        "community_mention_share": "both",
+        "campaign_seasonality_pattern": "marketing",
+        "content_topic_distribution": "marketing"
+      }
+    },
+    "battlecard": {
+      "label": "배틀카드",
+      "active": true,
+      "features": [
+        "competitor_marketing_copy",
+        "competitor_promo_end_date",
+        "competitor_switch_story_quote",
+        "competitor_sales_objection",
+        "winning_zone_rate_advantage",
+        "losing_zone_product_variety",
+        "battling_zone_app_ux"
+      ],
+      "feature_labels": {
+        "competitor_marketing_copy": "경쟁사 광고 문구",
+        "competitor_promo_end_date": "경쟁사 한시 프로모션 종료일",
+        "competitor_switch_story_quote": "경쟁사에서 이탈한 고객 인용",
+        "competitor_sales_objection": "경쟁사 영업 반론 유형",
+        "winning_zone_rate_advantage": "자사 금리 우위 근거",
+        "losing_zone_product_variety": "자사 상품 다양성 열위 영역",
+        "battling_zone_app_ux": "앱 UX 접전 영역"
+      },
+      "categories": [
+        "Winning Zone",
+        "Battling Zone",
+        "Losing Zone",
+        "dedicated feature 4종",
+        "Persona Variation",
+        "Living Battlecard"
+      ],
+      "search_query_hints": [
+        "{competitor_name} 적금 금리 이벤트 종료일",
+        "카카오뱅크 vs {competitor_name} 적금 비교 후기",
+        "{competitor_name} 적금 단점 커뮤니티",
+        "카카오뱅크 적금 갈아타기 후기",
+        "인터넷전문은행 적금 영업 반론 사례"
+      ],
+      "action_lens": {
+        "competitor_marketing_copy": "marketing",
+        "competitor_promo_end_date": "marketing",
+        "competitor_switch_story_quote": "marketing",
+        "competitor_sales_objection": "marketing",
+        "winning_zone_rate_advantage": "marketing",
+        "losing_zone_product_variety": "product_dev",
+        "battling_zone_app_ux": "both"
+      }
+    },
+    "positioning_map": {
+      "label": "포지셔닝 맵",
+      "active": true,
+      "features": [
+        "positioning_axis_rate_level",
+        "positioning_axis_digital_convenience",
+        "perceptual_score_from_reviews",
+        "target_persona_fit_score",
+        "white_space_identification"
+      ],
+      "feature_labels": {
+        "positioning_axis_rate_level": "금리 수준 축 점수",
+        "positioning_axis_digital_convenience": "디지털 편의성 축 점수",
+        "perceptual_score_from_reviews": "리뷰 기반 인식 점수",
+        "target_persona_fit_score": "타깃 페르소나 일치도 점수",
+        "white_space_identification": "시장 빈 공간 식별"
+      },
+      "categories": [
+        "Axis Selection",
+        "Coordinate Calculation",
+        "Quadrant Interpretation",
+        "White Space",
+        "Persona Multi-view",
+        "Aaker 3 Conditions",
+        "Reframing Candidate"
+      ],
+      "search_query_hints": [
+        "인터넷전문은행 적금 포지셔닝 비교",
+        "카카오뱅크 적금 20대 인식 조사",
+        "시중은행 vs 인터넷은행 적금 선택 기준 설문",
+        "{competitor_name} 적금 브랜드 이미지 후기"
+      ],
+      "action_lens": {
+        "positioning_axis_rate_level": "marketing",
+        "positioning_axis_digital_convenience": "marketing",
+        "perceptual_score_from_reviews": "both",
+        "target_persona_fit_score": "marketing",
+        "white_space_identification": "both"
+      }
+    },
+    "market_context_swot": {
+      "label": "시장 컨텍스트·SWOT",
+      "active": true,
+      "features": [
+        "market_tam_installment_savings_kr",
+        "interest_rate_trend_bank_of_korea",
+        "regulatory_environment_internet_bank",
+        "digital_banking_adoption_rate_20_40",
+        "competitor_new_product_launch_signal",
+        "seasonal_savings_demand_pattern"
+      ],
+      "feature_labels": {
+        "market_tam_installment_savings_kr": "국내 적금 시장 TAM/SAM",
+        "interest_rate_trend_bank_of_korea": "한국은행 기준금리 동향",
+        "regulatory_environment_internet_bank": "인터넷전문은행 규제 환경",
+        "digital_banking_adoption_rate_20_40": "20~40대 모바일뱅킹 이용률",
+        "competitor_new_product_launch_signal": "경쟁사 신상품 출시 신호",
+        "seasonal_savings_demand_pattern": "계절별·연초 적금 수요 패턴"
+      },
+      "categories": [
+        "SWOT 4분면",
+        "TOWS Matrix",
+        "PESTLE 4요소",
+        "Porter's 5 Forces",
+        "Market Sizing",
+        "Seasonality"
+      ],
+      "search_query_hints": [
+        "한국 적금 시장 규모 통계",
+        "한국은행 기준금리 인상 인하 전망",
+        "인터넷전문은행 금융감독원 규제 동향",
+        "20대 30대 모바일뱅킹 이용률 보고서",
+        "{competitor_name} 신규 적금 상품 출시 뉴스",
+        "연초 적금 가입 시즌 수요 분석"
+      ],
+      "action_lens": {
+        "market_tam_installment_savings_kr": "both",
+        "interest_rate_trend_bank_of_korea": "both",
+        "regulatory_environment_internet_bank": "product_dev",
+        "digital_banking_adoption_rate_20_40": "marketing",
+        "competitor_new_product_launch_signal": "both",
+        "seasonal_savings_demand_pattern": "marketing"
+      }
+    },
+    "executive_summary": {
+      "label": "임원 요약",
+      "active": true,
+      "features": [
+        "bluf_core_finding",
+        "key_competitive_gap",
+        "top_priority_action",
+        "persona_ceo_takeaway",
+        "persona_cmo_takeaway",
+        "persona_pm_takeaway"
+      ],
+      "feature_labels": {
+        "bluf_core_finding": "핵심 발견 한 줄 결론",
+        "key_competitive_gap": "주요 경쟁 격차 요약",
+        "top_priority_action": "최우선 실행 권고",
+        "persona_ceo_takeaway": "CEO 관점 시사점",
+        "persona_cmo_takeaway": "CMO 관점 시사점",
+        "persona_pm_takeaway": "PM 관점 시사점"
+      },
+      "categories": [
+        "BLUF",
+        "SCR/SCQA Structure",
+        "Pyramid Principle",
+        "Bold-Bullet",
+        "\"So What?\" Test",
+        "Persona Branching",
+        "Cross-link"
+      ],
+      "search_query_hints": [
+        "카카오뱅크 적금 경쟁력 분석 보고서",
+        "인터넷전문은행 적금 시장 현황 요약",
+        "카카오뱅크 금융 전략 뉴스 2025"
+      ],
+      "action_lens": {
+        "bluf_core_finding": "both",
+        "key_competitive_gap": "both",
+        "top_priority_action": "both",
+        "persona_ceo_takeaway": "both",
+        "persona_cmo_takeaway": "marketing",
+        "persona_pm_takeaway": "product_dev"
+      }
+    }
+  },
+  "domain_id": "4",
+  "created_at": "2026-05-24T13:34:57.531144+00:00",
+  "updated_at": "2026-05-24T13:34:57.531144+00:00",
+  "version": 1
+}
