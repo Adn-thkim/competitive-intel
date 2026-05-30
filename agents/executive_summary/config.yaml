@@ -1,0 +1,20 @@
+agent_id: executive_summary
+agent_name: executive_summaryAgent
+version: "0.1.0-skeleton"
+description: >
+  D1=B 분리형 채택(v0.6 D1)에 따른 executive_summary 리포트 노드의 에이전트 설정.
+  v0.10 D4 enum 7종 중 하나로 report_config 키와 정합.
+  실제 system_prompt·output_schema는 §6-5/§6-6/§6-6a 산출 형식 확정 후 작성.
+
+# 실행 백엔드 (가안)
+backend: claude_cli            # ClaudeCodeCliAnalyzer 사용 권장
+
+# 출력 형식
+output_format: json            # call_with_schema() 사용
+
+# Rubric 정합
+rubric_section: "Rubric §2"    # docs/reference_report_taxonomy.md §2-* 참조
+report_type: executive_summary                # output.schema.json report_config의 키와 동일
+
+# 상태
+status: scaffold               # §6-4 P1a 스켈레톤 — system_prompt·schema 미작성
