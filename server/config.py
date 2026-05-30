@@ -65,14 +65,31 @@ ANALYSIS_CACHE_TTL_HOURS = int(os.getenv("ANALYSIS_CACHE_TTL_HOURS", "48"))
 # ⚠️ CLI는 --temperature 플래그를 지원하지 않는다 (GitHub issue #6096).
 #    결정론성이 필요한 단계(ProductIdResolver)는 Claude API를 직접 사용한다.
 CLI_MODEL   = os.getenv("CLI_MODEL", "claude-sonnet-4-6")
-CLI_TIMEOUT = int(os.getenv("CLI_TIMEOUT", "120"))
+# v0.10.10: 일반 LLM 호출 timeout 기본값을 120s → 300s 로 상향.
+# 본 값은 query_intake / competitor_discovery / domain_modeling / official_source_resolver /
+# url_retry 등 모든 단일 LLM 호출에 공통 적용된다. feature_mapping_llm_node 는 토큰
+# 규모가 더 커서 아래의 FEATURE_MAPPING_LLM_TIMEOUT 으로 별도 분리·관리한다.
+CLI_TIMEOUT = int(os.getenv("CLI_TIMEOUT", "300"))
+
+# feature_mapping_llm_node 전용 timeout (v0.10.10 분리).
+# 본 노드의 단일 LLM 호출은 (a) system_prompt(Rubric 인라인 약 5K 토큰) +
+# (b) active_reports[report_type] (features 최대 12개 + categories + hints) +
+# (c) candidates_with_meta (슬림화 후 평균 3K–4K 토큰) +
+# (d) 출력 JSON(features × candidate_coverage × additional_urls, 약 6K–10K 토큰)
+# 의 총 입출력 약 13K–24K 토큰을 처리하므로 일반 노드보다 더 큰 안전 마진이 필요하다.
+# 본 변수는 CLI_TIMEOUT 과 독립이며, 환경변수 FEATURE_MAPPING_LLM_TIMEOUT 으로 별도 override 가능.
+# 기본값은 CLI_TIMEOUT 과 동일(300s) 이지만, 실측 결과에 따라 운영자가 본 값만 더 늘릴 수 있다.
+FEATURE_MAPPING_LLM_TIMEOUT = int(
+    os.getenv("FEATURE_MAPPING_LLM_TIMEOUT", str(CLI_TIMEOUT))
+)
 
 # FeatureUrlMapperAgent 병렬 처리 설정.
-# 이 노드는 active_purposes를 purpose별로 분리해 병렬 LLM 호출한다.
-# (예: 8 purposes → max_workers=2 → 4라운드 × ~45s = 약 3분)
+# v0.10 이후: 이 노드는 report_config의 active 리포트 단위로 병렬 LLM 호출한다.
+# (예: 7개 active 리포트 → max_workers=4 → ~2라운드 × ~60s = 약 2분)
 # 값을 높이면 속도가 빨라지지만 Claude 구독 Rate Limit 위험이 증가한다.
-# 환경변수로 조정: FEATURE_URL_MAPPER_PARALLEL=2
-FEATURE_URL_MAPPER_PARALLEL = int(os.getenv("FEATURE_URL_MAPPER_PARALLEL", "2"))
+# v0.10.9: 4배치 → 2배치로 절감 위해 기본값 2→4 상향.
+# 환경변수로 조정: FEATURE_URL_MAPPER_PARALLEL=4
+FEATURE_URL_MAPPER_PARALLEL = int(os.getenv("FEATURE_URL_MAPPER_PARALLEL", "4"))
 
 # OfficialSourceResolverAgent 병렬 처리 설정.
 # candidate별로 Brave 탐색·HTTP 검증을 병렬 실행한다.

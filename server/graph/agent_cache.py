@@ -77,12 +77,20 @@ def load_agent_output(
     context: dict,
     output_schema: dict | None = None,
     logger: logging.Logger | None = None,
+    ttl_hours: float | None = None,
 ) -> dict | None:
     """
     agent 출력 캐시를 조회한다.
 
-    output_schema가 주어지면 캐시된 output을 검증하고, 실패 시 캐시 미스로
-    처리한다. 반환값은 호출자가 안전하게 수정할 수 있도록 deep copy한다.
+    Parameters
+    ----------
+    output_schema : dict | None
+        주어지면 캐시된 output 을 검증하고 실패 시 캐시 미스로 처리한다.
+    ttl_hours : float | None (v0.10.12 신설)
+        주어지면 entry 의 updated_at 기준 TTL 검사. 초과 시 캐시 미스로 처리한다.
+        None(기본값) 이면 TTL 무한(기존 동작 유지).
+
+    반환값은 호출자가 안전하게 수정할 수 있도록 deep copy 한다.
     """
     path = _cache_path(agent_id)
     cache_key = make_cache_key(agent_id, cache_input, context)
@@ -90,6 +98,26 @@ def load_agent_output(
     entry = data.get("entries", {}).get(cache_key)
     if not entry:
         return None
+
+    # v0.10.12 — TTL 검사 (옵션). 만료 시 캐시 미스 처리.
+    if ttl_hours is not None:
+        updated_at_str = entry.get("updated_at") or entry.get("created_at")
+        if updated_at_str:
+            try:
+                updated_at = datetime.fromisoformat(updated_at_str.replace("Z", "+00:00"))
+                age_hours = (
+                    datetime.now(timezone.utc) - updated_at
+                ).total_seconds() / 3600
+                if age_hours > ttl_hours:
+                    if logger:
+                        logger.info(
+                            "%s: cache TTL expired (age=%.1fh > %sh, key=%s)",
+                            agent_id, age_hours, ttl_hours, cache_key[:12],
+                        )
+                    return None
+            except (ValueError, TypeError):
+                # timestamp 파싱 실패 → 안전하게 캐시 미스
+                return None
 
     output = copy.deepcopy(entry.get("output"))
     if output_schema is not None:
