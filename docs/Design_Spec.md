@@ -5,6 +5,14 @@
 > - **현재 저장 방식**: JSON 파일 캐시 (data/cache/, data/taxonomy/)
 > - **향후 저장 방식**: SQLite 연동 예정
 > - **문서 버전**: v2.0 | 작성일: 2026-05-05 (v1.1에서 실제 구현 반영 업데이트)
+>
+> ### ⚠ Supersede 안내 (2026-05-21)
+>
+> 본 문서 v2.0의 §4-2 (LangGraph 토폴로지·미구현 노드 목록·graph.py 엣지 정의)는 `docs/design/pipeline_topology_redesign.md` **v0.6**에 의해 사실상 대체되었습니다. 다음 항목은 redesign 문서를 단일 진실원(SSOT)으로 참조하시기 바랍니다.
+>
+> - 미구현 노드 목록 — v2.0에서 6개(`feature_extraction`, `feature_comparison`, `youtube_query_planner`, `youtube_collection`, `reaction_analysis`, `insight_report`)로 기술되어 있으나, redesign v0.6에서 D1=B 분리형 채택 + §6-6a 신규 수집 노드 6종 도입으로 **총 13종**으로 확장되었습니다.
+> - `report_types` enum 7종 (D4 확정, redesign v0.6 §6-3): `comparison_matrix`, `reaction_insight`, `marketing_social`, `battlecard`, `positioning_map`, `market_context_swot`, `executive_summary`.
+> - 엣지 구조 — v2.0의 단순 직렬 TODO 주석은 redesign v0.6 §6-7의 7중 fan-out + 6중 fan-in 구조로 대체됨.
 
 ## 1. 문서 목적
 

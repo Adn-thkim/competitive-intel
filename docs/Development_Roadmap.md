@@ -27,13 +27,29 @@ Python FastAPI (uvicorn)
           ├── [9] feature_url_mapper_node     ← FeatureUrlMapperAgent (Claude Code CLI)
           ├── [10] feature_selection_node     ← interrupt() #4 (분석 목적·항목 선택)
           │
-          │   ── 이하 미구현 (TODO) ──
+          │   ── 이하 미구현 (TODO) ── ※ pipeline_topology_redesign.md v0.6 기준 ──
+          │   ※ 본 목록은 D1=B(분리형) + §6-6a 신규 수집 노드 6종 반영
           ├── [ ] feature_extraction_node
-          ├── [ ] feature_comparison_node
-          ├── [ ] youtube_query_planner_node
-          ├── [ ] youtube_collection_node
-          ├── [ ] reaction_analysis_node
-          └── [ ] insight_report_node
+          │
+          │   ── (A) 신규 수집 노드 6종 (pipeline_topology_redesign.md §6-6a) ──
+          ├── [ ] community_collection_node              (reaction_insight 채널 2)
+          ├── [ ] app_store_review_collection_node       (reaction_insight 채널 3, D11 결정 의존)
+          ├── [ ] youtube_query_planner_node             (reaction_insight 채널 1)
+          ├── [ ] youtube_collection_node                (reaction_insight 채널 1)
+          ├── [ ] reaction_analysis_node                 (reaction_insight 3채널 fan-in 후 ABSA)
+          ├── [ ] youtube_channel_metadata_collection_node (marketing_social)
+          ├── [ ] blog_rss_collection_node               (marketing_social)
+          ├── [ ] pr_release_collection_node             (marketing_social)
+          ├── [ ] market_context_collection_node         (market_context_swot, D13 캐시 단위 의존)
+          │
+          │   ── (B) 리포트 노드 7종 (pipeline_topology_redesign.md §6-3 D4 확정) ──
+          ├── [ ] comparison_matrix_node                 (leaf, feature_extraction 의존)
+          ├── [ ] reaction_insight_node                  (leaf, reaction_analysis 의존)
+          ├── [ ] marketing_social_node                  (leaf, 3채널 fan-in 의존)
+          ├── [ ] battlecard_node                        (mid, comparison_matrix + reaction_insight + marketing_social 의존)
+          ├── [ ] positioning_map_node                   (mid, comparison_matrix 의존)
+          ├── [ ] market_context_swot_node               (mid/top, 3 리포트 + market_context_collection 의존)
+          └── [ ] executive_summary_node                 (top, 모든 6개 리포트 fan-in → END)
 
     ├── Brave Search API (url_retry Phase 1 재탐색)
     ├── YouTube Data API v3
