@@ -1,253 +1,411 @@
 {
   "domain_slug": "toss_travel_card",
-  "domain_type": "fintech_travel_prepaid_card",
-  "active_purposes": [
-    "fee_comparison",
-    "fx_rate_transparency",
-    "atm_benefit_comparison",
-    "card_issuance_ux",
-    "app_travel_management",
-    "travel_safety_features",
-    "charging_payment_structure",
-    "brand_trust_accessibility"
-  ],
-  "purpose_config": {
-    "fee_comparison": {
-      "label": "해외결제 수수료 비교",
+  "domain_type": "consumer_fintech_travel_card",
+  "report_config": {
+    "comparison_matrix": {
+      "label": "비교 매트릭스",
+      "active": true,
       "features": [
         "overseas_payment_fee_rate",
-        "overseas_payment_fee_free_limit",
-        "annual_fee",
-        "domestic_usage_fee",
-        "currency_conversion_markup_rate"
+        "exchange_rate_method",
+        "atm_withdrawal_fee_benefit",
+        "fx_conversion_spread",
+        "recharge_method",
+        "card_structure_type",
+        "issuer_type",
+        "travel_benefit_insurance_lounge",
+        "minimum_balance_requirement",
+        "app_lock_feature"
       ],
       "feature_labels": {
         "overseas_payment_fee_rate": "해외결제 수수료율",
-        "overseas_payment_fee_free_limit": "해외결제 수수료 무료 한도",
-        "annual_fee": "연회비",
-        "domestic_usage_fee": "국내 사용 수수료",
-        "currency_conversion_markup_rate": "환율 마진율"
+        "exchange_rate_method": "환율 적용 방식",
+        "atm_withdrawal_fee_benefit": "해외 ATM 출금 수수료 혜택",
+        "fx_conversion_spread": "외환 스프레드",
+        "recharge_method": "충전·환전 방식",
+        "card_structure_type": "카드 구조(체크/선불/신용)",
+        "issuer_type": "발급 주체 유형",
+        "travel_benefit_insurance_lounge": "여행 특화 부가 혜택(보험·라운지)",
+        "minimum_balance_requirement": "최소 잔액 요건",
+        "app_lock_feature": "앱 즉시 잠금 기능"
       },
-      "url_types": [
-        "pricing_page",
-        "fee_schedule_page",
-        "product_detail_page",
-        "faq_fees"
+      "categories": [
+        "Pricing",
+        "Core Capability",
+        "Additional Benefit",
+        "Onboarding/Eligibility",
+        "UX/Support",
+        "재환전 우대"
       ],
-      "url_type_priority": {
-        "pricing_page": 1,
-        "fee_schedule_page": 2,
-        "product_detail_page": 3,
-        "faq_fees": 4
+      "search_query_hints": [
+        "{competitor_name} 해외결제 수수료 면제 조건",
+        "{competitor_name} 트래블카드 환율 적용 방식 실시간",
+        "{competitor_name} 해외 ATM 출금 수수료 혜택",
+        "{competitor_name} 카드 발급 조건 체크카드 선불카드",
+        "토스 트래블카드 vs {competitor_name} 수수료 비교",
+        "{competitor_name} 해외여행 카드 약관 PDF",
+        "{competitor_name} 외화 환전 스프레드 공식 안내"
+      ],
+      "action_lens": {
+        "overseas_payment_fee_rate": "both",
+        "exchange_rate_method": "both",
+        "atm_withdrawal_fee_benefit": "both",
+        "fx_conversion_spread": "product_dev",
+        "recharge_method": "product_dev",
+        "card_structure_type": "marketing",
+        "issuer_type": "marketing",
+        "travel_benefit_insurance_lounge": "both",
+        "minimum_balance_requirement": "product_dev",
+        "app_lock_feature": "marketing"
       }
     },
-    "fx_rate_transparency": {
-      "label": "환율 투명성 및 실시간성",
+    "reaction_insight": {
+      "label": "고객 반응 인사이트",
+      "active": true,
       "features": [
-        "fx_rate_type",
-        "fx_rate_update_frequency",
-        "base_rate_reference",
-        "fx_rate_display_in_app",
-        "pre_conversion_requirement"
+        "user_sentiment_exchange_convenience",
+        "user_sentiment_fee_perception",
+        "user_sentiment_app_ux",
+        "user_sentiment_atm_experience",
+        "user_sentiment_card_lock",
+        "user_sentiment_travel_benefit",
+        "user_sentiment_customer_support"
       ],
       "feature_labels": {
-        "fx_rate_type": "적용 환율 유형 (실시간/고시환율 등)",
-        "fx_rate_update_frequency": "환율 갱신 주기",
-        "base_rate_reference": "기준 환율 출처",
-        "fx_rate_display_in_app": "앱 내 환율 노출 여부",
-        "pre_conversion_requirement": "사전 환전 필요 여부"
+        "user_sentiment_exchange_convenience": "환전 편의성 사용자 반응",
+        "user_sentiment_fee_perception": "수수료 체감 사용자 반응",
+        "user_sentiment_app_ux": "앱 UX 사용자 반응",
+        "user_sentiment_atm_experience": "ATM 현금 출금 경험 반응",
+        "user_sentiment_card_lock": "카드 잠금 기능 반응",
+        "user_sentiment_travel_benefit": "여행 부가 혜택 반응",
+        "user_sentiment_customer_support": "고객 지원 반응"
       },
-      "url_types": [
-        "product_detail_page",
-        "faq_exchange_rate",
-        "help_center_fx",
-        "exchange_rate_guide_page"
+      "categories": [
+        "Core Function Convenience",
+        "Pricing Perception",
+        "App UX Quality",
+        "Reliability/Availability",
+        "Customer Support",
+        "Additional Benefit Perception",
+        "Domain-specific"
       ],
-      "url_type_priority": {
-        "product_detail_page": 1,
-        "faq_exchange_rate": 2,
-        "help_center_fx": 3,
-        "exchange_rate_guide_page": 4
+      "search_query_hints": [
+        "{own_product} 후기 환전 수수료 편하다",
+        "토스 트래블카드 사용 후기 커뮤니티",
+        "토스 트래블카드 단점 불편 ATM",
+        "토스 트래블카드 vs {competitor_name} 리뷰 앱스토어",
+        "{competitor_name} 트래블카드 사용 후기 환율 체감",
+        "토스 트래블카드 여행 사용 경험 유튜브"
+      ],
+      "aspect_codebook": [
+        {
+          "aspect_id": "exchange_convenience",
+          "label": "환전 편의성",
+          "definition": "앱 내에서 외화 환전 및 충전을 얼마나 빠르고 쉽게 수행할 수 있는가",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "fee_perception",
+          "label": "수수료 체감",
+          "definition": "해외결제·ATM·환전 수수료가 실제로 저렴하다고 느끼는 정도",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "exchange_rate_fairness",
+          "label": "환율 공정성",
+          "definition": "적용된 환율이 시장 환율 대비 유리하다고 사용자가 체감하는 정도",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "app_ux_quality",
+          "label": "앱 UX 품질",
+          "definition": "카드 잔액 조회, 내역 확인, 충전 등 앱 내 기능의 사용 편의성",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "atm_experience",
+          "label": "ATM 출금 경험",
+          "definition": "해외 ATM에서 현금 출금 시 수수료·한도·인식률에 대한 실사용 경험",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "card_lock_reliability",
+          "label": "카드 잠금 신뢰성",
+          "definition": "분실·도난 시 앱에서 즉시 잠금이 작동하는지에 대한 신뢰도",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "travel_benefit_value",
+          "label": "여행 부가 혜택 가치",
+          "definition": "여행 보험, 라운지 이용 등 부가 혜택이 실제 여행에서 유용하다고 느끼는 정도",
+          "domain_specific": true
+        },
+        {
+          "aspect_id": "customer_support",
+          "label": "고객 지원 응대",
+          "definition": "해외 사용 중 문제 발생 시 고객센터·챗봇 응대 속도와 해결 품질",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "recharge_speed",
+          "label": "충전 속도",
+          "definition": "원화 잔액을 외화로 충전하거나 카드에 금액을 올리는 데 걸리는 시간 체감",
+          "domain_specific": true
+        }
+      ],
+      "action_lens": {
+        "user_sentiment_exchange_convenience": "both",
+        "user_sentiment_fee_perception": "marketing",
+        "user_sentiment_app_ux": "product_dev",
+        "user_sentiment_atm_experience": "product_dev",
+        "user_sentiment_card_lock": "marketing",
+        "user_sentiment_travel_benefit": "both",
+        "user_sentiment_customer_support": "product_dev"
       }
     },
-    "atm_benefit_comparison": {
-      "label": "해외 ATM 출금 혜택 비교",
+    "marketing_social": {
+      "label": "마케팅·소셜 분석",
+      "active": true,
       "features": [
-        "atm_withdrawal_fee_overseas",
-        "atm_free_withdrawal_count_per_month",
-        "atm_free_withdrawal_limit_amount",
-        "atm_network_coverage",
-        "atm_currency_support"
+        "channel_youtube_presence",
+        "channel_instagram_presence",
+        "channel_blog_naver",
+        "posting_frequency_per_channel",
+        "engagement_rate_per_channel",
+        "content_keyword_travel_fee",
+        "content_keyword_exchange",
+        "campaign_seasonal_summer_travel"
       ],
       "feature_labels": {
-        "atm_withdrawal_fee_overseas": "해외 ATM 출금 수수료",
-        "atm_free_withdrawal_count_per_month": "월 무료 ATM 출금 횟수",
-        "atm_free_withdrawal_limit_amount": "무료 ATM 출금 한도 금액",
-        "atm_network_coverage": "지원 ATM 네트워크 (Visa/Mastercard 등)",
-        "atm_currency_support": "출금 가능 통화 수"
+        "channel_youtube_presence": "유튜브 채널 운영 현황",
+        "channel_instagram_presence": "인스타그램 채널 운영 현황",
+        "channel_blog_naver": "네이버 블로그·포스트 운영",
+        "posting_frequency_per_channel": "채널별 게시 빈도",
+        "engagement_rate_per_channel": "채널별 인게이지먼트율",
+        "content_keyword_travel_fee": "여행·수수료 관련 콘텐츠 키워드",
+        "content_keyword_exchange": "환전·환율 관련 콘텐츠 키워드",
+        "campaign_seasonal_summer_travel": "여름 여행 시즌 캠페인"
       },
-      "url_types": [
-        "product_detail_page",
-        "fee_schedule_page",
-        "faq_atm_withdrawal",
-        "help_center_overseas_cash"
+      "categories": [
+        "PESO 분류",
+        "Channel Operations",
+        "Engagement",
+        "Content Keywords/Topics",
+        "Channel × Keyword Cross-tab",
+        "Coverage Gap",
+        "Seasonality Correction"
       ],
-      "url_type_priority": {
-        "product_detail_page": 1,
-        "fee_schedule_page": 2,
-        "faq_atm_withdrawal": 3,
-        "help_center_overseas_cash": 4
+      "search_query_hints": [
+        "{competitor_name} 트래블카드 유튜브 광고 캠페인",
+        "토스 트래블카드 인스타그램 콘텐츠 환전",
+        "{competitor_name} 해외여행 카드 네이버 블로그 후기",
+        "{competitor_name} 여름 여행 시즌 프로모션 광고",
+        "토스 {own_product} SNS 마케팅 키워드 분석",
+        "해외여행 트래블카드 유튜브 리뷰 인기 영상"
+      ],
+      "action_lens": {
+        "channel_youtube_presence": "marketing",
+        "channel_instagram_presence": "marketing",
+        "channel_blog_naver": "marketing",
+        "posting_frequency_per_channel": "marketing",
+        "engagement_rate_per_channel": "marketing",
+        "content_keyword_travel_fee": "both",
+        "content_keyword_exchange": "both",
+        "campaign_seasonal_summer_travel": "marketing"
       }
     },
-    "card_issuance_ux": {
-      "label": "카드 발급 편의성",
+    "battlecard": {
+      "label": "배틀카드",
+      "active": true,
       "features": [
-        "issuance_channel",
-        "issuance_time",
-        "kyc_requirement",
-        "minimum_age_requirement",
-        "required_existing_account"
+        "competitor_overseas_fee_differentiator",
+        "competitor_exchange_rate_advantage",
+        "competitor_marketing_copy",
+        "competitor_promo_end_date",
+        "competitor_switch_story_quote",
+        "competitor_sales_objection",
+        "persona_short_trip_traveler",
+        "persona_long_stay_digital_nomad"
       ],
       "feature_labels": {
-        "issuance_channel": "발급 채널 (비대면/대면)",
-        "issuance_time": "발급 소요 시간",
-        "kyc_requirement": "본인인증 요건",
-        "minimum_age_requirement": "발급 가능 최소 연령",
-        "required_existing_account": "기존 계좌 연동 필요 여부"
+        "competitor_overseas_fee_differentiator": "경쟁사 해외결제 수수료 차별화 포인트",
+        "competitor_exchange_rate_advantage": "경쟁사 환율 우대 메시지",
+        "competitor_marketing_copy": "경쟁사 광고 문구 원문",
+        "competitor_promo_end_date": "경쟁사 한시 프로모션 종료일",
+        "competitor_switch_story_quote": "경쟁사에서 토스로 전환한 사용자 인용",
+        "competitor_sales_objection": "영업 현장 반론 예시",
+        "persona_short_trip_traveler": "단기 여행자 페르소나 응대 전략",
+        "persona_long_stay_digital_nomad": "장기 체류·디지털 노마드 페르소나 응대 전략"
       },
-      "url_types": [
-        "card_apply_page",
-        "onboarding_guide_page",
-        "faq_issuance",
-        "product_detail_page"
+      "categories": [
+        "Winning Zone",
+        "Battling Zone",
+        "Losing Zone",
+        "dedicated feature 4종",
+        "Persona Variation",
+        "Living Battlecard"
       ],
-      "url_type_priority": {
-        "card_apply_page": 1,
-        "onboarding_guide_page": 2,
-        "faq_issuance": 3,
-        "product_detail_page": 4
+      "search_query_hints": [
+        "{competitor_name} 트래블카드 수수료 면제 이벤트 종료일",
+        "토스 트래블카드 vs {competitor_name} 비교 커뮤니티 후기",
+        "토스 트래블카드 장점 환전 수수료 없음",
+        "{competitor_name} 해외결제 공식 안내 수수료 구조",
+        "토스 트래블카드 단점 라운지 보험 없음"
+      ],
+      "action_lens": {
+        "competitor_overseas_fee_differentiator": "marketing",
+        "competitor_exchange_rate_advantage": "marketing",
+        "competitor_marketing_copy": "marketing",
+        "competitor_promo_end_date": "both",
+        "competitor_switch_story_quote": "marketing",
+        "competitor_sales_objection": "marketing",
+        "persona_short_trip_traveler": "both",
+        "persona_long_stay_digital_nomad": "both"
       }
     },
-    "app_travel_management": {
-      "label": "앱 기반 여행 통합 관리 편의성",
+    "positioning_map": {
+      "label": "포지셔닝 맵",
+      "active": true,
       "features": [
-        "in_app_fx_exchange",
-        "balance_topup_method",
-        "transaction_history_realtime",
-        "multi_currency_wallet_support",
-        "budget_tracking_feature"
+        "axis_cost_efficiency_score",
+        "axis_digital_ux_score",
+        "perceptual_vs_actual_gap",
+        "white_space_premium_travel",
+        "persona_view_short_trip",
+        "persona_view_long_term_expat"
       ],
       "feature_labels": {
-        "in_app_fx_exchange": "앱 내 외화 환전 기능",
-        "balance_topup_method": "잔액 충전 방법 및 경로",
-        "transaction_history_realtime": "실시간 거래 내역 조회",
-        "multi_currency_wallet_support": "다통화 지갑 지원 여부",
-        "budget_tracking_feature": "여행 예산 관리 기능"
+        "axis_cost_efficiency_score": "비용 효율성 축 점수 (수수료·환율 종합)",
+        "axis_digital_ux_score": "디지털 UX 편의성 축 점수",
+        "perceptual_vs_actual_gap": "인식 포지션 vs 실제 포지션 격차",
+        "white_space_premium_travel": "프리미엄 여행 혜택 공백 영역",
+        "persona_view_short_trip": "단기 여행자 뷰 포지셔닝",
+        "persona_view_long_term_expat": "장기 체류·디지털 노마드 뷰 포지셔닝"
       },
-      "url_types": [
-        "app_feature_page",
-        "product_detail_page",
-        "help_center_app_usage",
-        "travel_guide_page"
+      "categories": [
+        "Axis Selection",
+        "Coordinate Calculation",
+        "Quadrant Interpretation",
+        "White Space",
+        "Persona Multi-view",
+        "Aaker 3 Conditions",
+        "Reframing Candidate"
       ],
-      "url_type_priority": {
-        "app_feature_page": 1,
-        "product_detail_page": 2,
-        "help_center_app_usage": 3,
-        "travel_guide_page": 4
+      "search_query_hints": [
+        "{competitor_name} 트래블카드 포지셔닝 차별화 비교",
+        "토스 트래블카드 라운지 없는 이유 포지션",
+        "해외여행 카드 비용 효율 앱 편의성 비교 2024",
+        "해외여행 특화 카드 시장 지도 핀테크 인터넷은행"
+      ],
+      "action_lens": {
+        "axis_cost_efficiency_score": "both",
+        "axis_digital_ux_score": "both",
+        "perceptual_vs_actual_gap": "marketing",
+        "white_space_premium_travel": "both",
+        "persona_view_short_trip": "marketing",
+        "persona_view_long_term_expat": "product_dev"
       }
     },
-    "travel_safety_features": {
-      "label": "여행 중 안전·분실 대응 기능",
+    "market_context_swot": {
+      "label": "시장 컨텍스트·SWOT",
+      "active": true,
       "features": [
-        "card_lock_unlock_in_app",
-        "lost_card_report_process",
-        "emergency_card_replacement_overseas",
-        "transaction_alert_push",
-        "temporary_limit_adjustment"
+        "market_size_outbound_travel_kr",
+        "regulatory_environment_fintech_card",
+        "competitor_new_entrant_signal",
+        "seasonal_peak_summer_winter",
+        "swot_strength_toss_ecosystem",
+        "swot_weakness_no_lounge",
+        "swot_opportunity_digital_nomad_growth",
+        "swot_threat_bank_fee_elimination"
       ],
       "feature_labels": {
-        "card_lock_unlock_in_app": "앱 즉시 카드 잠금·해제",
-        "lost_card_report_process": "분실 신고 절차 및 소요 시간",
-        "emergency_card_replacement_overseas": "해외 긴급 카드 재발급 지원",
-        "transaction_alert_push": "결제 즉시 푸시 알림",
-        "temporary_limit_adjustment": "한도 임시 조정 기능"
+        "market_size_outbound_travel_kr": "한국 출국 여행객 규모 및 성장률",
+        "regulatory_environment_fintech_card": "핀테크 카드 관련 규제 환경",
+        "competitor_new_entrant_signal": "경쟁사 신규 진입·출시 신호",
+        "seasonal_peak_summer_winter": "여름·겨울 여행 시즌 수요 피크",
+        "swot_strength_toss_ecosystem": "강점: 토스 앱 생태계 락인",
+        "swot_weakness_no_lounge": "약점: 라운지·프리미엄 혜택 부재",
+        "swot_opportunity_digital_nomad_growth": "기회: 디지털 노마드·장기 체류 증가",
+        "swot_threat_bank_fee_elimination": "위협: 시중은행 수수료 철폐 경쟁"
       },
-      "url_types": [
-        "security_feature_page",
-        "faq_lost_card",
-        "help_center_card_management",
-        "product_detail_page"
+      "categories": [
+        "SWOT 4분면",
+        "TOWS Matrix",
+        "PESTLE 4요소",
+        "Porter's 5 Forces",
+        "Market Sizing",
+        "Seasonality"
       ],
-      "url_type_priority": {
-        "security_feature_page": 1,
-        "faq_lost_card": 2,
-        "help_center_card_management": 3,
-        "product_detail_page": 4
+      "search_query_hints": [
+        "한국 해외여행 시장 규모 출국자 통계 2024",
+        "핀테크 트래블카드 신규 출시 2024 2025",
+        "한국은행 해외결제 수수료 규제 동향",
+        "해외여행 시즌별 수요 여름 겨울 통계",
+        "해외여행 특화 카드 시장 점유율 TAM SAM",
+        "디지털 노마드 한국 증가 추세 통계"
+      ],
+      "action_lens": {
+        "market_size_outbound_travel_kr": "both",
+        "regulatory_environment_fintech_card": "both",
+        "competitor_new_entrant_signal": "marketing",
+        "seasonal_peak_summer_winter": "marketing",
+        "swot_strength_toss_ecosystem": "marketing",
+        "swot_weakness_no_lounge": "product_dev",
+        "swot_opportunity_digital_nomad_growth": "both",
+        "swot_threat_bank_fee_elimination": "both"
       }
     },
-    "charging_payment_structure": {
-      "label": "충전식 vs 후불 결제 구조 비교",
+    "executive_summary": {
+      "label": "임원 요약",
+      "active": true,
       "features": [
-        "payment_structure_type",
-        "prepaid_balance_limit",
-        "auto_topup_support",
-        "linkable_bank_account",
-        "credit_line_availability"
+        "bluf_competitive_position",
+        "key_differentiator_vs_top3_competitors",
+        "priority_action_marketing",
+        "priority_action_product",
+        "risk_flag_promo_expiry",
+        "persona_ceo_view",
+        "persona_cmo_view",
+        "persona_pm_view"
       ],
       "feature_labels": {
-        "payment_structure_type": "결제 구조 유형 (선불/후불/하이브리드)",
-        "prepaid_balance_limit": "선불 충전 한도",
-        "auto_topup_support": "자동 충전 기능 지원 여부",
-        "linkable_bank_account": "연결 가능 은행 계좌 범위",
-        "credit_line_availability": "신용 한도 제공 여부"
+        "bluf_competitive_position": "BLUF: 토스 트래블카드 경쟁 포지션 한 줄 결론",
+        "key_differentiator_vs_top3_competitors": "상위 3개 경쟁사 대비 핵심 차별화 포인트",
+        "priority_action_marketing": "마케팅 우선순위 액션",
+        "priority_action_product": "제품 우선순위 액션",
+        "risk_flag_promo_expiry": "한시 프로모션 만료 리스크",
+        "persona_ceo_view": "CEO 페르소나 요약 뷰",
+        "persona_cmo_view": "CMO 페르소나 요약 뷰",
+        "persona_pm_view": "PM 페르소나 요약 뷰"
       },
-      "url_types": [
-        "product_detail_page",
-        "faq_topup_charging",
-        "pricing_page",
-        "help_center_balance_management"
+      "categories": [
+        "BLUF",
+        "SCR/SCQA Structure",
+        "Pyramid Principle",
+        "Bold-Bullet",
+        "\"So What?\" Test",
+        "Persona Branching",
+        "Cross-link"
       ],
-      "url_type_priority": {
-        "product_detail_page": 1,
-        "faq_topup_charging": 2,
-        "pricing_page": 3,
-        "help_center_balance_management": 4
-      }
-    },
-    "brand_trust_accessibility": {
-      "label": "브랜드 신뢰도 및 국내 사용자 접근성",
-      "features": [
-        "domestic_brand_recognition",
-        "customer_support_channel",
-        "regulatory_compliance_disclosure",
-        "user_review_rating_score",
-        "partner_bank_affiliation"
+      "search_query_hints": [
+        "토스 트래블카드 경쟁사 비교 요약 2024",
+        "해외여행 카드 시장 경쟁 구도 핀테크 리포트"
       ],
-      "feature_labels": {
-        "domestic_brand_recognition": "국내 브랜드 인지도 및 금융기관 제휴 여부",
-        "customer_support_channel": "고객센터 채널 (앱 내 챗봇·전화·이메일 등)",
-        "regulatory_compliance_disclosure": "금융당국 인허가 및 규제 준수 공시",
-        "user_review_rating_score": "앱스토어·플레이스토어 사용자 평점",
-        "partner_bank_affiliation": "제휴 은행 또는 발급 기관 신뢰도"
-      },
-      "url_types": [
-        "about_company_page",
-        "customer_support_page",
-        "regulatory_disclosure_page",
-        "app_store_listing_page"
-      ],
-      "url_type_priority": {
-        "about_company_page": 1,
-        "customer_support_page": 2,
-        "regulatory_disclosure_page": 3,
-        "app_store_listing_page": 4
+      "action_lens": {
+        "bluf_competitive_position": "both",
+        "key_differentiator_vs_top3_competitors": "marketing",
+        "priority_action_marketing": "marketing",
+        "priority_action_product": "product_dev",
+        "risk_flag_promo_expiry": "both",
+        "persona_ceo_view": "both",
+        "persona_cmo_view": "marketing",
+        "persona_pm_view": "product_dev"
       }
     }
   },
-  "enrichment_note": "existing_taxonomy v16 기반 enrich 모드 검토 결과: competition_axes 8개 항목(해외결제 수수료, 환율 적용 방식, ATM 출금 혜택, 앱 편의성, 결제 구조, 발급 주체 신뢰도, 앱 생태계 락인, 여행 부가혜택)이 기존 8개 purpose(fee_comparison, fx_rate_transparency, atm_benefit_comparison, card_issuance_ux, app_travel_management, travel_safety_features, charging_payment_structure, brand_trust_accessibility)에 완전히 매핑되어 있으며 active_purposes 상한(8개)에 도달한 상태입니다. 누락된 purpose·feature·url_type이 확인되지 않아 기존 taxonomy를 그대로 유지합니다. 기존 항목은 일체 변경하지 않았습니다.",
   "domain_id": "3",
   "created_at": "2026-05-03T06:48:34.343544+00:00",
-  "updated_at": "2026-05-14T01:55:13.430026+00:00",
-  "version": 17
+  "updated_at": "2026-05-23T11:03:33.888628+00:00",
+  "version": 18
 }
