@@ -2,20 +2,20 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/feature-url-mapper/output.schema.json",
   "title": "FeatureUrlMapperOutput",
-  "description": "domain_taxonomy 기반 purpose × feature × candidate URL 커버리지 매핑 결과.\n\n처리 흐름:\n  1. taxonomy의 active_purposes + purpose_config에서 feature 목록을 수신한다 (LLM이 직접 생성하지 않음).\n  2. 각 feature × candidate 조합마다 existing_urls(이미 검증된 URL)로 충분한지 평가한다.\n  3. 부족하면 taxonomy url_types 우선순위에 따라 additional_urls 탐색 후보를 제안한다 (HTTP 검증은 노드가 수행).",
+  "description": "v0.10: domain_taxonomy.report_config 기반 report_type × feature × candidate URL 커버리지 매핑.\n\n처리 흐름:\n  1. report_config[report_type].features에서 비교할 feature 목록을 수신한다 (LLM이 직접 생성하지 않음).\n  2. 각 feature × candidate 조합마다 existing_urls(official_source_resolver + Brave 검색 결과)로 충분한지 평가한다.\n  3. 부족하면 도메인 내 sub-page 또는 추가 후보 URL을 additional_urls로 제안한다 (HTTP 검증은 노드가 수행).",
   "type": "object",
   "additionalProperties": false,
   "required": ["features"],
   "properties": {
     "features": {
       "type": "array",
-      "description": "taxonomy에서 가져온 purpose × feature 목록. active_purposes 순서대로 정렬된다.",
+      "description": "report_config의 모든 active 리포트의 feature를 합친 목록. report_type 필드로 D6 카드 그룹핑 가능.",
       "minItems": 1,
       "items": {
         "type": "object",
         "additionalProperties": false,
         "required": [
-          "purpose_id",
+          "report_type",
           "feature_id",
           "feature_name",
           "description",
@@ -23,14 +23,22 @@
           "candidate_coverage"
         ],
         "properties": {
-          "purpose_id": {
+          "report_type": {
             "type": "string",
-            "description": "이 feature가 속한 분석 목적 ID. taxonomy의 active_purposes 값과 일치해야 한다. feature_selection UI에서 purpose 단위 그룹핑에 사용된다.",
-            "pattern": "^[a-z][a-z0-9_]*$"
+            "description": "v0.10 D4 enum 7종 중 하나. 본 feature가 기여하는 리포트.",
+            "enum": [
+              "comparison_matrix",
+              "reaction_insight",
+              "marketing_social",
+              "battlecard",
+              "positioning_map",
+              "market_context_swot",
+              "executive_summary"
+            ]
           },
           "feature_id": {
             "type": "string",
-            "description": "feature 고유 식별자. 반드시 feat_ 접두사를 가진다. taxonomy feature ID에 feat_ 접두사를 붙인 값. 예: taxonomy 'transaction_fee_rate' → 'feat_transaction_fee_rate'",
+            "description": "feature 고유 식별자. 반드시 feat_ 접두사를 가진다. taxonomy feature ID에 feat_ 접두사를 붙인 값. 예: 'transaction_fee_rate' → 'feat_transaction_fee_rate'",
             "pattern": "^feat_"
           },
           "feature_name": {
@@ -40,12 +48,12 @@
           },
           "description": {
             "type": "string",
-            "description": "이 항목이 무엇을 비교하는지 1~2문장으로 설명. LLM이 feature 의미를 바탕으로 작성한다.",
+            "description": "이 항목이 무엇을 비교하는지 1~2문장 설명.",
             "minLength": 10
           },
           "priority": {
             "type": "string",
-            "description": "비교 분석에서의 중요도. LLM이 이 feature가 소비자 의사결정에 미치는 영향도를 기준으로 판단한다. high: 핵심 비교 항목 / medium: 보조 항목 / low: 참고 항목",
+            "description": "비교 분석에서의 중요도. high: 핵심 / medium: 보조 / low: 참고.",
             "enum": ["high", "medium", "low"]
           },
           "candidate_coverage": {
@@ -62,56 +70,36 @@
                 "additional_urls"
               ],
               "properties": {
-                "candidate_id": {
-                  "type": "string",
-                  "description": "state의 candidate_id와 동일. own_* / comp_* / func_* 접두사."
-                },
+                "candidate_id": { "type": "string" },
                 "coverage": {
                   "type": "string",
-                  "description": "existing_urls만으로 이 feature의 정보를 수집할 수 있는지 평가.\n  sufficient  — 기존 URL에 해당 정보가 충분히 포함되어 있음\n  partial     — 기존 URL에 일부 있으나 전용 하위 페이지가 있을 가능성이 높음\n  not_found   — 기존 URL로 이 feature를 수집할 수 없어 추가 탐색 필요",
+                  "description": "existing_urls(official_source + Brave 검색)만으로 본 feature를 수집 가능한지 평가.\n  sufficient — 기존 URL에 충분히 포함됨\n  partial    — 일부 있으나 전용 sub-page 가능성 높음\n  not_found  — 추가 탐색 필요",
                   "enum": ["sufficient", "partial", "not_found"]
                 },
                 "existing_urls": {
                   "type": "array",
-                  "description": "official_sources에서 이미 검증된 URL 중 이 feature와 관련 있는 URL 목록.\n  - official 항목(own_*/comp_*): primary_url 중 관련성 있는 것\n  - reference 항목(func_*): reference_sources 중 validated=true인 URL",
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["url"],
                     "properties": {
-                      "url": {
-                        "type": "string",
-                        "format": "uri"
-                      },
-                      "relevance_note": {
-                        "type": "string",
-                        "description": "이 URL이 해당 feature와 관련 있다고 판단한 근거 (page_title, meta_description 등 힌트 기반)"
-                      }
+                      "url":            { "type": "string", "format": "uri" },
+                      "relevance_note": { "type": "string" },
+                      "origin":         { "type": "string", "enum": ["official_source", "brave_search"] }
                     }
                   }
                 },
                 "additional_urls": {
                   "type": "array",
-                  "description": "이 feature 수집을 위해 추가로 탐색해야 할 URL 후보.\n  - taxonomy purpose_config의 url_types + url_type_priority를 참고해 우선순위가 높은 URL 유형부터 제안한다.\n  - existing_url의 하위 경로(sub-page)나 동일 도메인 내 전용 페이지를 우선 탐색한다.\n  - HTTP 검증은 노드 코드가 ThreadPoolExecutor로 수행하므로 LLM은 URL만 제안한다.\n  - coverage가 sufficient이면 빈 배열 []을 반환한다.\n  - feature-candidate 쌍마다 최대 2개.",
+                  "description": "추가 탐색 후보. existing_url의 sub-path 또는 동일 도메인 내 전용 페이지 우선. coverage=sufficient이면 빈 배열 []. feature-candidate 쌍마다 최대 2개.",
                   "items": {
                     "type": "object",
                     "additionalProperties": false,
                     "required": ["url", "rationale", "url_confidence"],
                     "properties": {
-                      "url": {
-                        "type": "string",
-                        "format": "uri"
-                      },
-                      "rationale": {
-                        "type": "string",
-                        "description": "이 URL을 제안하는 이유. 어떤 정보를 기대하는지 포함."
-                      },
-                      "url_confidence": {
-                        "type": "number",
-                        "description": "이 URL이 실제로 존재하고 해당 정보를 가질 가능성 (LLM 사전지식 기반, 0~1)",
-                        "minimum": 0,
-                        "maximum": 1
-                      }
+                      "url":            { "type": "string", "format": "uri" },
+                      "rationale":      { "type": "string" },
+                      "url_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
                     }
                   }
                 }
