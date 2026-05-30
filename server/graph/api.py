@@ -134,12 +134,17 @@ def invoke_graph(req: InvokeRequest) -> InvokeResponse:
         clear_progress(req.thread_id)   # 오류 시에도 진행 상태 정리
         raise HTTPException(status_code=500, detail=str(exc)) from exc
 
-    # invoke 완료(interrupt 포함) 후 진행 상태 정리
-    clear_progress(req.thread_id)
-
     # ── 현재 상태 조회 ───────────────────────────────────────────────────────
     graph_state   = compiled_graph.get_state(config)
     is_interrupted = bool(graph_state.next)
+
+    # v0.10.6 — interrupt 시점에는 progress 를 보존하여 분기 B(branches.domain_modeling)
+    # 상태가 다음 polling 사이클에서도 UI 에 노출되도록 한다. END 도달(파이프라인 종료)
+    # 시점에만 clear_progress 를 호출한다.
+    # 이전(v0.10.5 이하): interrupt 시에도 clear_progress 가 호출되어 branches dict 가
+    # 매 interrupt 마다 폐기됨 → UI 가 도메인 분석 단계를 ○ pending 으로 표시.
+    if not is_interrupted:
+        clear_progress(req.thread_id)
 
     # interrupt() 에 전달된 값 추출
     interrupt_value = None
