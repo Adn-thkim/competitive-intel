@@ -75,15 +75,19 @@ class AgentStep(TypedDict, total=False):
 
 class AnalysisFeature(TypedDict, total=False):
     """
-    feature_url_mapper_node가 도출한 단일 비교 분석 항목.
+    feature_url_mapper_node가 도출한 단일 비교 분석 항목 (v0.10).
 
     feature_id는 'feat_' 접두사를 가진 snake_case 식별자이다.
+    report_type은 D4 enum 7종 중 하나(`comparison_matrix`·`reaction_insight`·
+    `marketing_social`·`battlecard`·`positioning_map`·`market_context_swot`·
+    `executive_summary`)로, Feature Selection UI(D6) 카드 그룹핑 기준이다.
+
     candidate_coverage 항목 형식:
       {
         "candidate_id": str,                 # own_* / comp_* / func_*
         "coverage": str,                     # "sufficient" | "partial" | "not_found"
-        "existing_urls": [                   # 기존 검증 URL 중 관련 있는 것
-          {"url": str, "relevance_note": str}
+        "existing_urls": [                   # official_source + Brave 검색 발견 URL
+          {"url": str, "relevance_note": str, "origin": "official_source|brave_search"}
         ],
         "additional_urls": [                 # 추가 탐색 후보 (coverage가 sufficient이면 [])
           {
@@ -96,6 +100,7 @@ class AnalysisFeature(TypedDict, total=False):
         ]
       }
     """
+    report_type:       str          # D4 enum 7종 중 하나 (v0.10)
     feature_id:        str
     feature_name:      str
     description:       str
@@ -158,13 +163,15 @@ class DomainAnalysisState(TypedDict, total=False):
     """
     excluded_or_deferred:  list[dict[str, Any]]
 
-    # ── domain_taxonomy_node 출력 ───────────────────────────────────────────
+    # ── domain_taxonomy_node 출력 (v0.10 스키마) ────────────────────────────
     domain_taxonomy: dict[str, Any]
     """
     DomainTaxonomyAgent가 생성·로드한 도메인 taxonomy.
-    domain_type, active_purposes, purpose_config(features + url_types)를 포함한다.
-    feature_url_mapper_node가 URL 수집 전략을 결정할 때 이 필드를 참조한다.
-    data/taxonomy/{domain_slug}.json에 캐시되며 7일 TTL로 관리된다.
+    v0.10 이후: domain_slug · domain_type · report_config(7종 enum × features ·
+    feature_labels · categories · search_query_hints · (조건부) aspect_codebook ·
+    action_lens)를 포함한다.
+    feature_url_mapper_node가 search_query_hints로 Brave 검색을 수행할 때 이 필드를
+    참조한다. data/taxonomy/{domain_id}_slug.json에 캐시되며 7일 TTL로 관리된다.
     """
 
     # ── competitor_selection_node 출력 ───────────────────────────────────────
@@ -181,24 +188,56 @@ class DomainAnalysisState(TypedDict, total=False):
     official_sources:          list[dict[str, Any]]
     source_validation:         list[dict[str, Any]]
 
-    # ── feature_url_mapper_node 출력 ────────────────────────────────────────
+    # ── feature_url_mapper 4단계 노드간 브릿지 키 (v0.10.9) ──────────────────
+    # 기존 단일 feature_url_mapper_node 가 4개 노드로 분리됨에 따라 단계간 데이터 전달용:
+    #   url_discovery_brave_node   → brave_urls_by_candidate
+    #   page_meta_collect_node     → candidates_with_meta
+    #   feature_mapping_llm_node   → raw_features
+    #   additional_urls_validation_node → analysis_features (기존 최종 출력)
+    brave_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    Step 0(url_discovery_brave_node)이 Brave Search API로 발견한 candidate별 URL 후보.
+    구조: {candidate_id: [{url, page_title, meta_description, origin="brave_search",
+                            matched_report_types: list[str]}]}
+    page_meta_collect_node가 official_sources의 URL meta와 병합한다.
+    """
+
+    candidates_with_meta: list[dict[str, Any]]
+    """
+    Step 1(page_meta_collect_node)이 생성한 candidate별 validated URL + page meta 통합 목록.
+    구조: [{candidate_id, source_type, validated_urls: [{url, page_title, meta_description,
+                                                          origin, [matched_report_types]}]}]
+    feature_mapping_llm_node가 report_type 별 LLM 호출의 입력으로 사용한다.
+    """
+
+    raw_features: list[dict[str, Any]]
+    """
+    Step 2(feature_mapping_llm_node)가 LLM 호출로 도출한 정규화 전 feature 목록.
+    additional_urls_validation_node가 각 항목의 additional_urls를 HTTP 검증한 뒤
+    analysis_features로 변환한다.
+    """
+
+    # ── feature_url_mapper 최종 출력 (additional_urls_validation_node 산출) ──
     analysis_features: list[AnalysisFeature]
     """
-    domain_taxonomy 기반 purpose × feature × candidate URL 커버리지 매핑 결과.
-    각 항목은 purpose_id, feature_id, feature_name, description, priority,
-    candidate_coverage(coverage + existing_urls + additional_urls) 를 포함한다.
+    domain_taxonomy 기반 report_type × feature × candidate URL 커버리지 매핑 결과.
+    v0.10 이후: 각 항목은 report_type(D4 enum 7종 중 하나), feature_id, feature_name,
+    description, priority, candidate_coverage(coverage + existing_urls + additional_urls)
+    + (Brave 검색 결과 메타데이터)를 포함한다.
 
-    purpose_id 필드로 feature_selection UI에서 purpose 단위 그룹핑이 가능하다.
-    feature_selection_node(interrupt #4)에서 사용자가 purpose 단위로 목적을 선택하고
+    report_type 필드로 feature_selection UI에서 카드 단위 그룹핑이 가능하다 (D6).
+    feature_selection_node(interrupt #4)에서 사용자가 리포트 카드 단위로 목적을 선택하고
     개별 feature를 세부 조정하면, 선택 결과가 아래 두 필드에 저장된다.
     feature_extraction_node는 selected_feature_ids에 해당하는 항목만 크롤링한다.
     """
 
     selected_purposes: list[str]
     """
-    feature_selection_node(interrupt #4) 이후 사용자가 선택한 분석 목적 ID 목록.
-    taxonomy의 active_purposes 중 사용자가 이번 분석에 포함하기로 선택한 purpose ID.
-    feature_extraction_node가 이 목적에 속하는 feature만 처리하는 필터로 사용한다.
+    feature_selection_node(interrupt #4) 이후 사용자가 선택한 리포트 ID 목록.
+    v0.10 이후: report_config 7종 enum(`comparison_matrix` 등) 중 사용자가 이번
+    분석에 포함하기로 선택한 report_type 목록. feature_extraction_node가 해당
+    리포트에 속하는 feature만 처리하는 필터로 사용한다.
+    ※ 키 이름은 호환을 위해 selected_purposes 유지(다음 §6-5 작업에서 정리 검토).
     """
 
     selected_feature_ids: list[str]
@@ -207,25 +246,69 @@ class DomainAnalysisState(TypedDict, total=False):
     feat_* 접두사를 가진다. selected_purposes 내에서 개별 feature를 세부 조정한 결과.
     """
 
-    # ── feature_extraction_node / feature_comparison_node 출력 ───────────────
+    # ── feature_extraction_node 출력 (§6-6 D3 옵션 C — 미구현) ───────────────
     product_profiles:     list[dict[str, Any]]
     normalized_features:  list[dict[str, Any]]
-    feature_matrix:       dict[str, Any]
+    feature_pool:         dict[str, Any]
+    """
+    §11-10 흐름 A의 공유 Feature Pool. feature_extraction_node가 채우며 7개 리포트 노드가 read.
+    구조: {feature_id: {"value": Any, "source_url": str, "evidence": str, ...}}
+    """
 
-    # ── youtube_query_planner_node 출력 ──────────────────────────────────────
-    query_plan:           dict[str, Any]
+    # ── 신규 수집 노드 6종 출력 (§6-6a v0.6 신설, D11 비활성 1종 포함) ────────
+    # community_collection_node      → community_posts: list[dict]
+    # app_store_review_collection    → app_store_reviews: list[dict]  (D11 비활성)
+    # youtube_query_planner_node     → query_plan: dict[str, Any]
+    # youtube_collection_node        → collected_videos / selected_comments
+    # reaction_analysis_node         → reaction_analysis: dict
+    # youtube_channel_metadata_collection → youtube_channel_metadata: dict
+    # blog_rss_collection            → blog_rss_posts: list[dict]
+    # pr_release_collection          → pr_releases: list[dict]
+    # market_context_collection      → market_context: dict
+    query_plan:                dict[str, Any]
+    search_results:            list[dict[str, Any]]
+    collected_videos:          list[dict[str, Any]]
+    selected_comments:         list[dict[str, Any]]
+    community_posts:           list[dict[str, Any]]
+    app_store_reviews:         list[dict[str, Any]]
+    reaction_analysis:         dict[str, Any]
+    youtube_channel_metadata:  dict[str, Any]
+    blog_rss_posts:            list[dict[str, Any]]
+    pr_releases:               list[dict[str, Any]]
+    market_context:            dict[str, Any]
 
-    # ── youtube_collection_node 출력 ─────────────────────────────────────────
-    search_results:       list[dict[str, Any]]
-    collected_videos:     list[dict[str, Any]]
-    selected_comments:    list[dict[str, Any]]
+    # ── 7개 리포트 노드 출력 (§6-4 D1=B 분리형, v0.10) ───────────────────────
+    report_outputs: dict[str, dict[str, Any]]
+    """
+    D4 enum 7종(`comparison_matrix`·`reaction_insight`·`marketing_social`·
+    `battlecard`·`positioning_map`·`market_context_swot`·`executive_summary`)을 키로 하는
+    리포트 산출물 dict. 각 리포트 노드가 자신의 키에 write하며, 흐름 B 의존 리포트는
+    상류 리포트의 산출물을 read.
 
-    # ── reaction_analysis_node 출력 ──────────────────────────────────────────
-    query_insights:       list[dict[str, Any]]
+    구조 (모든 리포트 공통 필드):
+      {
+        "<report_type>": {
+          "rubric_version": str,              # 적용된 Rubric 버전
+          "categories": list[str],            # Rubric §2-x 표준 카테고리 중 채택 항목
+          "content": dict[str, Any],          # 리포트별 산출 본문 (구조는 §2-x 명세)
+          "evaluation_score": int,            # 자체 평가 1–5점 (Rubric §2-x 루브릭)
+          "generated_at": str,                # ISO 8601 timestamp
+          "source_references": list[dict],    # 출처 URL·feature_id·인용 등
+          "warnings": list[str]               # AP-1~AP-10 위반 후보 경고
+        }, ...
+      }
 
-    # ── insight_report_node 출력 ─────────────────────────────────────────────
-    report_brief:         dict[str, Any]
-    final_report:         dict[str, Any]
+    fan-in semantics: replace per key (각 리포트 노드는 자기 키만 write).
+    LangGraph reducer 미설정 — 기본 replace 동작 사용.
+    """
+
+    # ── executive_summary 종합 출력 (§6-4 + §11-10 top 노드) ─────────────────
+    final_report: dict[str, Any]
+    """
+    executive_summary 노드의 최종 통합 산출물. report_outputs["executive_summary"]와
+    동일 내용을 별도 키로 노출하여 프런트엔드 / API 응답에서 즉시 접근 가능하게 한다.
+    구조: {bluf, situation, complication, resolution, persona_recommendations, cross_links}.
+    """
 
     # ── 파이프라인 중단 플래그 ────────────────────────────────────────────────
     critical_error: str
