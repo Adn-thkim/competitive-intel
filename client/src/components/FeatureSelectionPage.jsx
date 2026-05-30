@@ -45,44 +45,172 @@ function CoverageSummary({ summary }) {
   );
 }
 
-/* ── 개별 Feature 카드 ────────────────────────────────────────────────────── */
+/* ── Coverage 상세 (v0.10.16 — candidate × coverage × URL) ───────────────── */
+
+const COVERAGE_META = {
+  sufficient: { label: '충분',   chipCls: 'bg-green-100 text-green-700' },
+  partial:    { label: '부분',   chipCls: 'bg-yellow-100 text-yellow-700' },
+  not_found:  { label: '미확보', chipCls: 'bg-red-100 text-red-600' },
+};
+
+function CoverageDetails({ details }) {
+  if (!details || details.length === 0) {
+    return (
+      <p className="text-xs text-gray-400 italic mt-2">
+        candidate별 coverage 상세 없음.
+      </p>
+    );
+  }
+
+  return (
+    <div className="mt-3 space-y-3 border-t border-gray-200 pt-3">
+      {details.map((cov, idx) => {
+        const meta = COVERAGE_META[cov.coverage] ?? {
+          label: cov.coverage, chipCls: 'bg-gray-100 text-gray-500',
+        };
+        const existing  = cov.existing_urls   ?? [];
+        const additional = cov.additional_urls ?? [];
+        return (
+          <div key={`${cov.candidate_id}-${idx}`} className="text-xs">
+            {/* candidate 헤더 */}
+            <div className="flex items-center gap-2 mb-1.5">
+              <span className="font-mono text-gray-700 truncate">
+                {cov.candidate_id || '(unknown)'}
+              </span>
+              <span className={`px-1.5 py-0.5 rounded font-medium ${meta.chipCls}`}>
+                {meta.label}
+              </span>
+            </div>
+
+            {/* 기존 URL 목록 */}
+            <div className="ml-2 mb-1">
+              <span className="text-gray-500">기존 URL ({existing.length}건)</span>
+              {existing.length === 0 ? null : (
+                <ul className="mt-0.5 ml-2 space-y-0.5">
+                  {existing.map((u, ui) => (
+                    <li key={ui} className="flex items-center gap-1.5 text-gray-600 truncate">
+                      <span className="text-gray-400 shrink-0">•</span>
+                      <a
+                        href={u.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {u.url}
+                      </a>
+                      {u.origin === 'brave_search' ? (
+                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded shrink-0">Brave</span>
+                      ) : (
+                        <span className="text-[10px] text-gray-500 bg-gray-100 px-1 rounded shrink-0">공식</span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+
+            {/* 추가 URL 목록 */}
+            <div className="ml-2">
+              <span className="text-gray-500">추가 URL ({additional.length}건)</span>
+              {additional.length === 0 ? null : (
+                <ul className="mt-0.5 ml-2 space-y-0.5">
+                  {additional.map((u, ui) => (
+                    <li key={ui} className="flex items-center gap-1.5 text-gray-600 truncate">
+                      <span className="text-gray-400 shrink-0">•</span>
+                      <a
+                        href={u.url}
+                        target="_blank"
+                        rel="noopener noreferrer"
+                        className="text-indigo-600 hover:underline truncate"
+                        onClick={(e) => e.stopPropagation()}
+                      >
+                        {u.url}
+                      </a>
+                      {u.validated ? (
+                        <span className="text-[10px] text-green-700 bg-green-50 px-1 rounded shrink-0">
+                          ✓ {u.http_status ?? 'OK'}
+                        </span>
+                      ) : (
+                        <span className="text-[10px] text-red-600 bg-red-50 px-1 rounded shrink-0">
+                          ✗ {u.http_status ?? 'fail'}
+                        </span>
+                      )}
+                    </li>
+                  ))}
+                </ul>
+              )}
+            </div>
+          </div>
+        );
+      })}
+    </div>
+  );
+}
+
+/* ── 개별 Feature 카드 (v0.10.16 — 확장 토글 추가) ────────────────────────── */
 
 function FeatureCard({ feature, isSelected, onToggle }) {
+  const [expanded, setExpanded] = useState(false);
+  const hasDetails = Array.isArray(feature.coverage_details) && feature.coverage_details.length > 0;
+
   return (
-    <label
+    <div
       className={[
-        'flex items-start gap-3 p-3.5 rounded-lg border-2 cursor-pointer transition-colors',
+        'rounded-lg border-2 transition-colors',
         isSelected
           ? 'border-indigo-500 bg-indigo-50'
           : 'border-gray-200 bg-white hover:border-indigo-300',
       ].join(' ')}
     >
-      <input
-        type="checkbox"
-        className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"
-        checked={isSelected}
-        onChange={onToggle}
-      />
-      <div className="flex-1 min-w-0">
-        <div className="flex flex-wrap items-center gap-2 mb-0.5">
-          <span className="text-sm font-semibold text-gray-900">
-            {feature.feature_name}
-          </span>
-          <PriorityBadge priority={feature.priority} />
+      <label className="flex items-start gap-3 p-3.5 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"
+          checked={isSelected}
+          onChange={onToggle}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-0.5">
+            <span className="text-sm font-semibold text-gray-900">
+              {feature.feature_name}
+            </span>
+            <PriorityBadge priority={feature.priority} />
+            {hasDetails && (
+              <button
+                type="button"
+                onClick={(e) => {
+                  e.preventDefault();
+                  e.stopPropagation();
+                  setExpanded(v => !v);
+                }}
+                className="ml-auto text-[11px] font-medium text-indigo-600 hover:text-indigo-800 hover:underline shrink-0"
+              >
+                {expanded ? '▲ 상세 닫기' : '▼ URL 상세 보기'}
+              </button>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed">
+            {feature.description}
+          </p>
+          <CoverageSummary summary={feature.coverage_summary} />
         </div>
-        <p className="text-xs text-gray-500 leading-relaxed">
-          {feature.description}
-        </p>
-        <CoverageSummary summary={feature.coverage_summary} />
-      </div>
-    </label>
+      </label>
+
+      {/* v0.10.16 — 확장 시 candidate × coverage × URL 상세 */}
+      {expanded && hasDetails && (
+        <div className="px-3.5 pb-3.5">
+          <CoverageDetails details={feature.coverage_details} />
+        </div>
+      )}
+    </div>
   );
 }
 
-/* ── Purpose 섹션 ─────────────────────────────────────────────────────────── */
+/* ── Report 섹션 (v0.10 키 정합 — purpose → report) ───────────────────────── */
 
-function PurposeSection({ purpose, selectedIds, onToggleFeature }) {
-  const featureIds = purpose.features.map(f => f.feature_id);
+function ReportSection({ report, selectedIds, onToggleFeature }) {
+  const featureIds = report.features.map(f => f.feature_id);
   const allSelected = featureIds.every(id => selectedIds.has(id));
   const someSelected = featureIds.some(id => selectedIds.has(id));
   const selectedCount = featureIds.filter(id => selectedIds.has(id)).length;
@@ -107,7 +235,7 @@ function PurposeSection({ purpose, selectedIds, onToggleFeature }) {
       <div className="flex items-center justify-between mb-3">
         <div>
           <h3 className="text-base font-bold text-gray-800">
-            {purpose.purpose_label}
+            {report.report_label}
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
             {selectedCount} / {featureIds.length}개 선택됨
@@ -131,7 +259,7 @@ function PurposeSection({ purpose, selectedIds, onToggleFeature }) {
 
       {/* Feature 카드 목록 */}
       <div className="space-y-2">
-        {purpose.features.map(feature => (
+        {report.features.map(feature => (
           <FeatureCard
             key={feature.feature_id}
             feature={feature}
@@ -152,26 +280,29 @@ function PurposeSection({ purpose, selectedIds, onToggleFeature }) {
  * Props
  * -----
  * - intakeResult : /api/approve 응답
- *   interrupt_value = {
+ *   v0.10 interrupt_value = {
  *     type: "feature_selection",
- *     purposes: [
+ *     reports: [
  *       {
- *         purpose_id: string,
- *         purpose_label: string,
+ *         report_type:  string,    // D4 enum 7종 중 하나 (comparison_matrix 등)
+ *         report_label: string,    // 한국어 레이블
  *         features: [{ feature_id, feature_name, description, priority, coverage_summary }]
  *       }
  *     ]
  *   }
+ *   ※ v0.10 에서 purposes/purpose_id/purpose_label → reports/report_type/report_label 로 변경됨.
+ *     resume payload 의 selected_purposes 키는 server 호환을 위해 그대로 유지하지만,
+ *     값으로는 선택된 report_type 목록을 전달한다(state.py 코멘트 참고).
  * - threadId  : LangGraph thread_id
  * - onApproved: (data) => void
  * - onReset   : () => void
  */
 export default function FeatureSelectionPage({ intakeResult, threadId, onApproved, onReset }) {
-  const iv       = intakeResult?.interrupt_value ?? {};
-  const purposes = iv.purposes ?? [];
+  const iv      = intakeResult?.interrupt_value ?? {};
+  const reports = iv.reports ?? [];
 
   // 초기 선택: 모든 feature를 기본 선택 상태로 시작
-  const allFeatureIds = purposes.flatMap(p => p.features.map(f => f.feature_id));
+  const allFeatureIds = reports.flatMap(r => r.features.map(f => f.feature_id));
   const [selectedIds, setSelectedIds] = useState(new Set(allFeatureIds));
 
   const [submitting, setSubmitting] = useState(false);
@@ -194,14 +325,15 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
     setError('');
   }
 
-  /* ── 선택된 purpose 역산 ───────────────────────────────────────────────── */
-  function deriveSelectedPurposes() {
-    const purposeSet = new Set();
-    for (const purpose of purposes) {
-      const hasSelected = purpose.features.some(f => selectedIds.has(f.feature_id));
-      if (hasSelected) purposeSet.add(purpose.purpose_id);
+  /* ── 선택된 report_type 역산 (v0.10 키 정합) ──────────────────────────── */
+  // server 측 호환을 위해 키 이름은 selected_purposes 유지(state.py 코멘트), 값은 선택된 report_type 목록.
+  function deriveSelectedReportTypes() {
+    const reportTypeSet = new Set();
+    for (const report of reports) {
+      const hasSelected = report.features.some(f => selectedIds.has(f.feature_id));
+      if (hasSelected) reportTypeSet.add(report.report_type);
     }
-    return [...purposeSet];
+    return [...reportTypeSet];
   }
 
   /* ── 제출 ──────────────────────────────────────────────────────────────── */
@@ -221,7 +353,8 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
         body: JSON.stringify({
           thread_id: threadId,
           resume: {
-            selected_purposes:    deriveSelectedPurposes(),
+            // v0.10: 키 이름 selected_purposes 유지(server state.py 호환), 값은 report_type 목록
+            selected_purposes:    deriveSelectedReportTypes(),
             selected_feature_ids: [...selectedIds],
           },
         }),
@@ -296,22 +429,22 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
           )}
         </div>
 
-        {/* Purpose 섹션 목록 */}
-        {purposes.length === 0 ? (
+        {/* Report 섹션 목록 (v0.10 키 정합 — purpose → report) */}
+        {reports.length === 0 ? (
           <div className="text-center py-16 text-gray-400">
             <p className="text-sm">분석 항목이 없습니다.</p>
           </div>
         ) : (
-          purposes.map((purpose, idx) => (
-            <div key={purpose.purpose_id}>
+          reports.map((report, idx) => (
+            <div key={report.report_type}>
               {/* 섹션 구분선 (첫 번째 제외) */}
               {idx > 0 && (
                 <div className="flex items-center gap-2 mb-6 -mt-1">
                   <div className="flex-1 h-px bg-gray-200" />
                 </div>
               )}
-              <PurposeSection
-                purpose={purpose}
+              <ReportSection
+                report={report}
                 selectedIds={selectedIds}
                 onToggleFeature={toggleFeature}
               />
