@@ -1,22 +1,23 @@
 """
 server/graph/nodes/domain_modeling_node.py
 ------------------------------------------
-DomainTaxonomyAgent LangGraph 노드.
+DomainTaxonomyAgent LangGraph 노드 (v0.9 단일 호출 + v0.10 report_config 스키마).
 
 역할
 ----
-competitor_discovery_node 직후 실행되어, 도메인의 분석 목적(purpose)과
-각 목적에 필요한 비교 feature·URL 유형(url_types)을 LLM이 추론한 taxonomy를
-생성 또는 보강(enrich)한다.
+competitor_discovery_node 직후 실행되어, 7종 분석 리포트(`report_config`)별로
+필요한 feature·표준 카테고리·Brave 검색 쿼리 힌트·(reaction_insight 한정)
+ABSA aspect codebook을 LLM이 추론한 taxonomy를 생성한다.
 
-taxonomy는 JSON 파일로 캐시되며, feature_url_mapper_node가
-URL 수집 전략을 결정할 때 참조한다.
+taxonomy는 JSON 파일로 캐시되며, feature_url_mapper_node가 Brave 검색으로
+URL을 수집할 때 `search_query_hints`를 참조한다.
 
-위치 (파이프라인 순서)
-----
+위치 (파이프라인 — v0.9 CD-fanout 토폴로지)
+-------------------------------------------
 competitor_discovery_node
-  → [domain_modeling_node]  ← 이 노드
-    → normalize_competitor_ids_node
+  ├─→ normalize_competitor_ids_node → competitor_selection → ... → url_retry  (분기 A)
+  └─→ [domain_modeling_node]  ← 이 노드 (분기 B, 병렬)
+        └─→ feature_url_mapper_node (분기 A·B fan-in)
 
 도메인 ID 레지스트리
 --------------------
@@ -31,22 +32,21 @@ domain_name(한글 포함)을 파일명으로 직접 사용하는 대신, 정수
 
 캐시 파일 네이밍: data/taxonomy/{id}_slug.json
 
-캐시 전략
----------
+캐시 전략 (v0.9 단일 호출 모드)
+-------------------------------
 1. domains.json에서 domain_name → ID 조회 (없으면 신규 등록)
 2. data/taxonomy/{id}_slug.json 존재 여부 확인
-3. 존재 + TTL(7일) 이내 + enrichment 불필요 → 캐시 로드, LLM 호출 생략
-4. 존재 + (TTL 초과 또는 enrichment 트리거) → LLM에 기존 taxonomy 전달, add-only 보강
+3. 존재 + TTL(7일) 이내 → 캐시 로드, LLM 호출 생략
+4. 존재 + TTL 초과 → LLM 재호출하여 전체 taxonomy 재생성 (1차/2차 분리 폐기)
 5. 존재하지 않음 → LLM이 taxonomy 최초 생성
 
-enrichment 트리거
------------------
-competition_axes 중 기존 taxonomy의 active_purposes에 대응되지 않는 항목 비율이
-ENRICHMENT_TRIGGER_THRESHOLD(30%) 이상이면 enrichment를 실행한다.
+D2 재해석(v0.9): `competitor_discovery` 완료 직후 단일 호출. v0.6~v0.8의
+1차(axes 없이) + 2차(enrichment) 분리는 폐기되었으며, `competition_axes`는
+입력 시점에 항상 확보되어 있다.
 
 출력 키
 -------
-- domain_taxonomy : 생성·로드된 taxonomy dict (domain_id 필드 포함)
+- domain_taxonomy : 생성·로드된 taxonomy dict (domain_id·report_config 포함)
 - agent_steps     : 실행 이력 (Annotated reducer로 누적)
 """
 
@@ -65,30 +65,52 @@ from server.graph.agent_cache import (
     make_cache_context,
     store_agent_output,
 )
+from server.graph.progress_store import set_branch_status
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
 
 logger = logging.getLogger(__name__)
 
 # ── 설정 상수 ─────────────────────────────────────────────────────────────────
-TAXONOMY_DIR             = BASE_DIR / "data" / "taxonomy"
-DOMAINS_REGISTRY_PATH    = TAXONOMY_DIR / "domains.json"
-TAXONOMY_TTL_HOURS       = 168    # 7일
-ENRICHMENT_TRIGGER_THRESHOLD = 0.30  # axes 중 30% 이상이 미대응이면 enrich 실행
+TAXONOMY_DIR          = BASE_DIR / "data" / "taxonomy"
+DOMAINS_REGISTRY_PATH = TAXONOMY_DIR / "domains.json"
+TAXONOMY_TTL_HOURS    = 168    # 7일
+
+# v0.10 D4 확정 — report_config 7종 enum (output.schema.json과 정합)
+REPORT_TYPES = (
+    "comparison_matrix",
+    "reaction_insight",
+    "marketing_social",
+    "battlecard",
+    "positioning_map",
+    "market_context_swot",
+    "executive_summary",
+)
 
 
 # ── 노드 진입점 ───────────────────────────────────────────────────────────────
 
-def domain_modeling_node(state: DomainAnalysisState) -> dict:
+def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None) -> dict:
     """
     DomainTaxonomyAgent를 실행하는 LangGraph 노드 함수.
+
+    v0.9 토폴로지에서 본 노드는 `competitor_discovery_node` 직후 분기 B로
+    `normalize_competitor_ids_node`와 병렬 실행되며, `feature_url_mapper_node`에서
+    fan-in 된다.
+
+    v0.10.4: 진입·완료 시점에 `set_branch_status(thread_id, "domain_modeling", ...)`을
+    emit하여 UI(`CompetitorSelectionPage.jsx`)가 분기 B 진행을 별도 단계로 표시할 수 있게 한다.
+    이는 progress_store의 stage 단일 트랙(분기 A)과 별개로 운영된다.
 
     Parameters
     ----------
     state : DomainAnalysisState
         필수 키: domain_name, own_product, problem_statement,
                   target_user, core_value_props, competition_axes
-        선택 키: own_product_summary, project_id, run_id
+        선택 키: own_product_summary, project_id, analysis_direction
+                  (D7 옵션 b 확정 v0.7, default "mixed")
+    config : dict | None
+        LangGraph가 전달하는 RunnableConfig. configurable.thread_id 추출용.
 
     Returns
     -------
@@ -97,27 +119,46 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
         실패 시: errors, agent_steps
     """
     started_at = datetime.now(timezone.utc).isoformat()
+    thread_id  = (config or {}).get("configurable", {}).get("thread_id", "")
+
+    # ── 진단 print (v0.9 분기 B 진입 검증용, 본 블록은 디버깅 후 제거 가능) ──
+    print(
+        f"⚡⚡⚡ [domain_modeling_node] ENTRY at {started_at} "
+        f"thread_id={thread_id!r} state_keys={sorted(state.keys())[:6]}...",
+        flush=True,
+    )
+
+    # ── 진입 시 분기 B 상태 emit (v0.10.4) ───────────────────────────────────
+    if thread_id:
+        try:
+            set_branch_status(thread_id, "domain_modeling", "running")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_branch_status(running) 실패: %s", exc)
 
     # ── 전제조건 검사 ────────────────────────────────────────────────────────
     required = ["domain_name", "own_product", "problem_statement",
                 "target_user", "core_value_props", "competition_axes"]
     missing = [k for k in required if not state.get(k)]
     if missing:
+        if thread_id:
+            try:
+                set_branch_status(thread_id, "domain_modeling", "failed")
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("set_branch_status(failed) 실패: %s", exc)
         return _error(started_at,
                       f"필수 state 키 누락: {missing}. "
                       "competitor_discovery_node가 먼저 실행되어야 합니다.")
 
-    domain_name      = state["domain_name"]
+    domain_name = state["domain_name"]
     competition_axes: list[str] = state.get("competition_axes", [])  # type: ignore[assignment]
+    analysis_direction = state.get("analysis_direction") or "mixed"
 
     # ── 도메인 ID 조회 / 신규 등록 ──────────────────────────────────────────
     domain_id = _get_domain_id(domain_name)
 
-    # ── 캐시 판정 ────────────────────────────────────────────────────────────
+    # ── 캐시 판정 (v0.9 — cache_hit vs fresh 단일 분기) ─────────────────────
     cached = _load_cache(domain_id)
-    mode, existing_taxonomy = _decide_mode(cached, competition_axes)
-
-    if mode == "cache_hit":
+    if cached is not None and not _is_cache_expired(cached):
         logger.info(
             "domain_modeling_node: 캐시 히트, LLM 생략 (id=%s, domain='%s')",
             domain_id, domain_name,
@@ -129,6 +170,11 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
             "started_at":  started_at,
             "finished_at": finished_at,
         }
+        if thread_id:
+            try:
+                set_branch_status(thread_id, "domain_modeling", "done")
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("set_branch_status(done, cache) 실패: %s", exc)
         return {
             "domain_taxonomy": cached,
             "agent_steps":     [step],
@@ -139,32 +185,35 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
 
     system_prompt = _load_text(agent_dir / "system_prompt_kr.md")
     if system_prompt is None:
+        if thread_id:
+            try: set_branch_status(thread_id, "domain_modeling", "failed")
+            except Exception: pass  # noqa: BLE001
         return _error(started_at, f"시스템 프롬프트를 찾을 수 없음: {agent_dir}")
 
     output_schema = _load_json(agent_dir / "output.schema.json")
     if output_schema is None:
+        if thread_id:
+            try: set_branch_status(thread_id, "domain_modeling", "failed")
+            except Exception: pass  # noqa: BLE001
         return _error(started_at, f"출력 스키마를 찾을 수 없음: {agent_dir}")
 
-    # ── LLM 입력 조립 ────────────────────────────────────────────────────────
+    # ── LLM 입력 조립 (v0.10) ────────────────────────────────────────────────
     taxonomy_input: dict = {
-        "project_id":        state.get("project_id", ""),
-        "domain_name":       domain_name,
-        "own_product":       state["own_product"],
-        "problem_statement": state["problem_statement"],
-        "target_user":       state.get("target_user", []),
-        "core_value_props":  state.get("core_value_props", []),
-        "competition_axes":  competition_axes,
-        "mode":              mode,  # "create" | "enrich"
+        "project_id":         state.get("project_id", ""),
+        "domain_name":        domain_name,
+        "own_product":        state["own_product"],
+        "problem_statement":  state["problem_statement"],
+        "target_user":        state.get("target_user", []),
+        "core_value_props":   state.get("core_value_props", []),
+        "competition_axes":   competition_axes,
+        "analysis_direction": analysis_direction,
     }
     if state.get("own_product_summary"):
         taxonomy_input["own_product_summary"] = state["own_product_summary"]
-    if existing_taxonomy:
-        taxonomy_input["existing_taxonomy"] = existing_taxonomy
 
-    mode_label = "최초 생성" if mode == "create" else "보강(enrich)"
     user_prompt = (
-        f"아래 JSON 입력을 읽고, 도메인 taxonomy를 {mode_label}하여 "
-        "출력 schema를 만족하는 JSON만 반환하라.\n\n"
+        "아래 JSON 입력을 읽고, 7종 리포트(`report_config`) 단위의 도메인 "
+        "taxonomy를 생성하여 출력 schema를 만족하는 JSON만 반환하라.\n\n"
         f"입력:\n{json.dumps(taxonomy_input, ensure_ascii=False, indent=2)}"
     )
 
@@ -174,7 +223,7 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
         model=CLI_MODEL,
         system_prompt=system_prompt,
         output_schema=output_schema,
-        prompt_version="domain_modeling:v1",
+        prompt_version="domain_modeling:v0.10",
     )
     cache_input = {
         **taxonomy_input,
@@ -196,12 +245,12 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
         )
 
         logger.info(
-            "domain_modeling_node: CLI 호출 시작 (id=%s, domain='%s', mode=%s)",
-            domain_id, domain_name, mode,
+            "domain_modeling_node: CLI 호출 시작 (id=%s, domain='%s', direction=%s)",
+            domain_id, domain_name, analysis_direction,
         )
 
         # ── 패턴 제약을 완화한 스키마로 LLM 호출 ────────────────────────────
-        # LLM이 대문자('SK_telecom')나 한글 혼용 값을 생성하더라도 호출이
+        # LLM이 대문자('SK_telecom')나 한글 혼용 식별자를 생성하더라도 호출이
         # 실패하지 않도록 pattern 제약을 제거한 relaxed schema를 사용한다.
         # 이후 _normalize_taxonomy_output()으로 snake_case 정규화 후
         # 엄격한 스키마로 재검증한다.
@@ -214,6 +263,9 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
             )
         except RuntimeError as exc:
             logger.error("domain_modeling_node: LLM 호출 실패 — %s", exc)
+            if thread_id:
+                try: set_branch_status(thread_id, "domain_modeling", "failed")
+                except Exception: pass  # noqa: BLE001
             return _error(started_at, str(exc))
 
         # ── snake_case 정규화 + 엄격 스키마 재검증 ──────────────────────────
@@ -223,6 +275,9 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
         except jsonschema.ValidationError as exc:
             msg = f"taxonomy 정규화 후 schema 검증 실패: {str(exc)[:300]}"
             logger.error("domain_modeling_node: %s", msg)
+            if thread_id:
+                try: set_branch_status(thread_id, "domain_modeling", "failed")
+                except Exception: pass  # noqa: BLE001
             return _error(started_at, msg)
 
         store_agent_output(
@@ -238,21 +293,30 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
     raw_output["domain_id"] = domain_id
 
     now_iso = datetime.now(timezone.utc).isoformat()
-    if mode == "create":
+    if cached is None:
+        # 신규 생성
         raw_output["created_at"] = now_iso
         raw_output["updated_at"] = now_iso
         raw_output["version"]    = 1
     else:
-        # enrich: created_at 보존, updated_at·version 갱신
-        raw_output["created_at"] = existing_taxonomy.get("created_at", now_iso)
+        # TTL 만료로 재호출: created_at 보존, updated_at·version 갱신
+        raw_output["created_at"] = cached.get("created_at", now_iso)
         raw_output["updated_at"] = now_iso
-        raw_output["version"]    = existing_taxonomy.get("version", 1) + 1
+        raw_output["version"]    = cached.get("version", 1) + 1
 
     # ── 캐시 저장 ────────────────────────────────────────────────────────────
     _save_cache(domain_id, raw_output)
+
+    # active 리포트 수 카운트 (v0.10 — report_config 7종 중 active=true)
+    active_count = sum(
+        1
+        for r in REPORT_TYPES
+        if raw_output.get("report_config", {}).get(r, {}).get("active") is True
+    )
     logger.info(
-        "domain_modeling_node: taxonomy 저장 완료 (id=%s, domain='%s', purposes=%d개)",
-        domain_id, domain_name, len(raw_output.get("active_purposes", [])),
+        "domain_modeling_node: taxonomy 저장 완료 "
+        "(id=%s, domain='%s', active 리포트=%d/7)",
+        domain_id, domain_name, active_count,
     )
 
     finished_at = datetime.now(timezone.utc).isoformat()
@@ -262,6 +326,13 @@ def domain_modeling_node(state: DomainAnalysisState) -> dict:
         "started_at":  started_at,
         "finished_at": finished_at,
     }
+
+    # ── 완료 시 분기 B 상태 emit (v0.10.4) ───────────────────────────────────
+    if thread_id:
+        try:
+            set_branch_status(thread_id, "domain_modeling", "done")
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_branch_status(done, llm) 실패: %s", exc)
 
     return {
         "domain_taxonomy": raw_output,
@@ -364,77 +435,6 @@ def _is_cache_expired(cached: dict) -> bool:
         return True
 
 
-def _needs_enrichment(cached: dict, competition_axes: list[str]) -> bool:
-    """
-    competition_axes 중 기존 taxonomy의 active_purposes에 대응되지 않는
-    축 비율이 ENRICHMENT_TRIGGER_THRESHOLD 이상이면 True를 반환한다.
-
-    대응 여부 판단: axis 문자열이 purpose ID 또는 purpose label에 부분 일치하면 대응으로 간주.
-    """
-    if not competition_axes:
-        return False
-
-    active_purposes: list[str] = cached.get("active_purposes", [])
-    purpose_config: dict = cached.get("purpose_config", {})
-
-    # 검색 대상: purpose ID + label (소문자)
-    purpose_tokens: set[str] = set()
-    for pid in active_purposes:
-        purpose_tokens.add(pid.lower())
-        label: str = purpose_config.get(pid, {}).get("label", "")
-        if label:
-            purpose_tokens.add(label.lower())
-
-    unmatched = 0
-    for axis in competition_axes:
-        axis_lower = axis.lower()
-        if not any(
-            token in axis_lower or axis_lower in token
-            for token in purpose_tokens
-        ):
-            unmatched += 1
-
-    ratio = unmatched / len(competition_axes)
-    logger.debug(
-        "taxonomy enrichment 검사: 미대응 %d/%d (%.0f%%, 임계값 %.0f%%)",
-        unmatched, len(competition_axes),
-        ratio * 100, ENRICHMENT_TRIGGER_THRESHOLD * 100,
-    )
-    return ratio >= ENRICHMENT_TRIGGER_THRESHOLD
-
-
-def _decide_mode(
-    cached: dict | None,
-    competition_axes: list[str],
-) -> tuple[str, dict]:
-    """
-    캐시 상태와 enrichment 필요 여부에 따라 실행 모드를 결정한다.
-
-    Returns
-    -------
-    mode : str
-        "cache_hit" | "create" | "enrich"
-    existing_taxonomy : dict
-        enrich 모드일 때 LLM에 전달할 기존 taxonomy. 그 외에는 빈 dict.
-    """
-    if cached is None:
-        return "create", {}
-
-    expired = _is_cache_expired(cached)
-    enrich  = _needs_enrichment(cached, competition_axes)
-
-    if not expired and not enrich:
-        return "cache_hit", {}
-
-    reason = []
-    if expired:
-        reason.append("TTL 초과")
-    if enrich:
-        reason.append("competition_axes 미대응 비율 초과")
-    logger.info("taxonomy enrichment 트리거: %s", ", ".join(reason))
-    return "enrich", cached
-
-
 def _save_cache(domain_id: str, taxonomy: dict) -> None:
     """taxonomy를 data/taxonomy/{domain_id}_slug.json에 저장한다."""
     try:
@@ -471,7 +471,7 @@ def _load_json(path: Path) -> dict | None:
         return None
 
 
-# ── taxonomy 정규화 유틸리티 ──────────────────────────────────────────────────
+# ── taxonomy 정규화 유틸리티 (v0.10 — report_config 스키마 기준) ──────────────
 
 def _to_snake_id(text: str) -> str:
     """
@@ -486,7 +486,7 @@ def _to_snake_id(text: str) -> str:
 
     예) 'SK_telecom' → 'sk_telecom'
         'mobile_carrier_Korea' → 'mobile_carrier_korea'
-        'SK텔레콤 통신' → 'sk__'  → 'sk'  (한글 제거)
+        'SK텔레콤 통신' → 'sk__' → 'sk' (한글 제거)
     """
     result = re.sub(r"[^a-zA-Z0-9]+", "_", text)
     result = result.lower().strip("_")
@@ -520,14 +520,17 @@ def _strip_patterns(schema: object) -> object:
 def _normalize_taxonomy_output(raw: dict) -> dict:
     """
     LLM 출력 중 ^[a-z][a-z0-9_]*$ 패턴 제약을 위반하는 식별자 필드를
-    _to_snake_id()로 정규화한다.
+    _to_snake_id()로 정규화한다. (v0.10 — report_config 스키마 기준)
 
     정규화 대상:
     - domain_slug, domain_type
-    - active_purposes 항목
-    - purpose_config 키 + 내부 features/url_types 항목
-    - feature_labels 키 동기화
-    - url_type_priority 키 동기화
+    - report_config[*].features 항목 + feature_labels 키 동기화
+    - report_config[*].action_lens 키(feature_id) 동기화
+    - report_config["reaction_insight"].aspect_codebook[*].aspect_id
+
+    `report_config`의 키 자체(7종 enum)는 고정이므로 정규화하지 않는다.
+    `categories`는 한국어/영문 자유 텍스트이므로 정규화 대상 아님.
+    `search_query_hints`는 한국어 자연어 쿼리이므로 정규화 대상 아님.
     """
     out = copy.deepcopy(raw)
 
@@ -536,72 +539,50 @@ def _normalize_taxonomy_output(raw: dict) -> dict:
         if key in out and isinstance(out[key], str):
             out[key] = _to_snake_id(out[key])
 
-    # ── active_purposes + 매핑 테이블 생성 ────────────────────────────────
-    # 중복 발생 시 _2, _3 접미사를 붙여 uniqueItems 제약을 만족시킨다.
-    old_purposes: list[str] = out.get("active_purposes") or []
-    purpose_map: dict[str, str] = {}      # old_id → normalized_id
-    new_purposes: list[str] = []
-    seen_purposes: dict[str, int] = {}    # normalized → 발생 횟수
-    for p in old_purposes:
-        norm_p = _to_snake_id(str(p))
-        if norm_p in seen_purposes:
-            seen_purposes[norm_p] += 1
-            norm_p = f"{norm_p}_{seen_purposes[norm_p]}"
-        else:
-            seen_purposes[norm_p] = 1
-        purpose_map[p] = norm_p
-        new_purposes.append(norm_p)
-    out["active_purposes"] = new_purposes
+    # ── report_config 내부 정규화 ─────────────────────────────────────────
+    report_config = out.get("report_config")
+    if not isinstance(report_config, dict):
+        # 스키마 위반이지만 다음 단계의 jsonschema.validate가 보고하도록 그대로 반환
+        return out
 
-    # ── purpose_config 키·내부 필드 정규화 ────────────────────────────────
-    old_config: dict = out.get("purpose_config") or {}
-    new_config: dict = {}
-
-    for old_pid, cfg in old_config.items():
-        new_pid = purpose_map.get(old_pid, _to_snake_id(str(old_pid)))
-        if not isinstance(cfg, dict):
-            new_config[new_pid] = cfg
+    for report_type, entry in report_config.items():
+        if not isinstance(entry, dict):
             continue
 
-        cfg = dict(cfg)
-
         # features + feature_labels 키 동기화
-        old_feats: list[str] = cfg.get("features") or []
+        old_feats: list[str] = entry.get("features") or []
         feat_map: dict[str, str] = {}
         new_feats: list[str] = []
         for f in old_feats:
             nf = _to_snake_id(str(f))
             feat_map[f] = nf
             new_feats.append(nf)
-        cfg["features"] = new_feats
+        entry["features"] = new_feats
 
-        old_labels: dict = cfg.get("feature_labels") or {}
+        old_labels: dict = entry.get("feature_labels") or {}
         new_labels: dict = {}
         for old_fid, label in old_labels.items():
             new_fid = feat_map.get(old_fid, _to_snake_id(str(old_fid)))
             new_labels[new_fid] = label
-        cfg["feature_labels"] = new_labels
+        entry["feature_labels"] = new_labels
 
-        # url_types + url_type_priority 키 동기화
-        old_utypes: list[str] = cfg.get("url_types") or []
-        utype_map: dict[str, str] = {}
-        new_utypes: list[str] = []
-        for u in old_utypes:
-            nu = _to_snake_id(str(u))
-            utype_map[u] = nu
-            new_utypes.append(nu)
-        cfg["url_types"] = new_utypes
+        # action_lens 키 동기화 (D7 mixed 옵셔널)
+        old_lens: dict = entry.get("action_lens") or {}
+        if old_lens:
+            new_lens: dict = {}
+            for old_fid, lens_val in old_lens.items():
+                new_fid = feat_map.get(old_fid, _to_snake_id(str(old_fid)))
+                new_lens[new_fid] = lens_val
+            entry["action_lens"] = new_lens
 
-        old_priority: dict = cfg.get("url_type_priority") or {}
-        new_priority: dict = {}
-        for old_ut, pri in old_priority.items():
-            new_ut = utype_map.get(old_ut, _to_snake_id(str(old_ut)))
-            new_priority[new_ut] = pri
-        cfg["url_type_priority"] = new_priority
+        # aspect_codebook의 aspect_id 정규화 (reaction_insight 한정)
+        codebook = entry.get("aspect_codebook")
+        if isinstance(codebook, list):
+            for aspect in codebook:
+                if isinstance(aspect, dict) and "aspect_id" in aspect:
+                    aspect["aspect_id"] = _to_snake_id(str(aspect["aspect_id"]))
 
-        new_config[new_pid] = cfg
-
-    out["purpose_config"] = new_config
+    out["report_config"] = report_config
     return out
 
 

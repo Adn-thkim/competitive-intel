@@ -2,14 +2,13 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/domain-taxonomy/output.schema.json",
   "title": "DomainTaxonomyOutput",
-  "description": "feature_url_mapper가 URL 수집 전략을 결정하기 위해 참조하는 도메인 taxonomy.",
+  "description": "DomainTaxonomyAgent 출력. v0.10: active_purposes·purpose_config·url_types 폐기. 7종 리포트 enum을 키로 한 report_config + Brave 검색 힌트(search_query_hints) 구조 채택.",
   "type": "object",
   "additionalProperties": false,
   "required": [
     "domain_slug",
     "domain_type",
-    "active_purposes",
-    "purpose_config"
+    "report_config"
   ],
   "properties": {
     "domain_slug": {
@@ -24,78 +23,129 @@
       "pattern": "^[a-z][a-z0-9_]*$",
       "minLength": 3
     },
-    "active_purposes": {
-      "type": "array",
-      "description": "이 도메인에서 실질적으로 의미 있는 분석 목적 ID 목록.",
-      "minItems": 2,
-      "maxItems": 8,
-      "items": {
-        "type": "string",
-        "pattern": "^[a-z][a-z0-9_]*$",
-        "minLength": 3
-      },
-      "uniqueItems": true
-    },
-    "purpose_config": {
+    "report_config": {
       "type": "object",
-      "description": "active_purposes 각 항목에 대한 상세 설정. 키는 active_purposes의 값과 일치해야 한다.",
-      "minProperties": 2,
-      "additionalProperties": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["label", "features", "feature_labels", "url_types", "url_type_priority"],
-        "properties": {
-          "label": {
-            "type": "string",
-            "description": "분석 목적 한국어 레이블. 예: 수수료 비교",
-            "minLength": 2
-          },
-          "features": {
-            "type": "array",
-            "description": "이 목적 분석에 필요한 feature ID 목록 (snake_case). URL에서 추출 가능한 개념이어야 한다.",
-            "minItems": 3,
-            "maxItems": 8,
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]*$",
-              "minLength": 3
-            },
-            "uniqueItems": true
-          },
-          "feature_labels": {
-            "type": "object",
-            "description": "feature ID → 한국어 레이블 매핑. features 배열의 모든 항목을 포함해야 한다.",
-            "additionalProperties": {
-              "type": "string",
-              "minLength": 1
-            }
-          },
-          "url_types": {
-            "type": "array",
-            "description": "이 목적의 feature를 수집하기에 적합한 웹페이지 유형 목록. 실제 존재하는 페이지 유형이어야 한다.",
-            "minItems": 2,
-            "maxItems": 6,
-            "items": {
-              "type": "string",
-              "pattern": "^[a-z][a-z0-9_]*$",
-              "minLength": 3
-            },
-            "uniqueItems": true
-          },
-          "url_type_priority": {
-            "type": "object",
-            "description": "url_types 각 항목의 우선순위 (1이 최고). url_types의 모든 항목을 포함해야 한다.",
-            "additionalProperties": {
-              "type": "integer",
-              "minimum": 1
-            }
-          }
-        }
+      "description": "7종 리포트 enum을 키로 한 도메인 taxonomy 구성. 최소 1개 리포트는 active=true 여야 한다.",
+      "additionalProperties": false,
+      "required": [
+        "comparison_matrix",
+        "reaction_insight",
+        "marketing_social",
+        "battlecard",
+        "positioning_map",
+        "market_context_swot",
+        "executive_summary"
+      ],
+      "properties": {
+        "comparison_matrix":   { "$ref": "#/$defs/reportEntry" },
+        "reaction_insight":    { "$ref": "#/$defs/reportEntry" },
+        "marketing_social":    { "$ref": "#/$defs/reportEntry" },
+        "battlecard":          { "$ref": "#/$defs/reportEntry" },
+        "positioning_map":     { "$ref": "#/$defs/reportEntry" },
+        "market_context_swot": { "$ref": "#/$defs/reportEntry" },
+        "executive_summary":   { "$ref": "#/$defs/reportEntry" }
       }
     },
     "enrichment_note": {
       "type": "string",
       "description": "기존 taxonomy를 enrichment한 경우 변경 요약. 최초 생성 시 생략 가능."
+    }
+  },
+  "$defs": {
+    "reportEntry": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["label", "active", "features", "feature_labels", "categories", "search_query_hints"],
+      "properties": {
+        "label": {
+          "type": "string",
+          "description": "리포트 한국어 레이블. 예: 비교 매트릭스",
+          "minLength": 2
+        },
+        "active": {
+          "type": "boolean",
+          "description": "이 도메인에서 본 리포트를 활성화할지 여부. false 시 후속 노드는 본 리포트를 스킵."
+        },
+        "features": {
+          "type": "array",
+          "description": "본 리포트에 필요한 feature ID 목록 (snake_case). 단일 feature가 여러 리포트에 매핑될 수 있으나 Feature Selection UI(D6)는 가장 비중 큰 카드에만 1회 표시.",
+          "minItems": 0,
+          "maxItems": 12,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "minLength": 3
+          },
+          "uniqueItems": true
+        },
+        "feature_labels": {
+          "type": "object",
+          "description": "feature ID → 한국어 레이블 매핑. features 배열의 모든 항목을 포함해야 한다.",
+          "additionalProperties": {
+            "type": "string",
+            "minLength": 1
+          }
+        },
+        "categories": {
+          "type": "array",
+          "description": "본 리포트의 Rubric §2-x 표준 카테고리 중 본 도메인에서 채택한 항목 (예: comparison_matrix의 'Pricing', 'Core Capability'). Rubric 외 도메인 특수 카테고리도 추가 가능.",
+          "minItems": 1,
+          "maxItems": 10,
+          "items": {
+            "type": "string",
+            "minLength": 2
+          },
+          "uniqueItems": true
+        },
+        "search_query_hints": {
+          "type": "array",
+          "description": "feature_url_mapper가 Brave API 검색에 사용할 쿼리 템플릿. {competitor_name}·{own_product} 등 치환 토큰 포함 가능. 예: '{competitor_name} 트래블카드 환전 수수료'.",
+          "minItems": 1,
+          "maxItems": 8,
+          "items": {
+            "type": "string",
+            "minLength": 3
+          },
+          "uniqueItems": true
+        },
+        "aspect_codebook": {
+          "type": "array",
+          "description": "reaction_insight 리포트 한정. ABSA aspect codebook (DomainTaxonomyAgent 자동 생성). reference_reaction_insight.md §2-3 결정 1·pipeline_topology_redesign.md §6-3 참조.",
+          "minItems": 3,
+          "maxItems": 12,
+          "items": {
+            "type": "object",
+            "additionalProperties": false,
+            "required": ["aspect_id", "label", "definition", "domain_specific"],
+            "properties": {
+              "aspect_id":       { "type": "string", "pattern": "^[a-z][a-z0-9_]*$" },
+              "label":           { "type": "string", "minLength": 1 },
+              "definition":      { "type": "string", "minLength": 5 },
+              "domain_specific": { "type": "boolean" }
+            }
+          }
+        },
+        "action_lens": {
+          "type": "object",
+          "description": "D7 'mixed' 채택 시 옵셔널. feature_id → 'marketing' | 'product_dev' | 'both' 매핑. features 배열의 모든 항목을 포함하지 않아도 무방.",
+          "additionalProperties": {
+            "type": "string",
+            "enum": ["marketing", "product_dev", "both"]
+          }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "active": { "const": true } }
+          },
+          "then": {
+            "properties": {
+              "features": { "minItems": 3 }
+            }
+          }
+        }
+      ]
     }
   }
 }

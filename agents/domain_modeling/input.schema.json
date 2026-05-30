@@ -63,9 +63,15 @@
     },
     "competition_axes": {
       "type": "array",
-      "description": "competitor_discovery_node가 도출한 경쟁 분석 축. taxonomy purpose 선택의 핵심 신호.",
+      "description": "competitor_discovery_node가 도출한 경쟁 분석 축. taxonomy report_config 작성의 핵심 신호.",
       "minItems": 1,
       "items": { "type": "string" }
+    },
+    "analysis_direction": {
+      "type": "string",
+      "description": "D7 옵션 b 확정 — Query Intake에서 사용자가 명시한 분석 방향. Rubric §3 동사 집합 분기 기준.",
+      "enum": ["marketing", "product_dev", "mixed"],
+      "default": "mixed"
     },
     "existing_taxonomy": {
       "type": "object",
