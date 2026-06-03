@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/url-discovery-owned-channels/output.schema.json",
+  "title": "UrlDiscoveryOwnedChannelsOutput",
+  "description": "LLM 검증 출력. Brave 검색 결과 후보 URL 중 어느 것이 candidate 의 공식 운영 채널인지 결정론적으로 판정 (ClaudeApiAnalyzer temperature=0).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["verified_handles"],
+  "properties": {
+    "verified_handles": {
+      "type": "array",
+      "minItems": 0,
+      "maxItems": 5,
+      "description": "본 candidate × platform 조합에서 LLM 이 공식으로 판정한 핸들 목록. 0건도 허용(해당 platform 에 공식 운영 채널이 없는 경우). 다중 공식 계정 발견 시 모두 반환하고 account_scope 로 구분 (D17 권장안).",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "is_official", "account_scope", "confidence", "rationale"],
+        "properties": {
+          "url": {
+            "type": "string",
+            "minLength": 8,
+            "description": "공식 핸들 URL. Brave 검색 결과 candidate_urls 중 하나여야 함 (입력 외 URL 환각 금지)."
+          },
+          "is_official": {
+            "type": "boolean",
+            "description": "본 URL 이 candidate 의 공식 운영 채널인가. confidence 임계(0.7) 와 별개의 boolean 판정."
+          },
+          "account_scope": {
+            "type": "string",
+            "enum": ["parent_company", "sub_brand", "product_specific", "regional"],
+            "description": "본 핸들의 위계. parent_company=모회사 통합 계정 / sub_brand=서브브랜드(예: hanamoney) / product_specific=해당 상품 전용 / regional=지역·언어별 분리."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "공식 판정의 신뢰도. 0.7 미만은 needs_validation=True 로 UI 노출 (D16 권장안). 0.5 미만은 채택 안 함."
+          },
+          "rationale": {
+            "type": "string",
+            "minLength": 5,
+            "description": "공식 판정 근거 1~2문장 (brand 명 매칭·verified 시그널·도메인 일치 등)."
+          }
+        }
+      }
+    }
+  }
+}

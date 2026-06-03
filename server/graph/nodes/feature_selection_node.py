@@ -97,8 +97,10 @@ _REPORT_INTRO_TEXTS: dict[str, str] = {
         "이 리포트는 아래 선택된 feature 데이터를 외부 후기·블로그·YouTube 영상·"
         "커뮤니티 게시글에서 수집하여 작성합니다.",
     "marketing_social":
-        "이 리포트는 아래 선택된 feature 데이터를 자사·경쟁사 운영 SNS"
-        "(Instagram·X·YouTube 공식 채널)·블로그·보도자료에서 수집하여 작성합니다.",
+        "이 리포트는 자사·경쟁사 운영 SNS(Instagram·X·YouTube 공식 채널)·블로그·"
+        "보도자료의 URL 을 발견한 뒤, 채널 활성도·게시물 빈도·콘텐츠 키워드·광고 "
+        "정보 등의 feature 값을 수집·분석하여 작성합니다. "
+        "(※ feature 값 수집은 v1.0 §6-6a 도입 후 자동 진행)",
     "battlecard":
         "이 리포트는 아래 선택된 feature 데이터를 수집한 뒤, "
         "비교 매트릭스·고객 반응 인사이트·마케팅·소셜 분석 결과를 종합하여 작성합니다.",
