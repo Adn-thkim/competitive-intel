@@ -21,7 +21,10 @@ v0.10.9 토폴로지 (pipeline_topology_redesign.md §6-2 v0.10.9 확정)
         └─→ domain_modeling                              (분기 B, 병렬)
               └─────────────────────→ ab_join            ← list-fan-in barrier 의 source
                                        ↓
-                  url_discovery_brave  (Step 0 — Brave 검색)
+                  5중 fan-out (v0.10.19): url_discovery_official · _blog_community
+                                          · _youtube_reactions · _owned_channels · _macro
+                                       ↓
+                  urls_merge           (5종 union → brave_urls_by_candidate, v0.10.19 임시 어댑터)
                                        ↓
                   page_meta_collect    (Step 1 — page meta 수집)
                                        ↓
@@ -74,7 +77,9 @@ from server.graph.nodes.domain_modeling_node import domain_modeling_node
 from server.graph.nodes.feature_selection_node import feature_selection_node
 # v0.10.9 — feature_url_mapper 4단계 노드 분리 (옵션 A)
 # v0.10.19 — URL 탐색 단계를 5개 source-type 노드로 분리 + urls_merge_node 임시 어댑터
-#            (단일 url_discovery_brave_node 폐기. v0.10.26 에서 cross_reference_node 로 교체 예정)
+# v0.10.22.1 cleanup — 옛 단일 url_discovery_brave_node 파일 삭제 완료
+#            (v0.10.26 에서 cross_reference_node 신설 · v0.10.27 에서 page_meta_collect_node
+#            + feature_mapping_llm_node 가 5개 feature_mapping_<source>_node 로 흡수 예정)
 from server.graph.nodes.url_discovery_official_node          import url_discovery_official_node
 from server.graph.nodes.url_discovery_blog_community_node    import url_discovery_blog_community_node
 from server.graph.nodes.url_discovery_youtube_reactions_node import url_discovery_youtube_reactions_node
@@ -225,8 +230,8 @@ def build_graph() -> object:
     builder.add_edge(["url_retry", "domain_modeling"], "ab_join")
 
     # 3) ab_join → 5중 source-type URL 탐색 fan-out (v0.10.19 옵션 e 1차 fan-out)
-    #    옛 단일 url_discovery_brave_node 폐기. 각 source-type 노드가 자기 담당 report_type
-    #    의 search_query_hints 만 사용해 Brave 검색 수행. v0.10.20·v0.10.21·v0.10.22 에서
+    #    각 source-type 노드가 자기 담당 report_type 의 search_query_hints 만 사용해
+    #    Brave/YouTube 검색 수행. v0.10.20·v0.10.21·v0.10.22 에서
     #    각 노드의 실 구현 단계적 진행 (youtube_reactions·owned_channels 는 v0.10.19 스켈레톤).
     builder.add_edge("ab_join", "url_discovery_official")
     builder.add_edge("ab_join", "url_discovery_blog_community")

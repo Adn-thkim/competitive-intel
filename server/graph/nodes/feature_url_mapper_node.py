@@ -5,14 +5,25 @@ v0.10.9 부터 본 파일은 노드 진입 함수가 아닌 **헬퍼 모듈**이
 옛 단일 노드 `feature_url_mapper_node()` 가 4개 노드로 분리됨에 따라, 본 모듈은 4개
 신규 노드가 공유하는 헬퍼 함수와 상수의 공통 위치 역할만 한다.
 
-4단계 분리 (graph.py v0.10.9 토폴로지)
---------------------------------------
+현재 토폴로지 (v0.10.19 5중 fan-out, v0.10.22.1 cleanup 시점)
+--------------------------------------------------------------
   ab_join
-    → url_discovery_brave_node            (Step 0 — Brave 검색)
+    → 5개 source-type URL 탐색 노드 (병렬 fan-out)
+        ├─ url_discovery_official_node
+        ├─ url_discovery_blog_community_node
+        ├─ url_discovery_youtube_reactions_node     (v0.10.20 실 구현)
+        ├─ url_discovery_owned_channels_node        (v0.10.21 실 구현)
+        └─ url_discovery_macro_node                 (v0.10.22 실 구현)
+    → urls_merge_node                     (5종 union → brave_urls_by_candidate, v0.10.19 임시 어댑터)
     → page_meta_collect_node              (Step 1 — page meta 수집)
-    → feature_mapping_llm_node            (Step 2 — LLM 호출, 가장 무거움)
+    → feature_mapping_llm_node            (Step 2 — LLM 호출)
     → additional_urls_validation_node     (Step 3 — HTTP 검증)
     → feature_selection (#4)
+
+옛 단일 `url_discovery_brave_node` 는 v0.10.19 의 5중 fan-out 도입과 함께 폐기되었고
+v0.10.22.1 cleanup PR 에서 파일 자체도 제거되었습니다. `_brave_search` 헬퍼와 그 캐시 키
+(`agent_id="url_discovery_brave"`) 는 5개 신규 노드가 공유하는 Brave Search API 어댑터로
+계속 활용됩니다 (캐시 호환성 유지 목적).
 
 본 모듈이 제공하는 헬퍼·상수
 ----------------------------
@@ -82,8 +93,15 @@ REPORT_TYPES = (
 # ─────────────────────────────────── 헬퍼 모듈 (v0.10.9) ────────────────────
 #
 # v0.10.9 부터 본 모듈의 공개 노드 함수 `feature_url_mapper_node` 는 제거되었다.
-# 4개 신규 노드(url_discovery_brave / page_meta_collect / feature_mapping_llm /
-# additional_urls_validation)가 본 모듈의 헬퍼들을 import 하여 사용한다.
+# v0.10.19 의 5중 fan-out 도입 + v0.10.22.1 cleanup 시점에는 다음 노드들이 본 모듈의
+# 헬퍼들을 import 하여 사용한다:
+#   - 5개 url_discovery_<source>_node (official·blog_community·youtube_reactions·
+#     owned_channels·macro) — _brave_search·_extract_active_reports·
+#     _extract_hints_for_source·_discover_via_brave_with_hints 등
+#   - urls_merge_node — (자체 union 로직)
+#   - page_meta_collect_node — _build_candidates_with_meta·_collect_page_meta
+#   - feature_mapping_llm_node — _filter_candidates_for_report·_strip_schema_patterns
+#   - additional_urls_validation_node — _validate_additional_urls·_check_url_status
 #
 # 본 모듈은 다음 헬퍼들의 공유 위치다:
 #   - _extract_active_reports
@@ -704,13 +722,14 @@ def _filter_candidates_for_report(
                 kept_urls.append(u)
             else:
                 # v0.10.20.1 — 비-official 모든 origin 을 matched_report_types 매칭으로 통과.
-                # 옛 v0.10.8 A안은 origin="brave_search" 만 처리했으나, v0.10.20 이후 다음
-                # 5종 origin 이 추가되어 matched_report_types 안전망으로 일관 처리:
-                #   - "brave_search"            (옛 url_discovery_brave_node · v0.10.19 의 official/blog_community/macro)
+                # 옛 v0.10.8 A안은 origin="brave_search" 만 처리했으나, v0.10.19 의 5중
+                # fan-out 도입 이후 다음 origin 들이 사용되며 matched_report_types 안전망으로
+                # 일관 처리한다:
+                #   - "brave_search"            (5종 url_discovery 노드 공통 — Brave Search API 결과의 기본 origin)
                 #   - "youtube_reactions"       (v0.10.20 url_discovery_youtube_reactions_node)
                 #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node)
                 #   - "macro_search"            (v0.10.22 url_discovery_macro_node, candidate_id="macro" 단일 키)
-                #   - "official_subpage"·기타   (turn-3 §4-4 system_prompt report_type 별 정책)
+                #   - "official_subpage"·기타   (v0.10.22a 예정 url_discovery_official_node 정밀화)
                 # 옛 주석 "알 수 없는 origin 은 보수적으로 제외" 는 v0.10.20 신규 origin 들이
                 # report_type 호출에서 누락되는 회귀를 유발하여 v0.10.20.1 에서 제거.
                 if report_type in (u.get("matched_report_types") or []):
