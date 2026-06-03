@@ -518,48 +518,74 @@ X 는 1차 범위에서 핸들 발견까지만 가능하고, 본문 metadata 는
 
 ---
 
-### 5-5. `url_discovery_macro_node`
+### 5-5. `url_discovery_macro_node` (v0.10.22 실 구현)
 
 **역할**: 정부 통계·산업 보고서·트레이드 미디어의 매크로 데이터를 발견하여 market_context_swot 의 입력으로 제공.
 
 **입력 state 키**
-- `domain_taxonomy.report_config["market_context_swot"]`
+- `domain_taxonomy.report_config["market_context_swot"]` (특히 `macro_data_sources`·`search_query_hints`)
 - `domain_name`
 - (`own_product`·`competitor_candidates` 는 매크로 검색에 사용하지 않음 — 도메인 단위)
 
-**탐색 전략**
+**핵심 변경 (v0.10.22 turn-50)**
 
-1. Brave 검색 with 도메인 화이트리스트:
-   - 한국 정부·통계: `kosis.kr`·`bok.or.kr`·`mss.go.kr`·`fss.or.kr`·`mcst.go.kr` 등
-   - 산업 협회: `nia.or.kr`·`kiet.re.kr`·`kif.re.kr`·`kica.or.kr` 등
-   - 트레이드 미디어: `bizhankook.com`·`zdnet.co.kr`·`mk.co.kr`·`hankyung.com` 등
-   - 국제 통계: `statista.com`·`gartner.com`·`oecd.org` 등
-2. 쿼리 예시:
-   - `{domain_name} 시장 규모 통계`
-   - `{domain_name} 산업 보고서 {연도}`
-   - `{domain_name} 규제 동향`
-   - `{domain_name} 출국자 통계` (트래블카드 도메인 특화)
-3. 결과의 `site:` 도메인이 화이트리스트 내인 경우만 채택
+`url_discovery_macro_node` 는 다른 4개 source-type 노드(official·blog_community·youtube_reactions·owned_channels)와 달리 candidate 차원이 없는 산업·시장 수준 데이터를 다룹니다. 따라서 4개 결정(D29~D32)을 다음과 같이 정합:
 
-**출력 state 키**: `macro_urls_by_candidate: dict[domain_id, list[dict]]` (candidate 단위가 아니라 domain 단위 캐싱)
+| 결정 | 채택 옵션 | 효과 |
+|---|---|---|
+| D29 | (c) 2-layer 화이트리스트 (정적 코어 + 동적 도메인 의존) | 한국 정부·통계 보편 사이트는 정적 코어로 강제, 도메인 특화 출처는 domain_modeling 의 LLM 추천 |
+| D30 | (c) Tier 그룹 site: 3쿼리 | hint 1건당 Tier1(통계)·Tier2(정책)·Tier3(동적) 각 1쿼리 → 우선순위 + Brave 토큰 한계 회피 |
+| D31 | (b) feature 별 < 2건 → Stage 2 진입 | 공식 출처 부족 시 뉴스 화이트리스트로 보강 (사용자 요구) |
+| D32 | (a) `candidate_id="macro"` 단일 키 | 매크로 데이터의 candidate 비종속성 코드 차원 표현 |
+
+**도메인 화이트리스트 (2-layer)**
+
+| Tier | 도메인 | 출처 |
+|---|---|---|
+| Tier 1 (통계 핵심, 정적) | `kosis.kr` · `ecos.bok.or.kr` · `index.go.kr` | 통계청·한국은행 ECOS·e-나라지표 |
+| Tier 2 (정책·규제·연구, 정적) | `fsc.go.kr` · `mosf.go.kr` · `fss.or.kr` · `bok.or.kr` · `kdi.re.kr` · `kiet.re.kr` · `nia.or.kr` · `kotra.or.kr` | 금융위·기재부·금감원·한은·KDI·산업연·NIA·KOTRA |
+| Tier 3 (도메인 의존, 동적) | `domain_taxonomy.report_config.market_context_swot.macro_data_sources` | domain_modeling 의 LLM 추천 (TLD 필터: `*.go.kr`·`*.or.kr`·`*.re.kr`·`*.ac.kr`·`*.kr` 만) |
+| 뉴스 보강 (Stage 2 fallback, 정적) | `yna.co.kr` · `hankyung.com` · `mk.co.kr` · `mt.co.kr` · `etnews.com` · `dt.co.kr` | 연합·한경·매경·머니투데이·전자·디지털타임스 |
+
+**처리 흐름**
+
+1. `_extract_hints_for_source(active_reports, "macro")` 로 `search_query_hints` 중 `source_hint="macro"` 인 hint 만 추출.
+2. `_substitute_domain_only(query_template, domain_name)` — `{domain_name}` 만 치환. `{candidate_name}` 등 candidate 토큰이 잔존하면 치환 실패로 처리 (domain_modeling 의 LLM 작성 오류 신호).
+3. Stage 1 — 각 hint × Tier1·Tier2·Tier3 = 최대 3쿼리. `(site:a OR site:b OR ...)` 형식 + `_brave_search` 24h TTL 캐시.
+4. `_host_matches` 로 결과 URL 의 host 가 Tier 화이트리스트의 suffix 인지 재검증 (Brave site: 누락 대비).
+5. Stage 2 진입 판정 — `feature_counts[fid] < 2` 인 feature 가 1건 이상 있으면 진입.
+6. Stage 2 — 결손 feature 의 hint × 뉴스 화이트리스트 1쿼리 (병렬). 결과에 `source_tier="news_supplement"` 부착.
+7. 결과 집계 — `candidate_id="macro"` 단일 키 dict 으로 출력.
+
+**출력 state 키**: `macro_urls_by_candidate: dict[str, list[dict]]` — 항상 `"macro"` 단일 키.
 
 각 dict 항목:
 ```json
 {
-  "url":              str,
-  "page_title":       str,
-  "meta_description": str,
-  "origin":           "macro_search",
-  "authority_class":  "government" | "industry_association" | "trade_media" | "international",
-  "published_at":     str (ISO 8601, 가능 시),
-  "domain":           str (e.g., "kosis.kr"),
+  "url":                  str,
+  "page_title":           str,
+  "meta_description":     str,
+  "origin":               "macro_search",
+  "source_tier":          "official_statistics" | "news_supplement",
+  "tier_group":           "tier1_statistics" | "tier2_policy" | "tier3_dynamic" | "news",
+  "feature_ids":          [str, ...],
   "matched_report_types": ["market_context_swot"]
 }
 ```
 
-**검증 방법**: 발행일 ≤ 24개월, 도메인 화이트리스트 매칭.
+**검증 게이트**
 
-**캐싱**: `agent_id="url_discovery_macro"`, cache_input `{domain_name, query}`, TTL 30일 (매크로 데이터 갱신 주기와 정합, §6-6a D13 `market_context_collection` 캐시 정책과 동일).
+- 화이트리스트 매칭률 (Stage 1 URL 의 host 가 코어/동적 화이트리스트에 속함) ≥ 80%
+- feature 별 URL 발견 수 (Stage 1 + 2 통합) ≥ 2건
+- 뉴스 보강 trigger rate ≤ 30% (초과 시 화이트리스트 보강 필요 신호)
+- `candidate_id` 키 = `"macro"` 단일 키
+- `source_tier` 분포 (official_statistics : news_supplement) ≥ 7 : 3
+
+**캐싱**: `_brave_search` 의 24h TTL agent_cache 그대로 활용 (쿼리 단위). 본 노드 자체의 별도 TTL 7일 캐시는 도입하지 않음 — domain_taxonomy 가 바뀌면 새 hint·새 macro_data_sources 로 자동 invalidate.
+
+**`_build_candidates_with_meta` 와의 정합**
+
+`urls_merge_node` 가 `macro_urls_by_candidate["macro"]` 을 일반 candidate dict 로 머지하면, `_build_candidates_with_meta` 가 `cid="macro"` 항목을 생성하며 `source_type="macro"` (v0.10.22 신설 분기) 로 부착됩니다. 후속 v0.10.23 의 `feature_mapping_macro` LLM 호출이 본 source_type 으로 macro candidate 를 자사·경쟁사 candidate 와 분기 처리 가능. `_filter_candidates_for_report("market_context_swot")` 는 v0.10.20.1 의 matched_report_types 일관 처리로 macro_search origin 을 자동 통과.
 
 **§6-6a `market_context_collection_node` 와의 인계 경계**
 
@@ -1207,7 +1233,7 @@ list-edge barrier 는 v0.10.7 `scripts/verify_fanin.py` 로 이미 검증된 패
 | **v0.10.19** (P1a-1) | 5개 source-type URL 탐색 노드 분리 + state 키 분리 + 토폴로지 1차 list-edge barrier | 약 +200줄 | 5개 신규 `*_urls_by_candidate` state 키 산출 + 각 source-type 캐시 file 생성 + entries ≥ 1 |
 | **v0.10.20** (P1a-2) | `url_discovery_youtube_reactions_node` YouTube Data API v3 통합 — **reactions 단일 동작** (intent 분기 폐기). quota 관리 | 약 +200줄 | YouTube API 호출 수 ≤ 일일 quota 절반(5,000 units), cache miss 첫 실행에서 reaction 영상 metadata 정상 수집 |
 | **v0.10.21** (P1a-3) | `url_discovery_owned_channels_node` Brave 검색 + LLM 검증 (`official_source_resolver` 패턴 재사용) + **YouTube 공식 채널 platform 흡수** (`channels.list` 1u 호출 포함) | 약 +320줄 | candidate 4명 × 5 플랫폼(Instagram·X·블로그·보도자료·`youtube_official`) = 20개 핸들 중 80% 이상 발견 + confidence ≥ 0.7. `youtube_official` 항목은 `channel_id` 채워짐 |
-| **v0.10.22** (P1b) | `url_discovery_macro_node` 도메인 화이트리스트 검색 | 약 +120줄 | 트래블카드 도메인에서 KOSIS·BoK 등 3개 이상 정부 통계 URL 발견 |
+| **v0.10.22** (P1b) | `url_discovery_macro_node` 전면 재작성 — 2-layer 화이트리스트 + Tier 그룹 site: + 2단계 fallback + candidate_id="macro" 단일 키 (D29~D32) | 약 +290줄 | 화이트리스트 매칭률 ≥80% + feature 별 ≥2건 + 뉴스 보강 ≤30% + KOSIS·BoK·금융위 등 정부 통계 URL ≥ 3개 |
 | ~~**v0.10.21a**~~ *(turn-11 폐기)* | ~~`page_meta_collect_node` cross-reference 머지~~ | — | v0.10.26 의 `cross_reference_node` 로 흡수 |
 | **v0.10.23** (P2 분배) *(turn-11 축소)* | `agents/feature_mapping_<source>/system_prompt_kr.md` 5종 신설 (단일 prompt → source-type 별 5종 분배) + `agents/feature_url_mapper/system_prompt_kr.md` 유지 (공통 schema·예외 정책 referencing) | 약 +200줄 (5 prompt 평균 +40줄) | 5개 prompt 모두 jsonschema validate 통과. reaction_insight `comp_*` `existing_urls` 외부 host 비율 ≥ 75% |
 | **v0.10.24** (P3) | `_fetch_meta` 에 `<h1>`/`<h2>` + 본문 첫 800자 수집 + 5개 `page_meta_<source>` 캐시 schema bump | 약 +40줄 | 정적 사이트 5개에서 본문 추출 성공률 100% |
@@ -1283,6 +1309,10 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 |      **D26** *(turn-11 신설)*       | 통합 노드 명명                                                  | `feature_mapping_<source>_node` 유지 (turn-11 답변 권장)                                                                                                                         | (a) `feature_mapping_<source>_node` 유지 — 변경 표면적 작음. "mapping" 표현이 page_meta 단계까지 포함하는지 모호, (b) `source_pipeline_<source>_node` 로 개명 — 책임 정확하나 mapping 표현 손실, (c) `meta_and_mapping_<source>_node` 로 개명 — 길어짐                                                                        |
 |  **D27** *(turn-16 신설, [x] 확정)*   | feature_selection UI 의 source_flow 별 안내 문구 데이터 위치         | **(b) `server/graph/nodes/feature_selection_node.py` 의 `_REPORT_INTRO_TEXTS` 정적 dict**                                                                                     | (a) `agents/domain_modeling/output.schema.json` 의 `intro_text` 필드 — 도메인 특수성 반영 가능하나 LLM 변동 + cache invalidation 부담, (b) **정적 dict — 결정론적·도메인 무관·변경 표면적 작음 (채택)**, (c) `client/src/components/FeatureSelectionPage.jsx` 의 상수 dict — server 가 source_flow 만 전달하면 되나 client 도메인 의존성 발생 |
 | **D28** *(turn-26 진단·turn-29 신설)* | `data/taxonomy/{id}_slug.json` 7일 TTL 캐시의 schema-aware 정책 | **(a) `domain_modeling_node` 의 taxonomy 캐시 로딩에 `output_schema_sha256` + `system_prompt_sha256` + `prompt_version` 비교 추가 + 변경 감지 시 자동 무효화** + enrichment 트리거                | (a) **taxonomy 파일 헤더에 schema_sha256·prompt_version 메타데이터 저장 후 로딩 시 비교 (채택)** — 변경 표면적 작음·결정론적, (b) taxonomy 파일을 schema 별 디렉토리로 분리 (`data/taxonomy/{schema_v}/{id}_slug.json`) — 디스크 비대, (c) taxonomy 캐시 자체 폐기 — domain_modeling LLM 호출이 매 분석마다 발생 (비용 증가)                           |
+| **D29** *(turn-50 신설, [x] 확정)* | `url_discovery_macro_node` 의 도메인 화이트리스트 위치 | **(c) 2-layer 혼합 (정적 코어 + 동적 도메인 의존)** | (a) 정적 코드 하드코딩만 — 도메인 의존 출처 부재, (b) `domain_taxonomy` 동적 생성만 — 정적 코어 부재 시 LLM 누락 가능, (c) **2-layer 혼합 — 안정성 + 도메인 정합 (채택)** |
+| **D30** *(turn-50 신설, [x] 확정)* | Brave `site:` 연산자 적용 방식 | **(c) Tier 그룹화 3쿼리 (Tier1·Tier2·Tier3)** | (a) 전체 도메인 OR 조합 1쿼리 — Brave `site:` OR 토큰 한계 (~5건), (b) 도메인별 1쿼리 — hint 1건당 14 호출 비용 증가, (c) **Tier 그룹화 3쿼리 — 호출 수 (hint × 3) + 우선순위 (채택)** |
+| **D31** *(turn-50 신설, [x] 확정)* | 뉴스 보강 진입 임계 | **(b) feature 별 < 2건 → Stage 2 진입** | (a) Stage 1 결과 0건 → 진입 — 1~2건 발견 시 뉴스 보강 누락, (b) **feature 별 < 2건 → 진입 (채택)** — 이미지의 "미확보 2~3" 빈도 해소, (c) 항상 진입 — 비용·중복 증가 |
+| **D32** *(turn-50 신설, [x] 확정)* | macro URL 의 candidate_id 키 형식 | **(a) `"macro"` 단일 키** | (a) **`"macro"` 단일 키 — 매크로 본질 정합 (채택)**, (b) `"own"` 키 사용 — own_product 와 macro 가 같은 키 의미 혼란, (c) feature_id 별 키 — 후속 노드 union 처리 복잡 |
 
 본 결정 항목은 사용자 검토 후 본 문서의 §10 에 [x] 체크로 확정합니다. turn-11 옵션 (e) 채택으로 **D21 은 폐기**되었습니다 (cross-reference 가 머지 시점이 아닌 별도 노드로 분리되어 선택 폭 자체가 무효화).
 
@@ -1318,7 +1348,7 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 | **v0.10.19.1** *(turn-36 신설)* | §7-2 + D18 통합 — 객체 hints + 토큰 중립 + source 라우팅 | (i) 신규 `data/taxonomy/{id}_slug.json` 의 search_query_hints 가 모두 객체 양식 (string 0건), (ii) 모든 active feature 가 hints 에서 ≥ 1회 등장 (feature_id 기준), (iii) `{candidate_name}` 토큰을 포함한 hint 비율 ≥ 50%, (iv) source_hint 분포가 권장 비율 ±10% 범위, (v) URL 결과의 `feature_ids` 필드가 객체 hints 시점에 ≥ 1개 채워짐 |
 | v0.10.20 | YouTube reactions 영상 수집 | candidate 4명 × 3 쿼리 = 영상 ≥ 30개 + view/like/comment count 모두 채워짐. `channel_id` 100% 채움 |
 | v0.10.21 | Owned channels 발견 (5 platforms) | 4 candidates × 5 platforms = 20 핸들 중 16개(80%) ≥ confidence 0.7. `youtube_official` 항목 100% `channel_id` 채움 |
-| v0.10.22 | Macro URL 수집 | 트래블카드 도메인에서 KOSIS·BoK·NIA 등 화이트리스트 도메인 ≥ 3개 |
+| v0.10.22 | Macro URL 수집 | 트래블카드 도메인에서 KOSIS·BoK·금융위·NIA 등 화이트리스트 도메인 ≥ 3개 + feature 별 ≥ 2건 + 화이트리스트 매칭률 ≥ 80% + 뉴스 보강 trigger rate ≤ 30% |
 | v0.10.23 | 5 source-type system_prompt 분배 | 5개 prompt 모두 jsonschema validate 통과. reaction_insight `comp_*` 외부 host 비율 ≥ 75%, not_found 비율 < 50% |
 | v0.10.24 | body 보강 효과 | 정적 사이트 5개 추출 성공률 100%, `body_snippet` 평균 ≥ 500자 |
 | v0.10.25 | validation 분기 + D23 union | YouTube 검증 `view_count` 100% 채움, Owned channel 검증 `is_brand_match` 100% 채움, battlecard `feature_id` 의 `candidate_coverage` union 정상 (official + owned_channels 양쪽 URL 포함) |
@@ -1345,6 +1375,7 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 
 | 버전 | 일자 | 변경 내용 | 비고 |
 |:-:|---|---|---|
+| 0.8 | 2026-06-04 | **`url_discovery_macro_node` 전면 재작성 — 2-layer 화이트리스트 + Tier 그룹 + 2단계 fallback + candidate_id="macro" (turn-50)** — (1) **사용자 지적 (turn-50)**: macro feature 는 산업·시장 수준 데이터이므로 candidate 비종속. 다른 노드의 `{candidate_name}` 치환 hint 로직을 적용하면 잘못된 URL 탐색. (2) **D29~D32 4개 결정 일괄 확정** — D29 (c) 2-layer 화이트리스트 (정적 코어 11건 + 동적 도메인 의존) · D30 (c) Tier 그룹 3쿼리 · D31 (b) feature 별 <2건 → Stage 2 진입 · D32 (a) `candidate_id="macro"` 단일 키. (3) **정적 화이트리스트 (한국 정부·통계·연구 17건)** — Tier 1 (통계 핵심 3): `kosis.kr`·`ecos.bok.or.kr`·`index.go.kr` / Tier 2 (정책·연구 8): `fsc.go.kr`·`mosf.go.kr`·`fss.or.kr`·`bok.or.kr`·`kdi.re.kr`·`kiet.re.kr`·`nia.or.kr`·`kotra.or.kr` / 뉴스 보강 (6): `yna.co.kr`·`hankyung.com`·`mk.co.kr`·`mt.co.kr`·`etnews.com`·`dt.co.kr`. (4) **동적 화이트리스트 — `agents/domain_modeling/output.schema.json` 의 `reportEntry.macro_data_sources` 신설** — 0~8건, TLD 패턴 강제 (`*.go.kr`·`*.or.kr`·`*.re.kr`·`*.ac.kr`·`*.kr`). `system_prompt_kr.md` 의 macro 출처 추천 규칙 절 신설 (정적 코어 중복 기재 금지 + TLD 가이드 + 도메인별 예시 4건 — 해외여행/핀테크/헬스케어/모빌리티). (5) **Brave `site:` 연산자 Tier 그룹화** — hint 1건당 Tier1·Tier2·Tier3 각 1쿼리 = 최대 3쿼리. `(site:a OR site:b OR ...)` 형식. Tier 3 도메인 없으면 스킵. (6) **2단계 fallback** — Stage 1 (공식) 완료 후 feature 별 < 2건 결손 시 Stage 2 (뉴스 보강) 진입. 결손 feature 의 hint 만 뉴스 화이트리스트 대상 재검색. `source_tier` 필드 (`official_statistics` / `news_supplement`) 부착. (7) **화이트리스트 매칭 검증** — Brave 의 `site:` 누락 대비 `_host_matches` 헬퍼로 결과 host 재검증. 미매칭 URL 제외. (8) **`candidate_id="macro"` 단일 키 집계** — `_substitute_domain_only` 헬퍼로 `{domain_name}` 만 치환, candidate 차원 폐기. `_build_candidates_with_meta` 에 `source_type="macro"` 분기 신설 — 후속 v0.10.23 LLM 매핑이 macro candidate 를 자사·경쟁사와 분기 처리 가능. `_filter_candidates_for_report` 본체는 v0.10.20.1 일관 처리로 macro_search origin 자동 통과 (변경 불필요, 주석만 "예정"→"확정" 갱신). (9) 영향 절: §5-5 전면 재작성 (Tier 표·처리 흐름 7단계·검증 게이트·캐싱·`_build_candidates_with_meta` 정합 절 신설) · §9 v0.10.22 entry 갱신 (약 +120줄 → +290줄) · §10 D29~D32 신설 [x] 확정 · §11 검증 게이트 보강 · §12 v0.8 entry. (10) 변경 파일: `agents/domain_modeling/output.schema.json` (+20) · `agents/domain_modeling/system_prompt_kr.md` (+30) · `server/graph/nodes/url_discovery_macro_node.py` (전면 재작성, 350줄) · `server/graph/nodes/feature_url_mapper_node.py` (+15, `_build_candidates_with_meta.source_type` 분기 + 주석 갱신) · 본 문서 (+150). 합계 약 +565줄. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27·D28·D29·D30·D31·D32 [x] 확정) |
 | 0.7 | 2026-06-04 | **owned_channels LLM 어댑터 CLI 전환 + marketing_social 안내 문구 강화 (turn-49)** — (1) `url_discovery_owned_channels_node` 의 LLM 검증 단계를 `ClaudeApiAnalyzer(temperature=0)` 에서 `ClaudeCodeCliAnalyzer` 로 전환. 본 노드의 LLM 검증은 `ProductIdResolver` 같은 완전 결정론(slug 생성) 영역이 아니고 URL 의 `official` 접미사·snippet 의 "공식" 키워드 등 명확한 시그널 기반이라 CLI 의 자연어 수준 결정론으로 흡수 가능. 시리즈 전체 일관 패턴 유지 + API 과금 회피(약 $0.50/분석 → $0). (2) 영향 파일: `server/graph/nodes/url_discovery_owned_channels_node.py` import + `ANTHROPIC_API_KEY` graceful 분기 제거 + `ClaudeCodeCliAnalyzer(model=CLI_MODEL, timeout=CLI_TIMEOUT)` 인스턴스 + `cache_context.prompt_version` `v0.10.21.1` 로 갱신, `agents/url_discovery_owned_channels/system_prompt_kr.md` 첫 단락 분석기 표현 변경 (`ClaudeApiAnalyzer(temperature=0)` → `ClaudeCodeCliAnalyzer` + 자연어 결정론 완화 전략 설명). (3) `feature_selection_node._REPORT_INTRO_TEXTS["marketing_social"]` 강화 — URL 발견 단계와 §6-6a feature 값 수집 단계를 분리 명시 ("※ feature 값 수집은 v1.0 §6-6a 도입 후 자동 진행"). 사용자가 v0.10.21 ~ v1.0 사이 `marketing_social` 카드 coverage 의미 명확화. (4) `Future_Improvements.md` 신설 — "ClaudeApiAnalyzer 활용 후보 노드 검토" 항목 추가. (5) §4-3·§5-4·§10 비용 절 — LLM 검증 어댑터 표기 `ClaudeApiAnalyzer` → `ClaudeCodeCliAnalyzer` + 비용 0 + 시리즈 일관 패턴 명시. (6) `server/llm/claude_api_analyzer.py` 보존 (향후 결정론 필수 노드 활용 가능). 변경량 약 +35줄(node) +10줄(prompt) +5줄(intro_text) +60줄(Future_Improvements.md) +설계 문서 30줄. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27·D28 [x] 확정) |
 | 0.1 | 2026-06-02 | 초안 작성 — turn-3 ~ turn-5 결정 통합. AS-IS 결함 4건·TO-BE 5중 fan-out·핵심 변경 5건(P0·P1·P1·P2·P2~중기)·노드별 상세 8건·state·캐시·토폴로지·domain_modeling 영향·§6-6a 인계 경계·PR 시리즈 10개·결정 항목 D14~D20 7개·운영 리스크·검증 게이트 일괄 정리 | DRAFT, §10 D14~D20 결정 대기 |
 | 0.2 | 2026-06-02 | **노드 책임 재정의 (turn-7)** — (1) `url_discovery_youtube_node` → **`url_discovery_youtube_reactions_node` 개명·축소** (reaction_insight 3rd-party 영상 탐색 단일 동작, `intent` 분기 폐기). (2) `url_discovery_owned_channels_node` 범위 확대 — Instagram·X·블로그·보도자료에 더해 **YouTube 공식 채널** platform(`youtube_official`) 흡수. `channels.list?forHandle=...`(1u) 추가 호출로 `channel_id` 확정. (3) **`reactions × owned_channels` cross-reference 머지 신설** (`page_meta_collect_node._filter_reactions_excluding_owned_channels`) — 결정론적 LLM 미사용 채널 ID 매칭으로 자사·경쟁사 공식 채널이 자체 상품을 직접 리뷰하는 edge case 차단. (4) 영향 절: §3-1 토폴로지 다이어그램·§3-3 호출 횟수 영향·§4-2 5분리 표·§4-3-2 Brave 쿼리 목록·§5-3 전면 재작성·§5-4 platform 6종 보강·§5-6 머지 정책 cross-reference·§5-7 `_origin_matches_report_type` 표·§6-1 state 키 개명·§6-2 캐시 키 일람·§6-3 토폴로지 코드·§8 책임 경계 표·§9 PR 시리즈 (v0.10.20 축소·v0.10.21 확장·**v0.10.21a 신설**)·§9-1 의존 그래프·§10 결정 항목 **D21·D22 신설**·§11 검증 게이트 v0.10.21a 추가·§11-2 cross-reference 검증 항목 추가 | DRAFT, §10 D14~D22 결정 대기 |

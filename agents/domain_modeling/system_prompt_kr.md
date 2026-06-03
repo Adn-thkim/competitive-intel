@@ -86,7 +86,7 @@
 | `blog_community` | 외부 후기·블로그·커뮤니티 검색 | `"{candidate_name} 사용 후기 환율 체감"` · `"{candidate_name} 단점 불편"` |
 | `youtube_reactions` | 3rd-party YouTube 영상 검색 | `"{candidate_name} 트래블카드 유튜브 리뷰"` · `"{candidate_name} 사용 영상"` |
 | `owned_channels` | 자사·경쟁사 운영 SNS·블로그·보도자료 검색 | `"{candidate_name} 공식 인스타그램 캠페인"` · `"{candidate_name} 보도자료"` |
-| `macro` | 정부 통계·산업 보고서·트레이드 미디어 검색 | `"{domain_name} 시장 규모 통계"` · `"{domain_name} 규제 동향"` |
+| `macro` | 정부 통계·산업 보고서·트레이드 미디어 검색 | `"{domain_name} 시장 규모 통계"` · `"{domain_name} 규제 동향"` (※ macro 는 candidate 비종속 — `{candidate_name}` 미사용, `{domain_name}` 만 사용) |
 
 ### report_type 별 권장 source_hint 분포
 
@@ -172,6 +172,32 @@ B-only 리포트(`positioning_map` · `executive_summary`) 는 `source_flow="B"`
 | `executive_summary`   | BLUF · SCR/SCQA Structure · Pyramid Principle · Bold-Bullet · "So What?" Test · Persona Branching · Cross-link |
 
 Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우대")는 자유롭게 추가 가능합니다.
+
+---
+
+## `macro_data_sources` 채움 지시 (market_context_swot 한정 — v0.10.22)
+
+`report_config["market_context_swot"]` 가 `active: true` 인 경우, 본 도메인에 특화된 macro 데이터 출처 도메인(host) 목록을 `macro_data_sources` 필드에 0~8건 채웁니다. 본 필드는 `url_discovery_macro_node` 의 **Tier 3 동적 화이트리스트** 로 사용됩니다.
+
+**Tier 1·2 정적 코어는 노드 모듈 상수로 별도 관리**됩니다. 즉 한국 정부 통계·정책 보편 사이트(`kosis.kr` · `ecos.bok.or.kr` · `index.go.kr` · `fsc.go.kr` · `mosf.go.kr` · `fss.or.kr` · `bok.or.kr` · `kdi.re.kr` · `kiet.re.kr` · `nia.or.kr` · `kotra.or.kr`) 는 본 필드에 **다시 기재하지 마십시오**. 본 필드에는 **도메인 의존 출처** 만 기재합니다.
+
+**TLD 화이트리스트 강제**: `*.go.kr`(정부) · `*.or.kr`(공공기관·협회) · `*.re.kr`(연구소) · `*.ac.kr`(학교) · `*.kr`(공항공사 등 공공 인프라) 만 허용. `*.com`·`*.co.kr` 같은 일반 상업 도메인은 신뢰성이 보장되지 않으므로 본 필드에 포함하지 마십시오 (뉴스 보강은 노드가 별도 화이트리스트로 처리).
+
+**도메인 의존 출처 예시**:
+
+| 도메인 | 추천 macro_data_sources |
+| --- | --- |
+| 해외여행 카드 | `airport.kr` (인천공항공사) · `visitkorea.or.kr` (한국관광공사) · `kata.or.kr` (한국여행업협회) |
+| 핀테크 송금 | `kftc.or.kr` (금융결제원) · `kifrs.or.kr` (한국회계기준원) · `kfia.or.kr` (한국금융투자협회) |
+| 헬스케어 | `khidi.or.kr` (한국보건산업진흥원) · `hira.or.kr` (건강보험심사평가원) · `kdca.go.kr` (질병관리청) |
+| 모빌리티 | `koroad.or.kr` (도로교통공단) · `kotsa.or.kr` (한국교통안전공단) · `ktdb.go.kr` (국가교통DB) |
+
+본 도메인이 위 예시에 해당하지 않으면 다음 원칙으로 추론:
+1. 공공기관·협회 1차 출처 우선 (학회·연구소 보고서 위주)
+2. 도메인 특화 통계 보유 기관 (예: 운영 데이터 공개 공기업)
+3. TLD 화이트리스트 통과 항목만 채택
+
+`market_context_swot` 가 `active: false` 인 경우 본 필드는 생략합니다.
 
 ---
 

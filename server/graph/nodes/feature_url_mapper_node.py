@@ -511,8 +511,19 @@ def _build_candidates_with_meta(
             })
             seen_urls.add(item["url"])
 
-        # source_type 추정: official URL이 있으면 official, 아니면 reference
-        source_type = "official" if cid in official_by_candidate else "reference"
+        # source_type 추정:
+        # - cid == "macro": v0.10.22 신설. url_discovery_macro_node 가 산업·시장 수준
+        #   데이터를 단일 candidate_id="macro" 로 집계 — candidate 비종속.
+        #   후속 v0.10.23 의 feature_mapping_macro LLM 호출이 본 source_type 으로
+        #   macro candidate 를 자사·경쟁사 candidate 와 분기 처리한다.
+        # - official URL 보유: "official"
+        # - 그 외: "reference"
+        if cid == "macro":
+            source_type = "macro"
+        elif cid in official_by_candidate:
+            source_type = "official"
+        else:
+            source_type = "reference"
         candidates_out.append({
             "candidate_id":   cid,
             "source_type":    source_type,
@@ -697,8 +708,8 @@ def _filter_candidates_for_report(
                 # 5종 origin 이 추가되어 matched_report_types 안전망으로 일관 처리:
                 #   - "brave_search"            (옛 url_discovery_brave_node · v0.10.19 의 official/blog_community/macro)
                 #   - "youtube_reactions"       (v0.10.20 url_discovery_youtube_reactions_node)
-                #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node, 예정)
-                #   - "macro_search"            (v0.10.22 url_discovery_macro_node 보강, 예정)
+                #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node)
+                #   - "macro_search"            (v0.10.22 url_discovery_macro_node, candidate_id="macro" 단일 키)
                 #   - "official_subpage"·기타   (turn-3 §4-4 system_prompt report_type 별 정책)
                 # 옛 주석 "알 수 없는 origin 은 보수적으로 제외" 는 v0.10.20 신규 origin 들이
                 # report_type 호출에서 누락되는 회귀를 유발하여 v0.10.20.1 에서 제거.
