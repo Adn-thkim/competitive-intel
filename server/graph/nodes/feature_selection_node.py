@@ -16,23 +16,36 @@ analysis_features를 **report_type 단위**(D4 enum 7종, v0.10)로 그룹핑해
   다른 노드(downstream)가 이 키 이름에 의존할 수 있어 점진적 마이그레이션을 위함이며,
   state.py docstring에 의미 갱신이 명시되어 있다.
 
-interrupt 값 구조 (v0.10)
--------------------------
+interrupt 값 구조 (v0.10.18a — source_flow 별 UI 차별화)
+--------------------------------------------------------
 {
   "type": "feature_selection",
   "reports": [
     {
-      "report_type":  "comparison_matrix",   // D4 enum 7종 중 하나
-      "report_label": "비교 매트릭스",
+      "report_type":          "comparison_matrix",   // D4 enum 7종 중 하나
+      "report_label":         "비교 매트릭스",
+      "source_flow":          "A" | "B" | "A+B",     // v0.10.18a 신설
+      "intro_text":           "이 리포트는 ...",      // v0.10.18a 신설 (정적 dict)
+      "url_coverage_visible": true | false,          // v0.10.18a 신설 (B-only 시 false)
       "features": [
+        // 흐름 A · A+B (url_coverage_visible=true): coverage_summary + coverage_details 보유
         {
-          "feature_id":   "feat_transaction_fee_rate",
-          "feature_name": "거래 수수료율",
-          "description":  "...",
-          "priority":     "high",
-          "coverage_summary": {"sufficient": 3, "partial": 2, "not_found": 1}
+          "feature_id":       "feat_transaction_fee_rate",
+          "feature_name":     "거래 수수료율",
+          "description":      "...",
+          "priority":         "high",
+          "coverage_summary": {"sufficient": 3, "partial": 2, "not_found": 1},
+          "coverage_details": [...]
         },
-        ...
+        // B-only (url_coverage_visible=false): coverage_summary / coverage_details = null
+        {
+          "feature_id":       "axis_cost_efficiency_score",
+          "feature_name":     "비용 효율성 축 점수",
+          "description":      "",
+          "priority":         "medium",
+          "coverage_summary": null,
+          "coverage_details": null
+        }
       ]
     },
     ...
@@ -72,6 +85,34 @@ REPORT_TYPES = (
     "market_context_swot",
     "executive_summary",
 )
+
+# v0.10.18a — D27 (b) 옵션 채택. report_type 별 안내 문구 정적 dict.
+# 도메인 무관·결정론적. 도메인 다양성 확장 시 옵션 (a) schema 의 intro_text 필드로 이전 가능.
+# 변경 시 prompt_version 관리 무관 (server 측 정적 문자열).
+_REPORT_INTRO_TEXTS: dict[str, str] = {
+    "comparison_matrix":
+        "이 리포트는 아래 선택된 feature 데이터를 자사·경쟁사 공식 사이트에서 "
+        "수집하여 작성합니다.",
+    "reaction_insight":
+        "이 리포트는 아래 선택된 feature 데이터를 외부 후기·블로그·YouTube 영상·"
+        "커뮤니티 게시글에서 수집하여 작성합니다.",
+    "marketing_social":
+        "이 리포트는 아래 선택된 feature 데이터를 자사·경쟁사 운영 SNS"
+        "(Instagram·X·YouTube 공식 채널)·블로그·보도자료에서 수집하여 작성합니다.",
+    "battlecard":
+        "이 리포트는 아래 선택된 feature 데이터를 수집한 뒤, "
+        "비교 매트릭스·고객 반응 인사이트·마케팅·소셜 분석 결과를 종합하여 작성합니다.",
+    "market_context_swot":
+        "이 리포트는 아래 선택된 매크로 feature 데이터를 정부 통계·산업 보고서·"
+        "트레이드 미디어에서 수집한 뒤, 비교 매트릭스·고객 반응 인사이트·"
+        "마케팅·소셜 분석 결과와 종합하여 작성합니다.",
+    "positioning_map":
+        "이 리포트는 아래 표시된 feature 를 기반으로 비교 매트릭스 결과로부터 "
+        "자동 도출됩니다. URL 수집은 발생하지 않습니다.",
+    "executive_summary":
+        "이 리포트는 아래 표시된 feature 를 기반으로 6개 분석 리포트 결과를 통합하여 "
+        "자동 도출됩니다. URL 수집은 발생하지 않습니다.",
+}
 
 
 def feature_selection_node(state: DomainAnalysisState) -> dict:
@@ -124,63 +165,33 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
             grouped[rt] = []
         grouped[rt].append(feature)
 
-    # ── interrupt 값 조립 ────────────────────────────────────────────────────
+    # ── interrupt 값 조립 (v0.10.18a — source_flow 별 UI 차별화 + B-only 카드 결합) ──
     reports_payload: list[dict] = []
     for rt in report_order:
-        features_in_report = grouped.get(rt, [])
-        if not features_in_report:
-            continue
+        entry = report_config.get(rt, {}) or {}
+        source_flow = entry.get("source_flow", "A")    # v0.10.18 후방 호환 기본값
+        is_b_only   = source_flow == "B"
 
-        feature_items = []
-        for feat in features_in_report:
-            coverage_summary: dict[str, int] = {"sufficient": 0, "partial": 0, "not_found": 0}
-            # v0.10.16 — UI 확장 표시용 candidate 별 coverage 상세
-            coverage_details: list[dict] = []
-            for cov in feat.get("candidate_coverage", []):
-                key = cov.get("coverage", "not_found")
-                coverage_summary[key] = coverage_summary.get(key, 0) + 1
-
-                # 각 URL 항목에서 UI 노출에 필요한 최소 필드만 추출
-                existing_urls = [
-                    {
-                        "url":            (u.get("url") or "").strip(),
-                        "relevance_note": (u.get("relevance_note") or "").strip(),
-                        "origin":         u.get("origin", "official_source"),
-                    }
-                    for u in (cov.get("existing_urls") or [])
-                    if u.get("url")
-                ]
-                additional_urls = [
-                    {
-                        "url":         (u.get("url") or "").strip(),
-                        "rationale":   (u.get("rationale") or "").strip(),
-                        "validated":   bool(u.get("validated", False)),
-                        "http_status": u.get("http_status"),
-                    }
-                    for u in (cov.get("additional_urls") or [])
-                    if u.get("url")
-                ]
-                coverage_details.append({
-                    "candidate_id":   cov.get("candidate_id", ""),
-                    "coverage":       key,
-                    "existing_urls":  existing_urls,
-                    "additional_urls": additional_urls,
-                })
-
-            feature_items.append({
-                "feature_id":       feat.get("feature_id", ""),
-                "feature_name":     feat.get("feature_name", ""),
-                "description":      feat.get("description", ""),
-                "priority":         feat.get("priority", "medium"),
-                "coverage_summary": coverage_summary,
-                # v0.10.16 신설 — client FeatureCard 확장 시 candidate × URL 상세 표시용
-                "coverage_details": coverage_details,
-            })
+        if not is_b_only:
+            # 흐름 A · A+B — analysis_features 의 결과 그대로 사용
+            features_in_report = grouped.get(rt, [])
+            if not features_in_report:
+                # active=true 인데 features 0건이면 카드 자체 미렌더 (옛 동작 유지)
+                continue
+            feature_items = _build_feature_items_from_analysis(features_in_report)
+        else:
+            # B-only — domain_taxonomy 의 features 만 (URL 영역 없음)
+            feature_items = _build_feature_items_from_taxonomy(entry)
+            if not feature_items:
+                continue
 
         reports_payload.append({
-            "report_type":  rt,
-            "report_label": report_label_map.get(rt, rt),
-            "features":     feature_items,
+            "report_type":          rt,
+            "report_label":         report_label_map.get(rt, rt),
+            "source_flow":          source_flow,                          # v0.10.18a 신설
+            "intro_text":           _REPORT_INTRO_TEXTS.get(rt, ""),      # v0.10.18a 신설
+            "url_coverage_visible": not is_b_only,                        # v0.10.18a 신설
+            "features":             feature_items,
         })
 
     total_feature_count = sum(len(r["features"]) for r in reports_payload)
@@ -245,6 +256,77 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
 
 
 # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
+
+def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[dict]:
+    """analysis_features (흐름 A·A+B) 의 feature 를 UI 카드용 item 으로 변환.
+
+    각 item 에 coverage_summary + coverage_details 포함 — v0.10.16 UI 사양 유지.
+    """
+    items: list[dict] = []
+    for feat in features_in_report:
+        coverage_summary: dict[str, int] = {"sufficient": 0, "partial": 0, "not_found": 0}
+        coverage_details: list[dict] = []
+        for cov in feat.get("candidate_coverage", []) or []:
+            key = cov.get("coverage", "not_found")
+            coverage_summary[key] = coverage_summary.get(key, 0) + 1
+
+            existing_urls = [
+                {
+                    "url":            (u.get("url") or "").strip(),
+                    "relevance_note": (u.get("relevance_note") or "").strip(),
+                    "origin":         u.get("origin", "official_source"),
+                }
+                for u in (cov.get("existing_urls") or [])
+                if u.get("url")
+            ]
+            additional_urls = [
+                {
+                    "url":         (u.get("url") or "").strip(),
+                    "rationale":   (u.get("rationale") or "").strip(),
+                    "validated":   bool(u.get("validated", False)),
+                    "http_status": u.get("http_status"),
+                }
+                for u in (cov.get("additional_urls") or [])
+                if u.get("url")
+            ]
+            coverage_details.append({
+                "candidate_id":    cov.get("candidate_id", ""),
+                "coverage":        key,
+                "existing_urls":   existing_urls,
+                "additional_urls": additional_urls,
+            })
+
+        items.append({
+            "feature_id":       feat.get("feature_id", ""),
+            "feature_name":     feat.get("feature_name", ""),
+            "description":      feat.get("description", ""),
+            "priority":         feat.get("priority", "medium"),
+            "coverage_summary": coverage_summary,
+            "coverage_details": coverage_details,
+        })
+    return items
+
+
+def _build_feature_items_from_taxonomy(report_entry: dict) -> list[dict]:
+    """B-only 리포트(positioning_map · executive_summary)의 features 를 UI item 으로 변환.
+
+    v0.10.18 의 _extract_active_reports 필터로 인해 analysis_features 에 미포함되므로
+    domain_taxonomy.report_config[<rt>] 에서 직접 읽어 features 만 노출. URL coverage 부재.
+    """
+    feature_labels = (report_entry.get("feature_labels") or {})
+    items: list[dict] = []
+    for fid in (report_entry.get("features") or []):
+        items.append({
+            "feature_id":       fid,
+            # feature_id 에 feat_ 접두사가 없으면 그대로 사용 (taxonomy 단계 명세는 접두사 없음)
+            "feature_name":     feature_labels.get(fid, fid),
+            "description":      "",                       # B-only 는 description 부재 (taxonomy 보유 안 함)
+            "priority":         "medium",                 # B-only 기본 우선순위
+            "coverage_summary": None,                     # B-only 표식 — client 가 URL 영역 미렌더
+            "coverage_details": None,                     # 동일
+        })
+    return items
+
 
 def _error(started_at: str, message: str) -> dict:
     logger.error("feature_selection_node 오류: %s", message)
