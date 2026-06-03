@@ -104,12 +104,22 @@ REPORT_TYPES = (
 # ────────────────── Step 0: Brave 검색으로 URL 후보 발견 (v0.10) ─────────────
 
 def _extract_active_reports(domain_taxonomy: dict) -> dict[str, dict]:
-    """v0.10 report_config에서 active=true 리포트만 추출."""
+    """v0.10 report_config 에서 active=true + source_flow ∈ {A, A+B} 리포트만 추출.
+
+    v0.10.18: source_flow="B" (positioning_map · executive_summary) 인 리포트는
+    `feature_url_mapper` 의 URL 수집 영역에서 자동 제외된다. B-only 리포트의
+    features 자체는 `domain_taxonomy.report_config` 에 보존되어 후속 리포트 노드
+    (`positioning_map_node`·`executive_summary_node`, v1.0) 가 derived 추출에 사용.
+
+    source_flow 누락 시 기본값 "A" 로 간주하여 옛 도메인 taxonomy 후방 호환 유지.
+    """
     report_config = domain_taxonomy.get("report_config") or {}
     return {
         rt: entry
         for rt, entry in report_config.items()
-        if isinstance(entry, dict) and entry.get("active") is True
+        if isinstance(entry, dict)
+        and entry.get("active") is True
+        and entry.get("source_flow", "A") in ("A", "A+B")   # v0.10.18: B-only 제외
     }
 
 

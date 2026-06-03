@@ -17,6 +17,7 @@
 3. `report_config` — **7종 리포트 enum**(`comparison_matrix`·`reaction_insight`·`marketing_social`·`battlecard`·`positioning_map`·`market_context_swot`·`executive_summary`)을 **키로 한 객체**. 각 키마다 다음을 정의합니다.
    - `label` — 리포트 한국어 레이블 (예: "비교 매트릭스")
    - `active` (boolean) — 본 도메인에서 이 리포트를 활성화할지 여부. `false`인 리포트는 후속 노드가 스킵.
+   - **`source_flow`** (enum `"A"` | `"B"` | `"A+B"`) — `pipeline_topology_redesign.md` §11-10 흐름 모델. 본 리포트가 자체 feature URL 수집(`A`) · 다른 리포트 Output 인용만(`B`) · 혼합(`A+B`) 중 어떤 흐름인지 명시. **§"source_flow 부여 규칙" 표를 그대로 따르며 임의로 변경 금지**.
    - `features` — 본 리포트에 필요한 feature ID 목록 (snake_case). active=true 시 최소 3개, 최대 12개. 단일 feature는 복수 리포트에 중복 매핑 가능(Feature Selection UI가 D6에 따라 dedup 처리).
    - `feature_labels` — feature ID → 한국어 레이블 매핑 (features 모든 항목 포함).
    - `categories` — 본 리포트의 Rubric §2-x 표준 카테고리 중 본 도메인에서 채택한 항목 (예: `comparison_matrix`의 `["Pricing", "Core Capability", "Additional Benefit"]`). Rubric 외 도메인 특수 카테고리 추가 가능.
@@ -67,6 +68,24 @@
   - `"website"` (특정성 없음)
   - 영문 snake_case (검색 쿼리는 한국어로)
 - active 리포트당 1–8개 권장.
+
+---
+
+## `source_flow` 부여 규칙 (v0.10.18 신설)
+
+각 리포트의 `source_flow` 필드는 `pipeline_topology_redesign.md` §11-10 흐름 A·B 모델에 따라 다음 값을 부여합니다. **본 표를 그대로 따르며 도메인 특수성을 이유로 임의 변경 금지**(첫 도메인 다양성 검증 전까지 결정론 우선).
+
+| `report_type` enum 키 | `source_flow` | 판단 근거 |
+| --- | :-: | --- |
+| `comparison_matrix`   | `A`   | 자사·경쟁사 공식 사이트에서 자체 feature 수집이 본질 |
+| `reaction_insight`    | `A`   | 외부 후기·YouTube·커뮤니티에서 자체 feature 수집이 본질 |
+| `marketing_social`    | `A`   | 자사·경쟁사 운영 SNS·블로그·보도자료에서 자체 feature 수집이 본질 |
+| `battlecard`          | `A+B` | 자체 광고 카피·switch story 수집 + `comparison_matrix`·`reaction_insight`·`marketing_social` 결과 인용 |
+| `positioning_map`     | `B`   | 자체 URL 수집 없음. `comparison_matrix` 결과로부터 축 점수·gap 자동 도출 |
+| `market_context_swot` | `A+B` | 매크로 데이터 자체 수집(`market_context_collection`) + 다른 리포트 결과 인용 |
+| `executive_summary`   | `B`   | 자체 URL 수집 없음. 6개 분석 리포트 결과를 BLUF·차별점·우선순위로 통합 |
+
+`source_flow` 가 `"B"` 인 리포트(`positioning_map` · `executive_summary`) 의 features 는 `feature_url_mapper_node._extract_active_reports` 가 자동 제외하여 URL 수집·검증 대상에서 빠지지만, **features 자체는 정상 생성하여 후속 리포트 노드(`positioning_map_node` · `executive_summary_node`) 가 derived 추출에 사용**합니다.
 
 ---
 
