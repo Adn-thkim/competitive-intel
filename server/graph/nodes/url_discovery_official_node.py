@@ -47,20 +47,19 @@ from datetime import datetime, timezone
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
-    _discover_via_brave,
+    _discover_via_brave_with_hints,
     _extract_active_reports,
+    _extract_hints_for_source,
     _error,
 )
 
 logger = logging.getLogger(__name__)
 
 
-# v0.10.19 — source-type 별 담당 report_type 매핑 (D18 임시 처리, 본 PR 의사 결정 §4-1)
-_OFFICIAL_REPORT_TYPES: tuple[str, ...] = (
-    "comparison_matrix",
-    "battlecard",
-    "market_context_swot",
-)
+# v0.10.19.1 — D18 옵션 (a) 채택 후 source-type 별 hint 추출은
+# _extract_hints_for_source(active_reports, "official") 헬퍼가 담당.
+# 옛 _OFFICIAL_REPORT_TYPES 튜플은 헬퍼 모듈의 _LEGACY_SOURCE_TO_REPORT_TYPES 로 이관됨.
+_SOURCE_TYPE = "official"
 
 
 def url_discovery_official_node(state: DomainAnalysisState, config: dict | None = None) -> dict:
@@ -103,17 +102,15 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
     if not domain_name:
         return _error(started_at, "domain_name 이 state 에 없습니다.")
 
-    # active=true + source_flow ∈ {A, A+B} 인 7종(현재 5종) 중 본 source 담당 3종만 필터
+    # v0.10.19.1 — D18 옵션 (a) 채택.
+    # 옛 양식(string hints): _LEGACY_SOURCE_TO_REPORT_TYPES 기반 report_type 매칭으로 추출
+    # 새 양식(객체 hints):   source_hint="official" 인 항목만 추출 (feature_id 메타 부착)
     all_active = _extract_active_reports(domain_taxonomy)
-    active_official = {
-        rt: entry for rt, entry in all_active.items()
-        if rt in _OFFICIAL_REPORT_TYPES
-    }
+    hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
 
-    if not active_official:
+    if not hints_with_meta:
         logger.info(
-            "url_discovery_official_node: 담당 report_type %s 가 모두 비활성/B-only — 빈 결과 반환",
-            _OFFICIAL_REPORT_TYPES,
+            "url_discovery_official_node: source_hint='official' 인 hint 가 없습니다 — 빈 결과 반환",
         )
         finished_at = datetime.now(timezone.utc).isoformat()
         return {
@@ -126,14 +123,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
             }],
         }
 
-    # ── Brave 검색 실행 (기존 헬퍼 재사용) ───────────────────────────────────
+    # ── Brave 검색 실행 (v0.10.19.1 신설 헬퍼) ───────────────────────────────
     logger.info(
-        "url_discovery_official_node: Brave 검색 시작 "
-        "(담당 report_type=%d개 — %s)",
-        len(active_official), sorted(active_official.keys()),
+        "url_discovery_official_node: Brave 검색 시작 (hints=%d개)",
+        len(hints_with_meta),
     )
-    urls_by_candidate = _discover_via_brave(
-        active_reports=active_official,
+    urls_by_candidate = _discover_via_brave_with_hints(
+        hints_with_meta=hints_with_meta,
         own_product=own_product,
         competitor_candidates=competitor_candidates,
         selected_ids=selected_ids,

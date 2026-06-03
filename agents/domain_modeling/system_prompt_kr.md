@@ -53,21 +53,89 @@
 
 ---
 
-## `search_query_hints` 설계 원칙 (v0.10 — url_types 대체)
+## `search_query_hints` 설계 원칙 (v0.10.19.1 — 객체 양식 + 3종 메타)
 
-`feature_url_mapper`는 `official_source_resolver`와 동일하게 Brave Search API로 URL을 탐색합니다. DomainTaxonomyAgent는 페이지 유형을 사전 분류하지 않고, **검색 쿼리 템플릿**을 직접 제시하여 검색 효율을 높입니다.
+`feature_url_mapper` 의 5개 source-type URL 탐색 노드(official · blog_community · youtube_reactions · owned_channels · macro) 가 각자 자기 source 의 hints 만 추출하여 Brave/YouTube API 호출을 수행합니다. 각 hint 는 **객체 양식** `{feature_id, query, source_hint}` 으로 작성하며, 다음 세 가지 의미 차원에 대응합니다.
 
-- 쿼리는 **한국어 자연어**로 작성합니다 (Brave 검색 결과 정합성 ↑).
-- 치환 토큰: `{competitor_name}`(경쟁사명, normalize_competitor_ids 산출), `{own_product}`(자사 상품명), `{domain_name}`(도메인명) 등.
-- 좋은 예시:
-  - `"{competitor_name} 트래블카드 환전 수수료"`
-  - `"{competitor_name} 카드 약관 PDF"`
-  - `"{competitor_name} 공식 안내 결제 한도"`
-- 나쁜 예시 (회피):
-  - `"information"` (너무 추상적)
-  - `"website"` (특정성 없음)
-  - 영문 snake_case (검색 쿼리는 한국어로)
-- active 리포트당 1–8개 권장.
+### 1. `feature_id` — 본 hint 가 기여하는 feature ID (§7-2 재정의)
+
+각 hint 는 동일 `reportEntry` 의 `features` 배열에 존재하는 ID 중 **정확히 하나** 를 가리킵니다. 한 feature 가 여러 hint 를 가질 수 있으며(1:N 관계), **active=true 리포트의 각 feature 는 최소 1개 이상의 hint 를 보유** 해야 합니다.
+
+이 규칙은 한 feature 가 자사 + 경쟁사 모두에 적용되도록 보장합니다 — `{candidate_name}` 토큰 치환 시점에 own + selected_competitor_ids 모든 candidate 에 hint 가 자연 적용되기 때문입니다.
+
+### 2. `query` — Brave/YouTube API 검색 쿼리
+
+- 쿼리는 **한국어 자연어** 로 작성합니다 (Brave 검색 결과 정합성 ↑).
+- **치환 토큰 표준**:
+  - `{candidate_name}` — 자사 + 경쟁사 모두에 적용되는 **중립 토큰** (권장). `_substitute_tokens` 가 처리 중인 candidate 의 product_name 으로 치환.
+  - `{own_product}` — 자사 컨텍스트가 명시적으로 필요한 경우만(예: 비교 쿼리 `"{own_product} vs {candidate_name} 비교"`).
+  - `{domain_name}` — 도메인 일반 검색(매크로 통계 등) 에 사용.
+  - `{competitor_name}` — v0.10.19 이전 양식. `{candidate_name}` 의 alias 로 후방 호환 처리.
+- **하드코딩된 own_product 명 금지** — own/comp 양쪽 적용을 위해 반드시 `{candidate_name}` 또는 `{own_product}` 토큰 사용.
+- 도메인 키워드(예: "트래블카드") 중복 포함 회피 — `{candidate_name}` 의 product_name 에 이미 포함될 가능성. 권장 예시:
+  - 좋음: `"{candidate_name} 해외결제 수수료 면제 조건"`
+  - 회피: `"{candidate_name} 트래블카드 해외결제 수수료"` (own 시 "토스 트래블카드 트래블카드 ..." 중복)
+
+### 3. `source_hint` — 본 hint 의 검색 source-type 라우팅 (D18 옵션 a)
+
+5종 enum 중 하나를 부여합니다. 본 hint 가 5개 source-type URL 탐색 노드 중 어느 노드에서 사용될지 명시.
+
+| `source_hint` enum | 의미 | 사용 예시 |
+| --- | --- | --- |
+| `official` | 자사·경쟁사 공식 사이트 검색 | `"{candidate_name} 카드 약관 PDF"` · `"{candidate_name} 공식 안내 결제 한도"` |
+| `blog_community` | 외부 후기·블로그·커뮤니티 검색 | `"{candidate_name} 사용 후기 환율 체감"` · `"{candidate_name} 단점 불편"` |
+| `youtube_reactions` | 3rd-party YouTube 영상 검색 | `"{candidate_name} 트래블카드 유튜브 리뷰"` · `"{candidate_name} 사용 영상"` |
+| `owned_channels` | 자사·경쟁사 운영 SNS·블로그·보도자료 검색 | `"{candidate_name} 공식 인스타그램 캠페인"` · `"{candidate_name} 보도자료"` |
+| `macro` | 정부 통계·산업 보고서·트레이드 미디어 검색 | `"{domain_name} 시장 규모 통계"` · `"{domain_name} 규제 동향"` |
+
+### report_type 별 권장 source_hint 분포
+
+각 active=true 리포트의 hints 가 어느 source-type 에 집중되어야 하는지의 권장 비율. LLM 은 본 비율을 참고하되 도메인 특수성에 맞게 ±10% 범위에서 조정 가능.
+
+| report_type | 권장 source_hint 분포 |
+| --- | --- |
+| `comparison_matrix` | `official` 80% + `blog_community` 20% (매체 비교 보조) |
+| `reaction_insight` | `blog_community` 70% + `youtube_reactions` 30% |
+| `marketing_social` | `owned_channels` 80% + `blog_community` 20% (광고 분석 보조) |
+| `battlecard` | `official` 40% + `owned_channels` 30% + `blog_community` 30% |
+| `market_context_swot` | `macro` 80% + `official` 20% (규제 부분) |
+
+B-only 리포트(`positioning_map` · `executive_summary`) 는 `source_flow="B"` 필터로 `feature_url_mapper` 영역에서 제외되므로 hints 생략 가능 (`search_query_hints: []` 또는 단순 placeholder).
+
+### 통합 예시 (`comparison_matrix`)
+
+```json
+"search_query_hints": [
+  {
+    "feature_id":  "overseas_payment_fee_rate",
+    "query":       "{candidate_name} 해외결제 수수료",
+    "source_hint": "official"
+  },
+  {
+    "feature_id":  "overseas_payment_fee_rate",
+    "query":       "{candidate_name} 해외결제 수수료 면제 조건 후기",
+    "source_hint": "blog_community"
+  },
+  {
+    "feature_id":  "atm_withdrawal_fee_benefit",
+    "query":       "{candidate_name} 해외 ATM 출금 수수료",
+    "source_hint": "official"
+  },
+  {
+    "feature_id":  "card_structure_type",
+    "query":       "{candidate_name} 카드 구조 체크 선불 신용",
+    "source_hint": "official"
+  }
+]
+```
+
+### 검증 체크리스트 (LLM 자체 점검)
+
+- [ ] 모든 active=true 리포트의 각 feature 가 hints 에 ≥ 1회 등장 (feature_id 기준)
+- [ ] 모든 hint 의 feature_id 가 동일 reportEntry 의 features 배열에 존재
+- [ ] 모든 hint 가 `{candidate_name}` 또는 `{own_product}` 또는 `{domain_name}` 토큰 ≥ 1개 포함
+- [ ] source_hint 분포가 report_type 별 권장 표 ±10% 범위 (또는 도메인 특수성 정당화)
+- [ ] hints 의 query 가 한국어 자연어 (영문 snake_case 금지)
 
 ---
 
