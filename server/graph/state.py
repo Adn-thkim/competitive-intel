@@ -196,10 +196,59 @@ class DomainAnalysisState(TypedDict, total=False):
     #   additional_urls_validation_node → analysis_features (기존 최종 출력)
     brave_urls_by_candidate: dict[str, list[dict[str, Any]]]
     """
-    Step 0(url_discovery_brave_node)이 Brave Search API로 발견한 candidate별 URL 후보.
-    구조: {candidate_id: [{url, page_title, meta_description, origin="brave_search",
-                            matched_report_types: list[str]}]}
+    Step 0(url_discovery_brave_node 또는 v0.10.19 의 urls_merge_node)이 Brave Search API로
+    발견한 candidate별 URL 후보. v0.10.19 부터 단일 url_discovery_brave_node 는 폐기되고
+    5개 source-type 노드(아래 신설 키 5종) 의 결과를 urls_merge_node 가 본 키로 union 머지.
+    v0.10.26 에서 urls_merge_node 폐기 및 본 키 폐기 예정.
+
+    구조: {candidate_id: [{url, page_title, meta_description, origin, matched_report_types}]}
     page_meta_collect_node가 official_sources의 URL meta와 병합한다.
+    """
+
+    # ── feature_url_mapper 5중 fan-out: source-type 별 URL 탐색 결과 (v0.10.19) ──
+    # 옛 url_discovery_brave_node 폐기 → 5개 source-type 노드로 분리. 각 노드가 자기
+    # source-type 의 search_query_hints 만 사용해 Brave 검색 수행. urls_merge_node 가
+    # 5개 결과를 단일 brave_urls_by_candidate 로 임시 union 머지(v0.10.26 에서 cross_reference
+    # 노드로 책임 분리되며 본 5개 키는 v0.10.27 통합 노드 입력으로 그대로 사용됨).
+
+    official_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    url_discovery_official_node 산출. comparison_matrix · battlecard(A Fact) ·
+    market_context_swot(규제 부분) 의 hints 로 Brave 검색하여 발견한 공식 사이트 + 매체
+    URL 후보. 구조는 brave_urls_by_candidate 와 동일. v0.10.27 의 feature_mapping_official_node
+    가 본 키를 직접 read.
+    """
+
+    blog_community_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    url_discovery_blog_community_node 산출. reaction_insight 의 hints 중 외부 도메인
+    지향 hint 로 Brave 검색하여 발견한 블로그·커뮤니티·매체 후기 URL. v0.10.27 의
+    feature_mapping_blog_community_node 가 본 키를 직접 read.
+    """
+
+    youtube_reactions_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    url_discovery_youtube_reactions_node 산출. reaction_insight 의 3rd-party 영상.
+    v0.10.19 단계에서는 스켈레톤 (빈 dict). v0.10.20 에서 YouTube Data API v3 실 통합.
+    각 영상 항목: {url, video_id, channel_id, channel_title, view_count, like_count,
+                  comment_count, published_at, origin="youtube_reactions", matched_report_types}.
+    """
+
+    owned_channel_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    url_discovery_owned_channels_node 산출. marketing_social 의 자사·경쟁사 운영 채널
+    (Instagram · X · 블로그 · 보도자료 · YouTube 공식 채널). v0.10.19 단계에서는 스켈레톤
+    (빈 dict). v0.10.21 에서 Brave 검색 + LLM 검증 실 구현. 각 항목 platform 필드 보유:
+    'instagram' | 'x' | 'blog_naver' | 'blog_tistory' | 'press_release' | 'youtube_official'.
+    """
+
+    macro_urls_by_candidate: dict[str, list[dict[str, Any]]]
+    """
+    url_discovery_macro_node 산출. market_context_swot 의 매크로 데이터 — 정부 통계 ·
+    산업 보고서 · 트레이드 미디어 URL. v0.10.19 단계에서는 기존 _discover_via_brave 헬퍼
+    재사용. v0.10.22 에서 도메인 화이트리스트(kosis.kr · bok.or.kr · nia.or.kr 등) 추가.
+    candidate 단위가 아닌 domain 단위 캐싱이지만 key 호환을 위해 candidate_id 키 dict
+    구조 유지(키는 'domain' 단일 또는 candidate_id 들이 모두 같은 값을 공유).
     """
 
     candidates_with_meta: list[dict[str, Any]]
