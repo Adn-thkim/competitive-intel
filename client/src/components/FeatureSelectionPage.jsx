@@ -1,5 +1,23 @@
 import { useState } from 'react';
 
+/* ── 안내 박스 (v0.10.18a — source_flow 별 색상 분기) ────────────────────── */
+
+const INTRO_BOX_CLASS = {
+  A:     'bg-gray-50 border-gray-200 text-gray-700',                     // 흐름 A — 중성
+  'A+B': 'bg-amber-50 border-amber-200 text-amber-900',                   // 흐름 A+B — 호박색 (다른 리포트 인용 강조)
+  B:     'bg-blue-50 border-blue-200 text-blue-900',                      // B-only — 파란색 (URL 수집 부재 명시)
+};
+
+function IntroBox({ sourceFlow, text }) {
+  if (!text) return null;
+  const cls = INTRO_BOX_CLASS[sourceFlow] ?? INTRO_BOX_CLASS.A;
+  return (
+    <div className={`rounded-lg border px-3.5 py-2.5 mb-3 text-xs leading-relaxed ${cls}`}>
+      {text}
+    </div>
+  );
+}
+
 /* ── 우선순위 배지 ─────────────────────────────────────────────────────────── */
 
 function PriorityBadge({ priority }) {
@@ -148,27 +166,46 @@ function CoverageDetails({ details }) {
   );
 }
 
-/* ── 개별 Feature 카드 (v0.10.16 — 확장 토글 추가) ────────────────────────── */
+/* ── 개별 Feature 카드 (v0.10.18a — source_flow 별 URL 영역 조건부 렌더) ──── */
 
-function FeatureCard({ feature, isSelected, onToggle }) {
+function FeatureCard({
+  feature,
+  isSelected,
+  onToggle,
+  urlCoverageVisible = true,   // v0.10.18a — B-only 시 false
+  checkboxDisabled   = false,  // v0.10.18a — B-only 시 자동 선택 + 비활성
+}) {
   const [expanded, setExpanded] = useState(false);
-  const hasDetails = Array.isArray(feature.coverage_details) && feature.coverage_details.length > 0;
+  const hasDetails = urlCoverageVisible
+    && Array.isArray(feature.coverage_details)
+    && feature.coverage_details.length > 0;
 
   return (
     <div
       className={[
         'rounded-lg border-2 transition-colors',
-        isSelected
-          ? 'border-indigo-500 bg-indigo-50'
-          : 'border-gray-200 bg-white hover:border-indigo-300',
+        checkboxDisabled
+          ? 'border-blue-200 bg-blue-50/30'                              // v0.10.18a — B-only 카드: 옅은 파란색
+          : isSelected
+            ? 'border-indigo-500 bg-indigo-50'
+            : 'border-gray-200 bg-white hover:border-indigo-300',
       ].join(' ')}
     >
-      <label className="flex items-start gap-3 p-3.5 cursor-pointer">
+      <label
+        className={[
+          'flex items-start gap-3 p-3.5',
+          checkboxDisabled ? 'cursor-default' : 'cursor-pointer',
+        ].join(' ')}
+      >
         <input
           type="checkbox"
-          className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"
+          className={[
+            'mt-0.5 w-4 h-4 accent-indigo-600 shrink-0',
+            checkboxDisabled ? 'opacity-60 cursor-not-allowed' : '',
+          ].join(' ')}
           checked={isSelected}
-          onChange={onToggle}
+          onChange={checkboxDisabled ? undefined : onToggle}
+          disabled={checkboxDisabled}
         />
         <div className="flex-1 min-w-0">
           <div className="flex flex-wrap items-center gap-2 mb-0.5">
@@ -176,6 +213,11 @@ function FeatureCard({ feature, isSelected, onToggle }) {
               {feature.feature_name}
             </span>
             <PriorityBadge priority={feature.priority} />
+            {checkboxDisabled && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
+                자동 포함
+              </span>
+            )}
             {hasDetails && (
               <button
                 type="button"
@@ -190,14 +232,23 @@ function FeatureCard({ feature, isSelected, onToggle }) {
               </button>
             )}
           </div>
-          <p className="text-xs text-gray-500 leading-relaxed">
-            {feature.description}
-          </p>
-          <CoverageSummary summary={feature.coverage_summary} />
+          {feature.description && (
+            <p className="text-xs text-gray-500 leading-relaxed">
+              {feature.description}
+            </p>
+          )}
+          {urlCoverageVisible
+            ? <CoverageSummary summary={feature.coverage_summary} />
+            : (
+              <p className="text-[11px] text-blue-700/80 italic mt-1.5">
+                자동 도출 항목 — 다른 리포트 결과로부터 생성됩니다 (URL 수집 없음)
+              </p>
+            )
+          }
         </div>
       </label>
 
-      {/* v0.10.16 — 확장 시 candidate × coverage × URL 상세 */}
+      {/* v0.10.16 — 확장 시 candidate × coverage × URL 상세 (B-only 시 미렌더) */}
       {expanded && hasDetails && (
         <div className="px-3.5 pb-3.5">
           <CoverageDetails details={feature.coverage_details} />
@@ -207,22 +258,27 @@ function FeatureCard({ feature, isSelected, onToggle }) {
   );
 }
 
-/* ── Report 섹션 (v0.10 키 정합 — purpose → report) ───────────────────────── */
+/* ── Report 섹션 (v0.10.18a — source_flow 별 UI 분기 + B-only 카드 결합) ──── */
 
 function ReportSection({ report, selectedIds, onToggleFeature }) {
-  const featureIds = report.features.map(f => f.feature_id);
-  const allSelected = featureIds.every(id => selectedIds.has(id));
+  // v0.10.18a — server 가 전달하는 신설 메타데이터 (후방 호환: source_flow 누락 시 "A")
+  const sourceFlow         = report.source_flow ?? 'A';
+  const introText          = report.intro_text  ?? '';
+  const urlCoverageVisible = report.url_coverage_visible !== false;  // 기본 true
+  const isBOnly            = sourceFlow === 'B';
+
+  const featureIds   = report.features.map(f => f.feature_id);
+  const allSelected  = featureIds.every(id => selectedIds.has(id));
   const someSelected = featureIds.some(id => selectedIds.has(id));
   const selectedCount = featureIds.filter(id => selectedIds.has(id)).length;
 
   function handleToggleAll() {
+    if (isBOnly) return;   // B-only — 자동 포함, 전체 선택/해제 비활성
     if (allSelected) {
-      // 전체 해제
       featureIds.forEach(id => {
         if (selectedIds.has(id)) onToggleFeature(id);
       });
     } else {
-      // 전체 선택
       featureIds.forEach(id => {
         if (!selectedIds.has(id)) onToggleFeature(id);
       });
@@ -238,24 +294,31 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             {report.report_label}
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {selectedCount} / {featureIds.length}개 선택됨
+            {isBOnly
+              ? `${featureIds.length}개 자동 포함`
+              : `${selectedCount} / ${featureIds.length}개 선택됨`}
           </p>
         </div>
-        <button
-          type="button"
-          onClick={handleToggleAll}
-          className={[
-            'text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors',
-            allSelected
-              ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
-              : someSelected
-                ? 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
-                : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100',
-          ].join(' ')}
-        >
-          {allSelected ? '전체 해제' : '전체 선택'}
-        </button>
+        {!isBOnly && (
+          <button
+            type="button"
+            onClick={handleToggleAll}
+            className={[
+              'text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors',
+              allSelected
+                ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
+                : someSelected
+                  ? 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
+                  : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100',
+            ].join(' ')}
+          >
+            {allSelected ? '전체 해제' : '전체 선택'}
+          </button>
+        )}
       </div>
+
+      {/* v0.10.18a — 안내 박스 (source_flow 별 색상 분기) */}
+      <IntroBox sourceFlow={sourceFlow} text={introText} />
 
       {/* Feature 카드 목록 */}
       <div className="space-y-2">
@@ -265,6 +328,8 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             feature={feature}
             isSelected={selectedIds.has(feature.feature_id)}
             onToggle={() => onToggleFeature(feature.feature_id)}
+            urlCoverageVisible={urlCoverageVisible}
+            checkboxDisabled={isBOnly}
           />
         ))}
       </div>
@@ -280,19 +345,30 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
  * Props
  * -----
  * - intakeResult : /api/approve 응답
- *   v0.10 interrupt_value = {
+ *   v0.10.18a interrupt_value = {
  *     type: "feature_selection",
  *     reports: [
  *       {
- *         report_type:  string,    // D4 enum 7종 중 하나 (comparison_matrix 등)
- *         report_label: string,    // 한국어 레이블
- *         features: [{ feature_id, feature_name, description, priority, coverage_summary }]
+ *         report_type:          string,                // D4 enum 7종 중 하나
+ *         report_label:         string,                // 한국어 레이블
+ *         source_flow:          "A" | "B" | "A+B",    // v0.10.18a 신설 (UI 분기 키)
+ *         intro_text:           string,                // v0.10.18a 신설 (안내 박스 문구)
+ *         url_coverage_visible: boolean,               // v0.10.18a 신설 (B-only 시 false)
+ *         features: [{
+ *           feature_id, feature_name, description, priority,
+ *           // 흐름 A·A+B (url_coverage_visible=true): coverage_summary + coverage_details 보유
+ *           // B-only      (url_coverage_visible=false): coverage_summary = null, coverage_details = null
+ *           coverage_summary, coverage_details
+ *         }]
  *       }
  *     ]
  *   }
  *   ※ v0.10 에서 purposes/purpose_id/purpose_label → reports/report_type/report_label 로 변경됨.
  *     resume payload 의 selected_purposes 키는 server 호환을 위해 그대로 유지하지만,
  *     값으로는 선택된 report_type 목록을 전달한다(state.py 코멘트 참고).
+ *   ※ v0.10.18a — B-only 리포트(positioning_map · executive_summary)는 자동 포함되어
+ *     사용자 선택 대상이 아니나, selected_feature_ids 에는 포함하여 server 가 후속 노드 처리
+ *     영역을 동일하게 인식하도록 한다.
  * - threadId  : LangGraph thread_id
  * - onApproved: (data) => void
  * - onReset   : () => void
