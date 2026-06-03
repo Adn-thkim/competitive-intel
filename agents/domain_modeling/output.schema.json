@@ -55,7 +55,7 @@
     "reportEntry": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["label", "active", "features", "feature_labels", "categories", "search_query_hints"],
+      "required": ["label", "active", "source_flow", "features", "feature_labels", "categories", "search_query_hints"],
       "properties": {
         "label": {
           "type": "string",
@@ -65,6 +65,11 @@
         "active": {
           "type": "boolean",
           "description": "이 도메인에서 본 리포트를 활성화할지 여부. false 시 후속 노드는 본 리포트를 스킵."
+        },
+        "source_flow": {
+          "type": "string",
+          "enum": ["A", "B", "A+B"],
+          "description": "pipeline_topology_redesign.md §11-10 흐름 모델. A=자체 feature URL 수집 필요(comparison_matrix·reaction_insight·marketing_social), B=다른 리포트 Output 인용만 — URL 수집 불필요(positioning_map·executive_summary), A+B=자체 수집 + 다른 리포트 인용 혼합(battlecard·market_context_swot). feature_url_mapper_node._extract_active_reports 가 A·A+B 만 통과시킴 (v0.10.18)."
         },
         "features": {
           "type": "array",
