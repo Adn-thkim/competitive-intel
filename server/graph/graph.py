@@ -73,7 +73,14 @@ from server.graph.nodes.competitor_selection_node import competitor_selection_no
 from server.graph.nodes.domain_modeling_node import domain_modeling_node
 from server.graph.nodes.feature_selection_node import feature_selection_node
 # v0.10.9 — feature_url_mapper 4단계 노드 분리 (옵션 A)
-from server.graph.nodes.url_discovery_brave_node import url_discovery_brave_node
+# v0.10.19 — URL 탐색 단계를 5개 source-type 노드로 분리 + urls_merge_node 임시 어댑터
+#            (단일 url_discovery_brave_node 폐기. v0.10.26 에서 cross_reference_node 로 교체 예정)
+from server.graph.nodes.url_discovery_official_node          import url_discovery_official_node
+from server.graph.nodes.url_discovery_blog_community_node    import url_discovery_blog_community_node
+from server.graph.nodes.url_discovery_youtube_reactions_node import url_discovery_youtube_reactions_node
+from server.graph.nodes.url_discovery_owned_channels_node    import url_discovery_owned_channels_node
+from server.graph.nodes.url_discovery_macro_node             import url_discovery_macro_node
+from server.graph.nodes.urls_merge_node                       import urls_merge_node
 from server.graph.nodes.page_meta_collect_node import page_meta_collect_node
 from server.graph.nodes.feature_mapping_llm_node import feature_mapping_llm_node
 from server.graph.nodes.additional_urls_validation_node import additional_urls_validation_node
@@ -155,7 +162,13 @@ def build_graph() -> object:
     builder.add_node("url_retry",                url_retry_node)
     builder.add_node("ab_join",                  _ab_join_node)
     # v0.10.9 — feature_url_mapper 4단계 분리 (옵션 A)
-    builder.add_node("url_discovery_brave",          url_discovery_brave_node)
+    # v0.10.19 — URL 탐색 단계를 5개 source-type 노드 + urls_merge_node 로 분리
+    builder.add_node("url_discovery_official",           url_discovery_official_node)
+    builder.add_node("url_discovery_blog_community",     url_discovery_blog_community_node)
+    builder.add_node("url_discovery_youtube_reactions",  url_discovery_youtube_reactions_node)
+    builder.add_node("url_discovery_owned_channels",     url_discovery_owned_channels_node)
+    builder.add_node("url_discovery_macro",              url_discovery_macro_node)
+    builder.add_node("urls_merge",                       urls_merge_node)
     builder.add_node("page_meta_collect",            page_meta_collect_node)
     builder.add_node("feature_mapping_llm",          feature_mapping_llm_node)
     builder.add_node("additional_urls_validation",   additional_urls_validation_node)
@@ -211,10 +224,31 @@ def build_graph() -> object:
     #    1회 발화 동작이 검증됨.
     builder.add_edge(["url_retry", "domain_modeling"], "ab_join")
 
-    # 3) ab_join → feature_url_mapper 4단계 직렬 (v0.10.9 옵션 A)
-    #    각 단계가 독립 노드로 분리되어 timeout 격리 + UI stage 세분화가 가능해진다.
-    builder.add_edge("ab_join",                       "url_discovery_brave")
-    builder.add_edge("url_discovery_brave",           "page_meta_collect")
+    # 3) ab_join → 5중 source-type URL 탐색 fan-out (v0.10.19 옵션 e 1차 fan-out)
+    #    옛 단일 url_discovery_brave_node 폐기. 각 source-type 노드가 자기 담당 report_type
+    #    의 search_query_hints 만 사용해 Brave 검색 수행. v0.10.20·v0.10.21·v0.10.22 에서
+    #    각 노드의 실 구현 단계적 진행 (youtube_reactions·owned_channels 는 v0.10.19 스켈레톤).
+    builder.add_edge("ab_join", "url_discovery_official")
+    builder.add_edge("ab_join", "url_discovery_blog_community")
+    builder.add_edge("ab_join", "url_discovery_youtube_reactions")
+    builder.add_edge("ab_join", "url_discovery_owned_channels")
+    builder.add_edge("ab_join", "url_discovery_macro")
+
+    # 4) 5중 list-fan-in barrier → urls_merge_node 임시 어댑터 (v0.10.19)
+    #    v0.10.26 에서 urls_merge_node 폐기, cross_reference_node 로 교체 예정.
+    builder.add_edge(
+        [
+            "url_discovery_official",
+            "url_discovery_blog_community",
+            "url_discovery_youtube_reactions",
+            "url_discovery_owned_channels",
+            "url_discovery_macro",
+        ],
+        "urls_merge",
+    )
+
+    # 5) 기존 feature_url_mapper 3단계 직렬 (v0.10.9 그대로, v0.10.27 통합 노드로 교체 예정)
+    builder.add_edge("urls_merge",                    "page_meta_collect")
     builder.add_edge("page_meta_collect",             "feature_mapping_llm")
     builder.add_edge("feature_mapping_llm",           "additional_urls_validation")
     builder.add_edge("additional_urls_validation",    "feature_selection")
@@ -297,16 +331,34 @@ try:
     _has_branch_b   = ("competitor_discovery", "domain_modeling") in _edge_pairs
     _has_list_a     = ("url_retry",            "ab_join")         in _edge_pairs
     _has_list_b     = ("domain_modeling",      "ab_join")         in _edge_pairs
-    # v0.10.9 4단계 직렬 검증
-    _e1 = ("ab_join",                    "url_discovery_brave")        in _edge_pairs
-    _e2 = ("url_discovery_brave",        "page_meta_collect")          in _edge_pairs
-    _e3 = ("page_meta_collect",          "feature_mapping_llm")        in _edge_pairs
-    _e4 = ("feature_mapping_llm",        "additional_urls_validation") in _edge_pairs
-    _e5 = ("additional_urls_validation", "feature_selection")          in _edge_pairs
-    if all([_has_branch_b, _has_list_a, _has_list_b, _e1, _e2, _e3, _e4, _e5]):
+    # v0.10.19 — 5중 URL 탐색 fan-out + urls_merge_node 임시 어댑터 검증
+    _fanout_5 = [
+        ("ab_join", "url_discovery_official"),
+        ("ab_join", "url_discovery_blog_community"),
+        ("ab_join", "url_discovery_youtube_reactions"),
+        ("ab_join", "url_discovery_owned_channels"),
+        ("ab_join", "url_discovery_macro"),
+    ]
+    _fanin_5 = [
+        ("url_discovery_official",          "urls_merge"),
+        ("url_discovery_blog_community",    "urls_merge"),
+        ("url_discovery_youtube_reactions", "urls_merge"),
+        ("url_discovery_owned_channels",    "urls_merge"),
+        ("url_discovery_macro",             "urls_merge"),
+    ]
+    _has_fanout_5 = all(p in _edge_pairs for p in _fanout_5)
+    _has_fanin_5  = all(p in _edge_pairs for p in _fanin_5)
+    # 기존 3단계 직렬 검증
+    _e_um = ("urls_merge",                "page_meta_collect")          in _edge_pairs
+    _e3   = ("page_meta_collect",         "feature_mapping_llm")        in _edge_pairs
+    _e4   = ("feature_mapping_llm",       "additional_urls_validation") in _edge_pairs
+    _e5   = ("additional_urls_validation","feature_selection")          in _edge_pairs
+    if all([_has_branch_b, _has_list_a, _has_list_b, _has_fanout_5, _has_fanin_5,
+            _e_um, _e3, _e4, _e5]):
         print(
-            "[graph.py] ✅ v0.10.9 토폴로지 확인 — "
-            "list-fan-in barrier + feature_url_mapper 4단계 직렬 정상",
+            "[graph.py] ✅ v0.10.19 토폴로지 확인 — "
+            "ab_join list-fan-in + 5중 URL 탐색 fan-out + urls_merge 임시 어댑터 + "
+            "feature_url_mapper 3단계 직렬 정상",
             flush=True,
         )
     else:
@@ -314,11 +366,12 @@ try:
         if not _has_branch_b: _missing.append("competitor_discovery → domain_modeling")
         if not _has_list_a:   _missing.append("url_retry → ab_join")
         if not _has_list_b:   _missing.append("domain_modeling → ab_join")
-        if not _e1: _missing.append("ab_join → url_discovery_brave")
-        if not _e2: _missing.append("url_discovery_brave → page_meta_collect")
-        if not _e3: _missing.append("page_meta_collect → feature_mapping_llm")
-        if not _e4: _missing.append("feature_mapping_llm → additional_urls_validation")
-        if not _e5: _missing.append("additional_urls_validation → feature_selection")
-        print(f"[graph.py] ❌ v0.10.9 토폴로지 엣지 누락: {_missing}", flush=True)
+        if not _has_fanout_5: _missing.append("ab_join → 5 url_discovery_*")
+        if not _has_fanin_5:  _missing.append("5 url_discovery_* → urls_merge")
+        if not _e_um: _missing.append("urls_merge → page_meta_collect")
+        if not _e3:   _missing.append("page_meta_collect → feature_mapping_llm")
+        if not _e4:   _missing.append("feature_mapping_llm → additional_urls_validation")
+        if not _e5:   _missing.append("additional_urls_validation → feature_selection")
+        print(f"[graph.py] ❌ v0.10.19 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)
