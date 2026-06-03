@@ -34,16 +34,16 @@ from datetime import datetime, timezone
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
-    _discover_via_brave,
+    _discover_via_brave_with_hints,
     _extract_active_reports,
+    _extract_hints_for_source,
     _error,
 )
 
 logger = logging.getLogger(__name__)
 
-_BLOG_COMMUNITY_REPORT_TYPES: tuple[str, ...] = (
-    "reaction_insight",
-)
+# v0.10.19.1 — D18 옵션 (a) 채택. 헬퍼 모듈의 _LEGACY_SOURCE_TO_REPORT_TYPES 가 후방 호환 처리.
+_SOURCE_TYPE = "blog_community"
 
 
 def url_discovery_blog_community_node(
@@ -86,15 +86,13 @@ def url_discovery_blog_community_node(
     if not domain_name:
         return _error(started_at, "domain_name 이 state 에 없습니다.")
 
+    # v0.10.19.1 — source_hint="blog_community" 인 hints 만 추출 (객체 양식 + string 후방 호환)
     all_active = _extract_active_reports(domain_taxonomy)
-    active_blog_community = {
-        rt: entry for rt, entry in all_active.items()
-        if rt in _BLOG_COMMUNITY_REPORT_TYPES
-    }
+    hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
 
-    if not active_blog_community:
+    if not hints_with_meta:
         logger.info(
-            "url_discovery_blog_community_node: reaction_insight 비활성 — 빈 결과 반환",
+            "url_discovery_blog_community_node: source_hint='blog_community' 인 hint 가 없습니다 — 빈 결과 반환",
         )
         finished_at = datetime.now(timezone.utc).isoformat()
         return {
@@ -107,10 +105,13 @@ def url_discovery_blog_community_node(
             }],
         }
 
-    # ── Brave 검색 (기존 헬퍼 재사용) ────────────────────────────────────────
-    logger.info("url_discovery_blog_community_node: Brave 검색 시작 (reaction_insight)")
-    urls_by_candidate = _discover_via_brave(
-        active_reports=active_blog_community,
+    # ── Brave 검색 (v0.10.19.1 신설 헬퍼) ────────────────────────────────────
+    logger.info(
+        "url_discovery_blog_community_node: Brave 검색 시작 (hints=%d개)",
+        len(hints_with_meta),
+    )
+    urls_by_candidate = _discover_via_brave_with_hints(
+        hints_with_meta=hints_with_meta,
         own_product=own_product,
         competitor_candidates=competitor_candidates,
         selected_ids=selected_ids,

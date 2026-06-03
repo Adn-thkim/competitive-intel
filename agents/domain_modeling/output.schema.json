@@ -104,14 +104,42 @@
         },
         "search_query_hints": {
           "type": "array",
-          "description": "feature_url_mapper가 Brave API 검색에 사용할 쿼리 템플릿. {competitor_name}·{own_product} 등 치환 토큰 포함 가능. 예: '{competitor_name} 트래블카드 환전 수수료'.",
+          "description": "v0.10.19.1 — 객체 양식 권장: {feature_id, query, source_hint}. 한 hint 가 (a) 어느 feature 에 기여하는지(feature_id), (b) 검색 쿼리(query, {candidate_name} 중립 토큰 권장), (c) 어느 source-type URL 탐색 노드에서 사용될지(source_hint) 3종 메타 모두 명시. 옛 문자열 양식은 _LEGACY_SOURCE_TO_REPORT_TYPES 매핑으로 후방 호환. minItems 1, maxItems 30 (features 10개 × 평균 2~3개 hint 수용).",
           "minItems": 1,
-          "maxItems": 8,
+          "maxItems": 30,
           "items": {
-            "type": "string",
-            "minLength": 3
+            "oneOf": [
+              {
+                "type": "string",
+                "minLength": 3,
+                "description": "옛 양식 (후방 호환). 신규 도메인은 객체 양식 사용 권장."
+              },
+              {
+                "type": "object",
+                "additionalProperties": false,
+                "required": ["feature_id", "query", "source_hint"],
+                "properties": {
+                  "feature_id": {
+                    "type": "string",
+                    "pattern": "^[a-z][a-z0-9_]*$",
+                    "minLength": 3,
+                    "description": "본 hint 가 기여하는 feature ID. 반드시 동일 reportEntry 의 features 배열에 존재하는 ID 중 하나."
+                  },
+                  "query": {
+                    "type": "string",
+                    "minLength": 3,
+                    "description": "Brave/YouTube API 검색 쿼리. {candidate_name}(중립, 권장)·{own_product}·{domain_name} 치환 토큰 사용. {competitor_name}은 {candidate_name}의 alias 후방 호환."
+                  },
+                  "source_hint": {
+                    "type": "string",
+                    "enum": ["official", "blog_community", "youtube_reactions", "owned_channels", "macro"],
+                    "description": "본 hint 가 5개 source-type URL 탐색 노드 중 어느 노드에서 사용될지 명시 (D18 옵션 a)."
+                  }
+                }
+              }
+            ]
           },
-          "uniqueItems": true
+          "uniqueItems": false
         },
         "aspect_codebook": {
           "type": "array",

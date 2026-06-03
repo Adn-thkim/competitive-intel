@@ -146,12 +146,78 @@ def _candidate_name_map(
 def _substitute_tokens(query_template: str, name_map: dict[str, str],
                        candidate_name: str, own_product_name: str,
                        domain_name: str) -> str:
-    """search_query_hints의 토큰 치환."""
+    """search_query_hints 의 토큰 치환.
+
+    v0.10.19.1 — 토큰 표준화:
+    - `{candidate_name}` : 자사·경쟁사 모두에 적용되는 중립 토큰 (권장). 처리 중인
+      candidate(own 이든 comp 이든) 의 product_name 으로 치환.
+    - `{competitor_name}` : 옛 양식. `{candidate_name}` 의 alias 로 후방 호환 (동일 치환).
+    - `{own_product}` : 자사 컨텍스트 명시가 필요한 경우 (예: 비교 쿼리).
+    - `{domain_name}` : 도메인 일반 검색.
+    """
     q = query_template
-    q = q.replace("{competitor_name}", candidate_name)
-    q = q.replace("{own_product}", own_product_name)
-    q = q.replace("{domain_name}", domain_name)
+    q = q.replace("{candidate_name}",  candidate_name)   # v0.10.19.1 신설 (권장 토큰)
+    q = q.replace("{competitor_name}", candidate_name)   # 후방 호환 alias
+    q = q.replace("{own_product}",     own_product_name)
+    q = q.replace("{domain_name}",     domain_name)
     return q.strip()
+
+
+# v0.10.19.1 — D18 옵션 a 후방 호환 매핑 (옛 string hints 처리용)
+# 옛 양식: report_type 단위 hints 에 source-type 메타 없음 → 본 표로 임시 라우팅
+# v1.0 시점에 옛 양식 후방 호환 폐기 검토.
+_LEGACY_SOURCE_TO_REPORT_TYPES: dict[str, tuple[str, ...]] = {
+    "official":          ("comparison_matrix", "battlecard", "market_context_swot"),
+    "blog_community":    ("reaction_insight",),
+    "youtube_reactions": ("reaction_insight",),
+    "owned_channels":    ("marketing_social", "battlecard"),
+    "macro":             ("market_context_swot",),
+}
+
+
+def _extract_hints_for_source(
+    active_reports: dict[str, dict],
+    source_type: str,
+) -> list[tuple[str, str, str]]:
+    """source_type 에 해당하는 (query, feature_id, report_type) 튜플 목록 반환.
+
+    v0.10.19.1 — 두 양식 처리:
+    1. 신규 객체 양식 `{feature_id, query, source_hint}` — source_hint 일치만 채택.
+       feature_id 메타가 보존되어 후속 LLM 매핑 정확도 향상에 활용.
+    2. 옛 string 양식 — `_LEGACY_SOURCE_TO_REPORT_TYPES` 기반 report_type 매칭으로 임시 라우팅.
+       feature_id 부재(빈 문자열).
+
+    Parameters
+    ----------
+    active_reports : dict[str, dict]
+        _extract_active_reports() 결과. report_type → reportEntry 매핑.
+    source_type : str
+        "official" | "blog_community" | "youtube_reactions" | "owned_channels" | "macro"
+
+    Returns
+    -------
+    list[tuple[query: str, feature_id: str, report_type: str]]
+        feature_id 는 옛 string 양식 시 빈 문자열 "".
+    """
+    legacy_rts = _LEGACY_SOURCE_TO_REPORT_TYPES.get(source_type, ())
+    out: list[tuple[str, str, str]] = []
+
+    for rt, entry in active_reports.items():
+        for h in entry.get("search_query_hints") or []:
+            if isinstance(h, dict):
+                # 신규 객체 양식 — source_hint 일치만 채택
+                if h.get("source_hint") == source_type:
+                    q   = (h.get("query") or "").strip()
+                    fid = (h.get("feature_id") or "").strip()
+                    if q:
+                        out.append((q, fid, rt))
+            elif isinstance(h, str):
+                # 옛 string 양식 — _LEGACY_SOURCE_TO_REPORT_TYPES 기반 후방 호환
+                if rt in legacy_rts:
+                    q = h.strip()
+                    if q:
+                        out.append((q, "", rt))
+    return out
 
 
 def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
@@ -281,6 +347,89 @@ def _discover_via_brave(
                     "meta_description": (r.get("description") or "").strip(),
                     "origin":           "brave_search",
                     "matched_report_types": query_to_reports.get(query, []),
+                })
+    return results_by_candidate
+
+
+def _discover_via_brave_with_hints(
+    *,
+    hints_with_meta: list[tuple[str, str, str]],
+    own_product: dict,
+    competitor_candidates: list[dict],
+    selected_ids: list[str],
+    domain_name: str,
+) -> dict[str, list[dict]]:
+    """v0.10.19.1 신설 — `_extract_hints_for_source` 산출 튜플로 Brave 검색.
+
+    각 hint 튜플 (query_template, feature_id, report_type) 을 own + selected comp
+    모든 candidate 에 토큰 치환 후 Brave 호출. 발견된 각 URL 에 feature_id 메타 부착.
+
+    `_discover_via_brave` 와의 차이:
+    - 입력이 active_reports dict 가 아닌 hints_with_meta 튜플 목록
+    - 출력 URL 항목에 `feature_id` 필드 추가 (LLM 매핑 정확도 향상에 활용)
+    - 토큰 치환은 동일하게 `_substitute_tokens` 사용 — {candidate_name} · {competitor_name} 모두 처리
+
+    Parameters
+    ----------
+    hints_with_meta : list[tuple[query, feature_id, report_type]]
+        `_extract_hints_for_source(active_reports, source_type)` 산출.
+
+    Returns
+    -------
+    dict[candidate_id, list[{url, page_title, meta_description, origin, feature_id,
+                              matched_report_types}]]
+    """
+    name_map = _candidate_name_map(own_product, competitor_candidates, selected_ids)
+    own_product_name = own_product.get("name") or own_product.get("product_name") or ""
+
+    # (candidate_id, query, feature_id, report_type) 작업 목록 생성
+    tasks: list[tuple[str, str, str, str]] = []
+    # query → [(feature_id, report_type), ...] (동일 query 중복 시 메타 누적)
+    query_to_meta: dict[str, list[tuple[str, str]]] = {}
+
+    for query_template, feature_id, rt in hints_with_meta:
+        for cand_id, cand_name in name_map.items():
+            if cand_id == "own":
+                continue  # fallback 중복 회피
+            query = _substitute_tokens(
+                query_template, name_map, cand_name, own_product_name, domain_name,
+            )
+            if not query or "{" in query:
+                continue  # 치환 실패 스킵
+            tasks.append((cand_id, query, feature_id, rt))
+            query_to_meta.setdefault(query, []).append((feature_id, rt))
+
+    # 동일 쿼리 dedup (query → first candidate_id)
+    deduped: dict[str, str] = {}
+    for cand_id, query, _, _ in tasks:
+        if query not in deduped:
+            deduped[query] = cand_id
+
+    # Brave 호출 (병렬)
+    results_by_candidate: dict[str, list[dict]] = {}
+    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
+        future_map = {pool.submit(_brave_search, q): (q, deduped[q]) for q in deduped}
+        for future in as_completed(future_map):
+            query, cand_id = future_map[future]
+            try:
+                results = future.result()
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("Brave 결과 처리 실패 (%s): %s", query, exc)
+                results = []
+            metas      = query_to_meta.get(query, [])
+            feature_ids = sorted({fid for fid, _ in metas if fid})  # 빈 fid 제외
+            report_types = sorted({rt  for _, rt  in metas if rt})
+            for r in results:
+                url = (r.get("url") or "").strip()
+                if not url:
+                    continue
+                results_by_candidate.setdefault(cand_id, []).append({
+                    "url":              url,
+                    "page_title":       (r.get("title") or "").strip(),
+                    "meta_description": (r.get("description") or "").strip(),
+                    "origin":           "brave_search",
+                    "feature_ids":      feature_ids,   # v0.10.19.1 신설 — 매핑 정확도 향상
+                    "matched_report_types": report_types,
                 })
     return results_by_candidate
 
