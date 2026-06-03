@@ -188,21 +188,23 @@ class DomainAnalysisState(TypedDict, total=False):
     official_sources:          list[dict[str, Any]]
     source_validation:         list[dict[str, Any]]
 
-    # ── feature_url_mapper 4단계 노드간 브릿지 키 (v0.10.9) ──────────────────
-    # 기존 단일 feature_url_mapper_node 가 4개 노드로 분리됨에 따라 단계간 데이터 전달용:
-    #   url_discovery_brave_node   → brave_urls_by_candidate
-    #   page_meta_collect_node     → candidates_with_meta
-    #   feature_mapping_llm_node   → raw_features
-    #   additional_urls_validation_node → analysis_features (기존 최종 출력)
+    # ── feature_url_mapper 노드간 브릿지 키 (v0.10.9 → v0.10.22.1 갱신) ────
+    # 기존 단일 feature_url_mapper_node 가 4단계 노드로 분리되고(v0.10.9), 이후 v0.10.19
+    # 에서 URL 탐색 단계가 5개 source-type 노드로 추가 분리되었다. 단계간 데이터 전달용:
+    #   5종 url_discovery_<source>_node → *_urls_by_candidate (5종 키)
+    #   urls_merge_node                  → brave_urls_by_candidate (5종 union, v0.10.19 임시 어댑터)
+    #   page_meta_collect_node           → candidates_with_meta
+    #   feature_mapping_llm_node         → raw_features
+    #   additional_urls_validation_node  → analysis_features (기존 최종 출력)
+    # v0.10.22.1 cleanup: 옛 url_discovery_brave_node.py 파일 삭제 완료.
     brave_urls_by_candidate: dict[str, list[dict[str, Any]]]
     """
-    Step 0(url_discovery_brave_node 또는 v0.10.19 의 urls_merge_node)이 Brave Search API로
-    발견한 candidate별 URL 후보. v0.10.19 부터 단일 url_discovery_brave_node 는 폐기되고
-    5개 source-type 노드(아래 신설 키 5종) 의 결과를 urls_merge_node 가 본 키로 union 머지.
-    v0.10.26 에서 urls_merge_node 폐기 및 본 키 폐기 예정.
+    `urls_merge_node` (v0.10.19 임시 어댑터) 가 5종 url_discovery 노드의 결과를 union 머지한
+    Brave Search 발견 URL 후보. 본 키는 옛 단일 url_discovery_brave_node 와의 후방 호환을
+    위해 동일 이름이 유지되고 있다. v0.10.26 에서 urls_merge_node 폐기 및 본 키 폐기 예정.
 
     구조: {candidate_id: [{url, page_title, meta_description, origin, matched_report_types}]}
-    page_meta_collect_node가 official_sources의 URL meta와 병합한다.
+    page_meta_collect_node 가 official_sources 의 URL meta 와 병합한다.
     """
 
     # ── feature_url_mapper 5중 fan-out: source-type 별 URL 탐색 결과 (v0.10.19) ──

@@ -1,18 +1,24 @@
 """
-server/graph/nodes/page_meta_collect_node.py (v0.10.9)
-------------------------------------------------------
-feature_url_mapper 4단계 분리 중 Step 1 — official_sources + Brave URL 의 page meta 수집.
+server/graph/nodes/page_meta_collect_node.py (v0.10.9 — v0.10.22.1 docstring 갱신)
+---------------------------------------------------------------------------------
+feature_url_mapper 4단계 분리 중 Step 1 — official_sources + 5종 url_discovery 노드의
+union URL 의 page meta 수집.
 
 역할
 ----
 official_source_resolver 가 검증한 URL 의 <title> · <meta description> 을 병렬 GET 으로
-수집하고, Step 0(url_discovery_brave_node) 가 발견한 Brave URL 과 병합하여 candidate 별
-validated_urls 목록(page meta 포함) 을 만든다.
+수집하고, `urls_merge_node` 가 5종 url_discovery 노드(official·blog_community·
+youtube_reactions·owned_channels·macro) 의 결과를 union 머지한 단일
+`brave_urls_by_candidate` 와 병합하여 candidate 별 validated_urls 목록(page meta 포함)을
+만든다.
+
+v0.10.27 의 5 통합 노드(feature_mapping_<source>_node) 도입 시 본 노드는 폐기될 예정이며,
+각 통합 노드 내부의 단계 1(page meta 수집) 으로 source-type 별 분리 흡수된다.
 
 입력 state 키
 -------------
 - official_sources         : official_source_resolver 산출
-- brave_urls_by_candidate  : url_discovery_brave_node 산출 (Step 0)
+- brave_urls_by_candidate  : urls_merge_node 산출 (5종 url_discovery 노드 union)
 
 출력 state 키
 -------------
