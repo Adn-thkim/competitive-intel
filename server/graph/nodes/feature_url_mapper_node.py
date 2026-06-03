@@ -686,13 +686,24 @@ def _filter_candidates_for_report(
     for cand in candidates_with_meta:
         kept_urls: list[dict] = []
         for u in cand.get("validated_urls", []):
-            origin = u.get("origin")
+            origin = u.get("origin") or ""
             if origin == "official_source":
+                # official_source 는 official_source_resolver_node 가 검증한 자사·경쟁사
+                # 공식 페이지 — 모든 report_type 에 공통으로 유지.
                 kept_urls.append(u)
-            elif origin == "brave_search":
+            else:
+                # v0.10.20.1 — 비-official 모든 origin 을 matched_report_types 매칭으로 통과.
+                # 옛 v0.10.8 A안은 origin="brave_search" 만 처리했으나, v0.10.20 이후 다음
+                # 5종 origin 이 추가되어 matched_report_types 안전망으로 일관 처리:
+                #   - "brave_search"            (옛 url_discovery_brave_node · v0.10.19 의 official/blog_community/macro)
+                #   - "youtube_reactions"       (v0.10.20 url_discovery_youtube_reactions_node)
+                #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node, 예정)
+                #   - "macro_search"            (v0.10.22 url_discovery_macro_node 보강, 예정)
+                #   - "official_subpage"·기타   (turn-3 §4-4 system_prompt report_type 별 정책)
+                # 옛 주석 "알 수 없는 origin 은 보수적으로 제외" 는 v0.10.20 신규 origin 들이
+                # report_type 호출에서 누락되는 회귀를 유발하여 v0.10.20.1 에서 제거.
                 if report_type in (u.get("matched_report_types") or []):
                     kept_urls.append(u)
-            # 알 수 없는 origin 은 보수적으로 제외 (현재 코드 경로상 발생 불가)
         if kept_urls:
             out.append({
                 "candidate_id":   cand["candidate_id"],

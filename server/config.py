@@ -132,6 +132,21 @@ ANTHROPIC_API_KEY = os.getenv("ANTHROPIC_API_KEY")
 # 무료 크레딧: $5/월 자동 충전 → Search 플랜 기준 약 1,000 쿼리/월 무료.
 BRAVE_SEARCH_API_KEY = os.getenv("BRAVE_SEARCH_API_KEY", "")
 
+# ── YouTube Data API v3 (v0.10.20 신설) ─────────────────────────────────────
+# url_discovery_youtube_reactions_node 가 reaction_insight 의 3rd-party 영상 검색에 사용.
+# Google Cloud Console 에서 YouTube Data API v3 활성화 후 API key 발급.
+# 무료 quota = 일일 10,000 units.  search.list = 100 units/call · videos.list = 1 unit/call.
+# 예상 호출(cache miss 첫 실행): candidate 4명 × 3 쿼리 = 12 × 100u = 1,200 units.
+# 동일 도메인 재실행 시 24h TTL agent_cache hit 으로 0 units.
+YOUTUBE_API_KEY             = os.getenv("YOUTUBE_API_KEY", "")
+YOUTUBE_DAILY_QUOTA         = int(os.getenv("YOUTUBE_DAILY_QUOTA", "10000"))
+YOUTUBE_QUOTA_SAFETY_MARGIN = int(os.getenv("YOUTUBE_QUOTA_SAFETY_MARGIN", "1000"))
+YOUTUBE_REGION_CODE         = os.getenv("YOUTUBE_REGION_CODE", "KR")
+YOUTUBE_MAX_RESULTS         = int(os.getenv("YOUTUBE_MAX_RESULTS", "10"))    # search.list 호출당
+YOUTUBE_MIN_VIEW_COUNT      = int(os.getenv("YOUTUBE_MIN_VIEW_COUNT", "1000"))
+YOUTUBE_MIN_COMMENT_COUNT   = int(os.getenv("YOUTUBE_MIN_COMMENT_COUNT", "10"))
+YOUTUBE_CACHE_TTL_HOURS     = int(os.getenv("YOUTUBE_CACHE_TTL_HOURS", "24"))
+
 # OfficialSourceResolver Brave 탐색 결과 수 (쿼리당).
 # 후보 N개 × 2쿼리(한국어+영어) 기준 쿼터 소비:
 #   count=5 → 최대 10개 후보  (기본, 정확도·쿼터 균형)
@@ -175,6 +190,16 @@ def validate_config() -> list[str]:
             "BRAVE_SEARCH_API_KEY가 설정되지 않았습니다. "
             "Phase 1 URL 재탐색(검색 기반)이 비활성화됩니다. "
             "https://api.search.brave.com 에서 API Key를 발급하세요."
+        )
+
+    # v0.10.20 — YouTube API key 미설정 시 reaction_insight 의 youtube_reactions
+    # source-type 노드가 빈 결과를 반환하고 skipped 상태로 진행됨 (치명적 오류 아님).
+    if not YOUTUBE_API_KEY:
+        warnings.append(
+            "YOUTUBE_API_KEY 가 설정되지 않았습니다. "
+            "url_discovery_youtube_reactions_node 가 빈 결과를 반환하여 reaction_insight 의 "
+            "YouTube 영상 수집이 비활성화됩니다. "
+            "https://console.cloud.google.com 에서 YouTube Data API v3 활성화 후 API Key 를 발급하세요."
         )
 
     if not CACHE_DIR.exists():
