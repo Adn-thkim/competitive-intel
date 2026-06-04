@@ -40,6 +40,11 @@
 }
 ```
 
+**v0.10.24 — body 보강 + 발행일 검증**:
+- `h1_h2` (list[str]) — 후기 글의 헤더 (예: "환율 만족도", "1년 사용 후기"). aspect_codebook 매칭에 활용.
+- `body_excerpt` (str, ~800자) — 후기 본문의 첫 800자. 실제 사용자 의견 (만족·불만 표현) 확인 가능. `page_title` + `meta_description` 만으로 판단하던 옛 방식 대비 정보량 약 5배.
+- `published_at` (str, ISO 8601) — `_feature_mapping_runner` 가 본 노드 진입 전 발행일 ≤ 36개월 검증 적용 (D37). LLM 호출 시점에 도달한 URL 은 모두 36개월 이내 (또는 발행일 메타 부재).
+
 `domain_class` 4 분류 의미 (v0.10.22b 신설):
 - `review_site` — 금융·카드·핀테크 비교 매체 (card-gorilla.com·banksalad.com 등)
 - `personal_blog` — 개인 블로그 플랫폼 (brunch.co.kr·tistory.com·velog.io 등)
@@ -88,6 +93,8 @@
 - 각 candidate 의 `validated_urls` 를 본 feature 와 관련 있는지 판정.
 - **판정 기준**:
   - `page_title` · `meta_description` 의 키워드 매칭 (특히 aspect_codebook 의 aspect_id 키워드)
+  - **`h1_h2` 헤더 매칭 (v0.10.24)** — aspect_codebook 의 aspect 이름이 헤더에 등장하면 강한 시그널
+  - **`body_excerpt` 본문 의견 확인 (v0.10.24)** — 본문에 사용자 만족/불만 표현 (예: "환율이 매우 유리", "수수료가 비쌈") 직접 확인 시 `coverage="sufficient"` 판정 가능
   - **`domain_class` 메타** (v0.10.22b 신설) 별 가중치:
     - `review_site` — **highest priority** (비교 매체의 정량 평가가 가장 신뢰)
     - `personal_blog` — high priority (개인 사용자 실제 경험)

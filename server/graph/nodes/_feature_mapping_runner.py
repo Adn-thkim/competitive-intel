@@ -47,6 +47,7 @@ from server.graph.nodes.feature_url_mapper_node import (
     _build_candidates_with_meta,
     _extract_active_reports,
     _filter_candidates_for_report,
+    _is_recent_enough,
     _load_json,
     _load_text,
     _strip_schema_patterns,
@@ -187,6 +188,24 @@ def run_source_mapping(
         official_sources=official_sources if source == "official" else [],
         brave_urls_by_candidate=urls_by_candidate,
     )
+
+    # v0.10.24 (D37 적용) — blog_community 한정 발행일 ≤ 36개월 검증.
+    # 후기 신선도 보장 — 옛 후기 (3년 초과) 제외로 LLM 입력 슬림화 + 최신 의견 우선.
+    # published_at 부재 또는 파싱 실패 시 안전 통과 (보수적).
+    if source == "blog_community":
+        before_total = sum(len(c.get("validated_urls", []) or []) for c in candidates_with_meta)
+        for cand in candidates_with_meta:
+            cand["validated_urls"] = [
+                u for u in (cand.get("validated_urls") or [])
+                if _is_recent_enough(u.get("published_at", ""), max_months=36)
+            ]
+        after_total = sum(len(c.get("validated_urls", []) or []) for c in candidates_with_meta)
+        excluded = before_total - after_total
+        if excluded > 0:
+            logger.info(
+                "feature_mapping_blog_community_node: 발행일 36개월 초과 URL %d건 제외 (%d → %d)",
+                excluded, before_total, after_total,
+            )
 
     if not candidates_with_meta:
         logger.info(

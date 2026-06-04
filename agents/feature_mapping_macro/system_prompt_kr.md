@@ -43,6 +43,10 @@
 }
 ```
 
+**v0.10.24 — body 보강**:
+- `h1_h2` (list[str]) — 통계 페이지의 헤더 (예: "2024년 출국자 통계", "월별 추이"). 어떤 통계 카테고리인지 즉시 판단 가능.
+- `body_excerpt` (str, ~800자) — 통계 페이지 본문의 첫 800자. 정확한 수치 (예: "출국자 2,830만명", "전년 대비 26.5% 증가") 가 본문에 명시되어 있는지 직접 확인 가능. `page_title` + `meta_description` 만으로 판단하던 옛 방식 대비 정보량 약 5배.
+
 `source_tier` 2 분류 의미 (v0.10.22 신설):
 - `official_statistics` — Tier 1·2·3 공식 통계 (KOSIS·한국은행 ECOS·금융위 등)
 - `news_supplement` — Stage 2 뉴스 보강 (연합·한경·매경 등) — 공식 통계 부재 시 사용
@@ -96,6 +100,8 @@
 - 단일 `candidate_id="macro"` 항목에 대해 `validated_urls` 를 본 feature 와 관련 있는지 판정.
 - **판정 기준**:
   - `page_title` · `meta_description` 의 키워드 매칭 (특히 시장 규모·통계·정책 관련 키워드)
+  - **`h1_h2` 헤더 매칭 (v0.10.24)** — 통계 카테고리 명시 (예: "출국자"·"외환거래") 시 강한 시그널
+  - **`body_excerpt` 본문 수치 확인 (v0.10.24)** — 본문에 정량 수치 (단위 명시: 만명·억원·%·CAGR) 직접 발견 시 `coverage="sufficient"` 판정 가능
   - `feature_ids` 메타 (v0.10.19.1) 의 본 feature 포함 여부
   - **`source_tier` 메타** (v0.10.22 신설) 별 가중치:
     - `official_statistics` → **highest priority** (정부·공공기관 1차 통계)

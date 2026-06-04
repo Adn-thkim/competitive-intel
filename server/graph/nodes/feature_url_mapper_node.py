@@ -48,7 +48,7 @@ v0.10.9: 4개 노드 분리 (옵션 A) + parallel 2→4 + UI 4단계 stage 분�
 import json
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
 from pathlib import Path
 
@@ -505,7 +505,7 @@ def _build_candidates_with_meta(
     all_candidate_ids = set(official_by_candidate.keys()) | set(brave_urls_by_candidate.keys())
     for cid in sorted(all_candidate_ids):
         validated_urls: list[dict] = []
-        # 4-a) official_source URL + meta
+        # 4-a) official_source URL + meta (v0.10.24 — h1_h2·body_excerpt·published_at carry)
         for item in official_by_candidate.get(cid, []):
             url  = item["url"]
             meta = meta_by_url.get(url, {})
@@ -513,9 +513,14 @@ def _build_candidates_with_meta(
                 "url":              url,
                 "page_title":       meta.get("page_title", ""),
                 "meta_description": meta.get("meta_description", ""),
+                "h1_h2":            meta.get("h1_h2", []) or [],          # v0.10.24
+                "body_excerpt":     meta.get("body_excerpt", "") or "",   # v0.10.24
+                "published_at":     meta.get("published_at", "") or "",   # v0.10.24
                 "origin":           "official_source",
             })
         # 4-b) Brave 발견 URL (title·description 포함, dedup)
+        # v0.10.24 — Brave URL 은 _fetch_meta 를 거치지 않으므로 신규 메타는 빈 값
+        # (5종 통합 노드의 page meta 수집 시점에 _fetch_meta 가 호출되어 보강됨).
         seen_urls = {u["url"] for u in validated_urls}
         for item in brave_urls_by_candidate.get(cid, []):
             if item["url"] in seen_urls:
@@ -524,6 +529,10 @@ def _build_candidates_with_meta(
                 "url":                  item["url"],
                 "page_title":           item.get("page_title", ""),
                 "meta_description":     item.get("meta_description", ""),
+                # v0.10.24 — Brave URL 도 신규 메타 키 유지 (5 통합 노드가 _fetch_meta 호출 시 채움)
+                "h1_h2":                item.get("h1_h2", []) or [],
+                "body_excerpt":         item.get("body_excerpt", "") or "",
+                "published_at":         item.get("published_at", "") or "",
                 "origin":               "brave_search",
                 "matched_report_types": item.get("matched_report_types", []),
             })
@@ -570,15 +579,23 @@ def _collect_page_meta(urls: set[str]) -> dict[str, dict]:
 
 def _fetch_meta(url: str) -> dict:
     """
-    URL 의 <title> + <meta description> 수집 (v0.10.12 B-2 24h TTL 캐시 적용).
+    URL 의 page meta 수집 (v0.10.12 24h TTL 캐시 + v0.10.24 body 보강).
 
-    캐시 조회 → 미스 시 HTTP GET → 결과 저장. 동일 URL 에 대해 24시간 이내에는
-    동일한 page_title·meta_description 반환. page meta 의 페이지 운영자 미세 수정
-    영향을 흡수하고, page_meta_collect_node 의 wall-clock 을 최소화한다.
+    캐시 조회 → 미스 시 HTTP GET → 결과 저장.
+
+    v0.10.24 — `<h1>`/`<h2>` + body 첫 800자 + 발행일(article:published_time / time
+    datetime) 추가 추출. cache_context의 `v: 2`로 bump하여 기존 캐시 자동 무효화.
+
+    출력 dict 키:
+      - page_title       (str)
+      - meta_description (str)
+      - h1_h2            (list[str], v0.10.24 신설)
+      - body_excerpt     (str, 최대 800자, v0.10.24 신설)
+      - published_at     (str, ISO 8601 또는 빈 문자열, v0.10.24 신설)
     """
-    # ── 캐시 조회 (v0.10.12) ────────────────────────────────────────────────
+    # ── 캐시 조회 (v0.10.24 — v=2 로 bump) ──────────────────────────────────
     cache_input   = {"url": url}
-    cache_context = {"agent_id": "page_meta_collect", "v": 1}
+    cache_context = {"agent_id": "page_meta_collect", "v": 2}   # v0.10.24 bump
     cached = load_agent_output(
         agent_id="page_meta_collect",
         cache_input=cache_input,
@@ -590,22 +607,28 @@ def _fetch_meta(url: str) -> dict:
         return {
             "page_title":       cached.get("page_title", ""),
             "meta_description": cached.get("meta_description", ""),
+            "h1_h2":            cached.get("h1_h2", []) or [],
+            "body_excerpt":     cached.get("body_excerpt", "") or "",
+            "published_at":     cached.get("published_at", "") or "",
         }
 
     # ── 캐시 미스 — 실제 HTTP GET ───────────────────────────────────────────
     headers = {"User-Agent": _USER_AGENT, "Accept": "text/html"}
-    meta: dict = {"page_title": "", "meta_description": ""}
+    meta: dict = {
+        "page_title": "", "meta_description": "",
+        "h1_h2": [], "body_excerpt": "", "published_at": "",
+    }
     try:
         resp = req_lib.get(
             url, headers=headers, timeout=_HTTP_TIMEOUT,
             allow_redirects=True, stream=True,
         )
         if resp.status_code < 200 or resp.status_code >= 400:
-            meta = {"page_title": "", "meta_description": ""}
+            pass   # 기본 빈 meta 유지
         else:
             ctype = resp.headers.get("Content-Type", "").lower()
             if "html" not in ctype:
-                meta = {"page_title": "", "meta_description": ""}
+                pass   # 기본 빈 meta 유지
             else:
                 raw = b""
                 for chunk in resp.iter_content(chunk_size=2048):
@@ -618,6 +641,9 @@ def _fetch_meta(url: str) -> dict:
                 meta = {
                     "page_title":       (parser.title or "").strip(),
                     "meta_description": (parser.meta_desc or "").strip(),
+                    "h1_h2":            parser.h1_h2,
+                    "body_excerpt":     parser.body_excerpt,
+                    "published_at":     (parser.published_at or "").strip(),
                 }
     except Exception as exc:  # noqa: BLE001
         logger.debug("_fetch_meta 예외 (%s): %s", url, exc)
@@ -636,33 +662,118 @@ def _fetch_meta(url: str) -> dict:
     return meta
 
 
+# v0.10.24 — body_excerpt 길이 임계 (한국어 ~270 단어, 영문 ~130 단어)
+_BODY_EXCERPT_LIMIT = 800
+
+# v0.10.24 — body_excerpt 누적 시 제외할 태그 (script/style 외에 navigation 노이즈)
+_BODY_SKIP_TAGS = frozenset({"script", "style", "nav", "footer", "header", "noscript", "aside"})
+
+
 class _MetaExtractor(HTMLParser):
+    """v0.10.24 — body 보강.
+
+    추출 항목 (v0.10.24 신설은 ★):
+      - title              : <title> 태그
+      - meta_desc          : <meta name="description" | property="og:description">
+      - h1_h2              ★ <h1>/<h2> 헤더 텍스트 list (페이지 목차 역할)
+      - body_excerpt       ★ <body> 의 텍스트 노드 첫 800자 (script/nav/footer 제외)
+      - published_at       ★ 발행일 (article:published_time > pubdate > time datetime)
+                             ISO 8601 문자열 또는 None.
+    """
+
     def __init__(self):
         super().__init__()
-        self.title: str | None     = None
-        self.meta_desc: str | None = None
-        self._in_title: bool       = False
+        self.title: str | None        = None
+        self.meta_desc: str | None    = None
+        # v0.10.24 신설
+        self.h1_h2: list[str]         = []
+        self.body_excerpt: str        = ""
+        self.published_at: str | None = None
+
+        self._in_title: bool          = False
+        # v0.10.24 신설
+        self._in_h1_h2: bool          = False
+        self._in_body: bool           = False
+        self._skip_depth: int         = 0   # script/nav 등 누적 깊이 (중첩 처리)
+        self._h1_h2_buf: str          = ""
 
     def handle_starttag(self, tag: str, attrs: list[tuple[str, str | None]]) -> None:
         tag = tag.lower()
         if tag == "title":
             self._in_title = True
-        elif tag == "meta":
+            return
+        if tag in ("h1", "h2"):
+            self._in_h1_h2 = True
+            self._h1_h2_buf = ""
+            return
+        if tag == "body":
+            self._in_body = True
+            return
+        if tag in _BODY_SKIP_TAGS:
+            self._skip_depth += 1
+            return
+
+        if tag == "meta":
             attrs_dict = {k.lower(): (v or "") for k, v in attrs}
             name = attrs_dict.get("name", "").lower()
             prop = attrs_dict.get("property", "").lower()
+            content = attrs_dict.get("content", "")
             if (name == "description" or prop == "og:description") and self.meta_desc is None:
-                self.meta_desc = attrs_dict.get("content", "")
+                self.meta_desc = content
+            # v0.10.24 — 발행일 추출 (article:published_time / og:published_time / pubdate)
+            if self.published_at is None and content and (
+                prop in ("article:published_time", "og:published_time")
+                or name == "pubdate"
+                or name == "article:published_time"
+            ):
+                self.published_at = content.strip()
+            return
+
+        if tag == "time" and self.published_at is None:
+            # <time datetime="2025-03-15"> ... </time>
+            attrs_dict = {k.lower(): (v or "") for k, v in attrs}
+            dt = attrs_dict.get("datetime", "").strip()
+            if dt:
+                self.published_at = dt
 
     def handle_data(self, data: str) -> None:
+        if self._skip_depth > 0:
+            return
         if self._in_title and self.title is None:
             s = data.strip()
             if s:
                 self.title = s
+            return
+        if self._in_h1_h2:
+            self._h1_h2_buf += data
+            return
+        if self._in_body and len(self.body_excerpt) < _BODY_EXCERPT_LIMIT:
+            s = data.strip()
+            if s:
+                # 공백 1개로 정규화 + 임계 도달 시 truncate
+                if self.body_excerpt:
+                    self.body_excerpt += " " + s
+                else:
+                    self.body_excerpt = s
+                if len(self.body_excerpt) > _BODY_EXCERPT_LIMIT:
+                    self.body_excerpt = self.body_excerpt[:_BODY_EXCERPT_LIMIT]
 
     def handle_endtag(self, tag: str) -> None:
-        if tag.lower() == "title":
+        tag = tag.lower()
+        if tag == "title":
             self._in_title = False
+        elif tag in ("h1", "h2") and self._in_h1_h2:
+            self._in_h1_h2 = False
+            buf = self._h1_h2_buf.strip()
+            if buf:
+                # 중복 헤더 회피 + 길이 정규화 (단일 헤더 최대 150자)
+                if buf[:150] not in self.h1_h2:
+                    self.h1_h2.append(buf[:150])
+            self._h1_h2_buf = ""
+        elif tag == "body":
+            self._in_body = False
+        elif tag in _BODY_SKIP_TAGS and self._skip_depth > 0:
+            self._skip_depth -= 1
 
 
 # ──────────────────────── Step 2: 입력 슬림화 (A안 v0.10.8) ──────────────────
@@ -838,6 +949,42 @@ def _check_url_status(url: str) -> int | None:
     except Exception as exc:  # noqa: BLE001
         logger.debug("_check_url_status 캐시 저장 실패 (%s): %s", url, exc)
     return status
+
+
+def _is_recent_enough(published_at: str, max_months: int = 36) -> bool:
+    """v0.10.24 (D37 적용) — 발행일이 max_months 개월 이내인지 검증.
+
+    blog_community 의 후기 신선도 검증용. published_at 부재 또는 파싱 실패 시
+    `True` 반환 (안전 통과 — 발행일 메타가 없는 페이지를 임의로 제외하지 않음).
+
+    Parameters
+    ----------
+    published_at : str
+        ISO 8601 형식 ("2025-03-15" · "2025-03-15T10:00:00+09:00" 등). 빈 문자열 가능.
+    max_months : int
+        최대 경과 개월 수. blog_community 기본 36개월.
+
+    Returns
+    -------
+    bool
+        True — 통과 (최근 또는 발행일 메타 없음)
+        False — 제외 (발행일 명시 + max_months 초과)
+    """
+    if not published_at:
+        return True
+    try:
+        # 'Z' 접미사 처리 (Python <3.11 호환)
+        normalized = published_at.replace("Z", "+00:00")
+        pub_date = datetime.fromisoformat(normalized)
+    except (ValueError, TypeError):
+        return True
+    # 타임존 통일 (naive → UTC 가정)
+    if pub_date.tzinfo is None:
+        pub_date = pub_date.replace(tzinfo=timezone.utc)
+    now = datetime.now(timezone.utc)
+    # 30일 = 1개월 근사
+    cutoff = now - timedelta(days=max_months * 30)
+    return pub_date >= cutoff
 
 
 def _normalize_feature(raw: dict) -> AnalysisFeature:
