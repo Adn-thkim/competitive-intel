@@ -71,6 +71,31 @@ const COVERAGE_META = {
   not_found:  { label: '미확보', chipCls: 'bg-red-100 text-red-600' },
 };
 
+/* v0.10.28a (D46) — origin × source 메타 별 chip 분기.
+ * macro 는 source_tier 메타가 official_statistics / news_supplement 로 추가 분기.
+ * 그 외 5종 origin 은 단일 라벨.
+ */
+function originChip(u) {
+  const origin = u.origin;
+  if (origin === 'macro_search') {
+    if (u.source_tier === 'official_statistics') {
+      return { label: '공식 통계', cls: 'text-purple-700 bg-purple-50' };
+    }
+    if (u.source_tier === 'news_supplement') {
+      return { label: '뉴스 보강', cls: 'text-orange-700 bg-orange-50' };
+    }
+    return { label: '매크로', cls: 'text-purple-600 bg-purple-50' };
+  }
+  if (origin === 'official_source')      return { label: '공식',        cls: 'text-gray-700 bg-gray-100' };
+  if (origin === 'official_subpage')     return { label: '공식 sub-page', cls: 'text-gray-700 bg-gray-100' };
+  if (origin === 'blog_community')       return { label: '블로그·커뮤니티', cls: 'text-teal-700 bg-teal-50' };
+  if (origin === 'youtube_reactions')    return { label: 'YouTube',      cls: 'text-red-700 bg-red-50' };
+  if (origin === 'owned_channel_search') return { label: '운영 채널',     cls: 'text-pink-700 bg-pink-50' };
+  if (origin === 'brave_search')         return { label: 'Brave',        cls: 'text-blue-600 bg-blue-50' };
+  // unknown origin — 회색 fallback
+  return { label: origin || '미상', cls: 'text-gray-500 bg-gray-100' };
+}
+
 function CoverageDetails({ details }) {
   if (!details || details.length === 0) {
     return (
@@ -88,12 +113,19 @@ function CoverageDetails({ details }) {
         };
         const existing  = cov.existing_urls   ?? [];
         const additional = cov.additional_urls ?? [];
+        // v0.10.28a (D47 c) — candidate_label 우선 표시. server 가 macro 등 특수 라벨 부착.
+        // 미부착 시 candidate_id fallback.
+        const candidateDisplay = cov.candidate_label || cov.candidate_id || '(unknown)';
+        // macro candidate 는 자사·경쟁사와 시각적 구분 (font-mono → font-sans)
+        const candidateCls = cov.candidate_id === 'macro'
+          ? 'font-sans font-medium text-purple-700 truncate'
+          : 'font-mono text-gray-700 truncate';
         return (
           <div key={`${cov.candidate_id}-${idx}`} className="text-xs">
             {/* candidate 헤더 */}
             <div className="flex items-center gap-2 mb-1.5">
-              <span className="font-mono text-gray-700 truncate">
-                {cov.candidate_id || '(unknown)'}
+              <span className={candidateCls}>
+                {candidateDisplay}
               </span>
               <span className={`px-1.5 py-0.5 rounded font-medium ${meta.chipCls}`}>
                 {meta.label}
@@ -117,11 +149,15 @@ function CoverageDetails({ details }) {
                       >
                         {u.url}
                       </a>
-                      {u.origin === 'brave_search' ? (
-                        <span className="text-[10px] text-blue-600 bg-blue-50 px-1 rounded shrink-0">Brave</span>
-                      ) : (
-                        <span className="text-[10px] text-gray-500 bg-gray-100 px-1 rounded shrink-0">공식</span>
-                      )}
+                      {(() => {
+                        // v0.10.28a (D46) — origin × source_tier 별 6종 분기.
+                        const chip = originChip(u);
+                        return (
+                          <span className={`text-[10px] px-1 rounded shrink-0 ${chip.cls}`}>
+                            {chip.label}
+                          </span>
+                        );
+                      })()}
                     </li>
                   ))}
                 </ul>
