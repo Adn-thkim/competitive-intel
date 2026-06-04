@@ -1,0 +1,75 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/feature-mapping-youtube-reactions/output.schema.json",
+  "title": "FeatureMappingYoutubeReactionsOutput",
+  "description": "v0.10.23 — feature_mapping_youtube_reactions_node 의 LLM 출력 schema. 자기 담당 report_type 1종 (reaction_insight) 에 대한 feature × candidate × YouTube 영상 커버리지 매핑. v0.10.27 통합 노드 도입 시 활용.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["features"],
+  "properties": {
+    "features": {
+      "type": "array",
+      "description": "본 source-type (youtube_reactions) 가 담당하는 reaction_insight 의 active feature 목록.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_type", "feature_id", "feature_name", "description", "priority", "candidate_coverage"],
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "enum": ["reaction_insight"],
+            "description": "youtube_reactions 노드는 reaction_insight 단일 report_type 만 담당."
+          },
+          "feature_id":   { "type": "string", "pattern": "^feat_" },
+          "feature_name": { "type": "string", "minLength": 2 },
+          "description":  { "type": "string", "minLength": 10 },
+          "priority":     { "type": "string", "enum": ["high", "medium", "low"] },
+          "candidate_coverage": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "coverage", "existing_urls", "additional_urls"],
+              "properties": {
+                "candidate_id": { "type": "string" },
+                "coverage":     { "type": "string", "enum": ["sufficient", "partial", "not_found"] },
+                "existing_urls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url"],
+                    "properties": {
+                      "url":            { "type": "string", "format": "uri" },
+                      "relevance_note": { "type": "string" },
+                      "origin":         { "type": "string", "enum": ["youtube_reactions"] },
+                      "view_count":     { "type": "integer", "minimum": 0, "description": "YouTube 영상 조회수 (v0.10.20)" },
+                      "like_count":     { "type": "integer", "minimum": 0, "description": "YouTube 영상 좋아요 수 (v0.10.20)" },
+                      "comment_count":  { "type": "integer", "minimum": 0, "description": "YouTube 영상 댓글 수 (v0.10.20)" }
+                    }
+                  }
+                },
+                "additional_urls": {
+                  "type": "array",
+                  "description": "추가 탐색 후보. YouTube 도메인 한정 (youtube.com/watch?v=...). coverage=sufficient 시 빈 배열. feature-candidate 쌍당 최대 2개.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url", "rationale", "url_confidence"],
+                    "properties": {
+                      "url":            { "type": "string", "format": "uri" },
+                      "rationale":      { "type": "string" },
+                      "url_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

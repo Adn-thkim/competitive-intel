@@ -1,0 +1,74 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/feature-mapping-owned-channels/output.schema.json",
+  "title": "FeatureMappingOwnedChannelsOutput",
+  "description": "v0.10.23 — feature_mapping_owned_channels_node 의 LLM 출력 schema. 자기 담당 report_type 2종 (marketing_social · battlecard) 에 대한 feature × candidate × 운영 채널 URL 커버리지 매핑. v0.10.27 통합 노드 도입 시 활용.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["features"],
+  "properties": {
+    "features": {
+      "type": "array",
+      "description": "본 source-type (owned_channels) 가 담당하는 marketing_social · battlecard 의 active feature 목록.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_type", "feature_id", "feature_name", "description", "priority", "candidate_coverage"],
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "enum": ["marketing_social", "battlecard"],
+            "description": "owned_channels 노드가 담당하는 2종 report_type. battlecard 는 광고 카피 부분만."
+          },
+          "feature_id":   { "type": "string", "pattern": "^feat_" },
+          "feature_name": { "type": "string", "minLength": 2 },
+          "description":  { "type": "string", "minLength": 10 },
+          "priority":     { "type": "string", "enum": ["high", "medium", "low"] },
+          "candidate_coverage": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "coverage", "existing_urls", "additional_urls"],
+              "properties": {
+                "candidate_id": { "type": "string" },
+                "coverage":     { "type": "string", "enum": ["sufficient", "partial", "not_found"] },
+                "existing_urls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url"],
+                    "properties": {
+                      "url":            { "type": "string", "format": "uri" },
+                      "relevance_note": { "type": "string" },
+                      "origin":         { "type": "string", "enum": ["owned_channel_search"] },
+                      "platform":       { "type": "string", "enum": ["instagram", "x", "blog_naver", "blog_tistory", "press_release", "youtube_official"], "description": "v0.10.21 — 6 platforms" },
+                      "account_scope":  { "type": "string", "enum": ["parent_company", "sub_brand", "product_specific", "regional"], "description": "v0.10.21 D17" }
+                    }
+                  }
+                },
+                "additional_urls": {
+                  "type": "array",
+                  "description": "추가 탐색 후보. 운영 채널 도메인 한정 (instagram.com · x.com · blog.naver.com · *.tistory.com · youtube.com/@... · 보도자료 페이지). coverage=sufficient 시 빈 배열. feature-candidate 쌍당 최대 2개.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url", "rationale", "url_confidence"],
+                    "properties": {
+                      "url":            { "type": "string", "format": "uri" },
+                      "rationale":      { "type": "string" },
+                      "url_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}

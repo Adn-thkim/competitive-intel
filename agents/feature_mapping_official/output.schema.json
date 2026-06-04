@@ -1,0 +1,73 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/feature-mapping-official/output.schema.json",
+  "title": "FeatureMappingOfficialOutput",
+  "description": "v0.10.23 — feature_mapping_official_node 의 LLM 출력 schema. 자기 담당 report_type 3종 (comparison_matrix · battlecard · market_context_swot) 에 대한 feature × candidate × URL 커버리지 매핑. v0.10.27 통합 노드 도입 시 활용.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["features"],
+  "properties": {
+    "features": {
+      "type": "array",
+      "description": "본 source-type (official) 가 담당하는 report_type 의 active feature 목록.",
+      "minItems": 0,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["report_type", "feature_id", "feature_name", "description", "priority", "candidate_coverage"],
+        "properties": {
+          "report_type": {
+            "type": "string",
+            "enum": ["comparison_matrix", "battlecard", "market_context_swot"],
+            "description": "official 노드가 담당하는 3종 report_type. 다른 report_type 출력 금지."
+          },
+          "feature_id":   { "type": "string", "pattern": "^feat_" },
+          "feature_name": { "type": "string", "minLength": 2 },
+          "description":  { "type": "string", "minLength": 10 },
+          "priority":     { "type": "string", "enum": ["high", "medium", "low"] },
+          "candidate_coverage": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["candidate_id", "coverage", "existing_urls", "additional_urls"],
+              "properties": {
+                "candidate_id": { "type": "string" },
+                "coverage":     { "type": "string", "enum": ["sufficient", "partial", "not_found"] },
+                "existing_urls": {
+                  "type": "array",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url"],
+                    "properties": {
+                      "url":              { "type": "string", "format": "uri" },
+                      "relevance_note":   { "type": "string" },
+                      "origin":           { "type": "string", "enum": ["official_source", "official_subpage"] },
+                      "subpage_category": { "type": "string", "description": "v0.10.22a — 약관·수수료·환율·한도·혜택·공지사항·이용안내·hint·\"\"" }
+                    }
+                  }
+                },
+                "additional_urls": {
+                  "type": "array",
+                  "description": "추가 탐색 후보. existing_url 의 host 와 같은 도메인 내 sub-page 만 제안. coverage=sufficient 시 빈 배열. feature-candidate 쌍당 최대 2개.",
+                  "items": {
+                    "type": "object",
+                    "additionalProperties": false,
+                    "required": ["url", "rationale", "url_confidence"],
+                    "properties": {
+                      "url":            { "type": "string", "format": "uri" },
+                      "rationale":      { "type": "string" },
+                      "url_confidence": { "type": "number", "minimum": 0, "maximum": 1 }
+                    }
+                  }
+                }
+              }
+            }
+          }
+        }
+      }
+    }
+  }
+}
