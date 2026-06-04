@@ -106,6 +106,15 @@ def run_source_mapping(
         flush=True,
     )
 
+    # ── owned_channels 분기 (v0.10.28b D45 a — LLM 호출 생략) ────────────────
+    # marketing_social 의 feature 값(SNS 게시물 빈도·콘텐츠 키워드 등) 은 v1.0 §6-6a
+    # 의 수집 노드 책임. 본 노드는 candidate 별 공식 채널 URL 식별까지만 담당.
+    # LLM 호출 없이 owned_channel_urls_by_candidate 의 candidate × platform 구조를
+    # 그대로 carry-through. feature_selection_node 가 owned_channels_card payload 로
+    # 변환하여 marketing_social 카드 UI 에 별도 렌더링.
+    if source == "owned_channels":
+        return _carry_owned_channels(state, started_at, _STEP_NAME[source], thread_id)
+
     # ── 에이전트 파일 로드 ───────────────────────────────────────────────────
     agent_dir     = AGENTS_DIR / f"feature_mapping_{source}"
     system_prompt = _load_text(agent_dir / "system_prompt_kr.md")
@@ -335,4 +344,115 @@ def run_source_mapping(
     return {
         output_key:    raw_features,
         "agent_steps": [step],
+    }
+
+
+# ─── v0.10.28b D45 a — owned_channels LLM 호출 생략 헬퍼 ─────────────────────
+
+def _carry_owned_channels(
+    state: DomainAnalysisState,
+    started_at: str,
+    step_name: str,
+    thread_id: str,
+) -> dict:
+    """v0.10.28b D45 a — owned_channels LLM 호출 생략 + URL carry-through.
+
+    `owned_channel_urls_by_candidate` 를 그대로 `owned_channel_raw_features` 로
+    변환. feature_selection_node 가 본 결과를 `owned_channels_card` payload 로
+    재구성하여 marketing_social 카드의 candidate × platform 매트릭스로 렌더링.
+
+    LLM 호출을 생략하는 이유:
+    - marketing_social 의 feature (SNS 게시물 빈도·콘텐츠 키워드 등) 은 채널
+      페이지 URL 한 개만 보고 LLM 이 판정 불가
+    - 실제 feature 값 계산은 v1.0 §6-6a 의 수집 노드 (youtube_channel_metadata_
+      collection·blog_rss_collection·pr_release_collection) 가 채널 방문 후 수행
+    - 본 노드는 URL 발견만 책임
+
+    출력 구조 (owned_channel_raw_features)
+    --------------------------------------
+    feature_mapping_owned_channels 의 옛 schema (feature × candidate × URL 매트릭스)
+    가 아닌, **candidate × platform 그룹화 placeholder** 로 산출:
+
+    [
+      {
+        "report_type":  "marketing_social",
+        "feature_id":   "feat_owned_channels_summary",
+        "feature_name": "공식 운영 채널",
+        "description":  "candidate 별 공식 SNS·블로그·보도자료·YouTube 채널 식별 결과",
+        "priority":     "high",
+        "candidate_coverage": [
+          {
+            "candidate_id":   "own_xxx" | "comp_xxx",
+            "coverage":       "sufficient" | "partial" | "not_found",
+            "existing_urls":  [{url, origin="owned_channel_search", platform,
+                                account_scope, channel_id, ...}, ...],
+            "additional_urls": [],
+          }, ...
+        ],
+      }
+    ]
+
+    이 placeholder 는 feature_selection_node 가 owned_channels_card 로 재구성 시
+    원본 입력으로 사용. coverage 는 platform 수 기반 단순 임계 (≥ 3 platforms →
+    sufficient, ≥ 1 → partial, 0 → not_found).
+    """
+    if thread_id:
+        try:
+            set_progress(
+                thread_id, "feature_mapping_owned_channels",
+                detail="공식 채널 URL carry-through (D45 a — LLM 호출 생략)",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(owned_channels) 실패: %s", exc)
+
+    urls_by_candidate: dict = state.get("owned_channel_urls_by_candidate") or {}
+
+    # candidate × platform 그룹화 → candidate_coverage 항목으로 변환
+    candidate_coverage: list[dict] = []
+    for cid, urls in urls_by_candidate.items():
+        if not urls:
+            continue
+        platforms_found = {u.get("platform") for u in urls if u.get("platform")}
+        platform_count = len(platforms_found)
+        if platform_count >= 3:
+            coverage = "sufficient"
+        elif platform_count >= 1:
+            coverage = "partial"
+        else:
+            coverage = "not_found"
+
+        candidate_coverage.append({
+            "candidate_id":    cid,
+            "coverage":        coverage,
+            "existing_urls":   list(urls),   # url_discovery_owned_channels 의 결과 그대로
+            "additional_urls": [],
+        })
+
+    # 단일 placeholder feature 로 marketing_social 에 carry
+    raw_features: list[dict] = []
+    if candidate_coverage:
+        raw_features.append({
+            "report_type":  "marketing_social",
+            "feature_id":   "feat_owned_channels_summary",
+            "feature_name": "공식 운영 채널",
+            "description":  "candidate 별 공식 SNS·블로그·보도자료·YouTube 채널 식별 결과 (LLM 미사용, v1.0 §6-6a 수집 전 단계)",
+            "priority":     "high",
+            "candidate_coverage": candidate_coverage,
+        })
+
+    total_urls = sum(len(c["existing_urls"]) for c in candidate_coverage)
+    logger.info(
+        "feature_mapping_owned_channels_node (D45 a carry): %d candidate · %d URL "
+        "(LLM 호출 생략)", len(candidate_coverage), total_urls,
+    )
+
+    finished_at = datetime.now(timezone.utc).isoformat()
+    return {
+        "owned_channel_raw_features": raw_features,
+        "agent_steps": [{
+            "step_name":   step_name,
+            "status":      "completed",
+            "started_at":  started_at,
+            "finished_at": finished_at,
+        }],
     }

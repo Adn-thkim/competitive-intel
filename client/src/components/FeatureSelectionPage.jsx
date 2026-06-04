@@ -1,4 +1,5 @@
 import { useState } from 'react';
+import OwnedChannelCard from './OwnedChannelCard.jsx';
 
 /* ── 안내 박스 (v0.10.18a — source_flow 별 색상 분기) ────────────────────── */
 
@@ -303,13 +304,18 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
   const urlCoverageVisible = report.url_coverage_visible !== false;  // 기본 true
   const isBOnly            = sourceFlow === 'B';
 
+  // v0.10.28b D45 a — marketing_social 카드는 B-only 형식 + 별도 owned_channels_card 렌더링
+  const isMarketingSocial    = report.report_type === 'marketing_social';
+  const ownedChannelsCard    = report.owned_channels_card;
+  const checkboxDisabled     = isBOnly || isMarketingSocial;
+
   const featureIds   = report.features.map(f => f.feature_id);
   const allSelected  = featureIds.every(id => selectedIds.has(id));
   const someSelected = featureIds.some(id => selectedIds.has(id));
   const selectedCount = featureIds.filter(id => selectedIds.has(id)).length;
 
   function handleToggleAll() {
-    if (isBOnly) return;   // B-only — 자동 포함, 전체 선택/해제 비활성
+    if (checkboxDisabled) return;   // B-only · marketing_social — 자동 포함, 전체 선택/해제 비활성
     if (allSelected) {
       featureIds.forEach(id => {
         if (selectedIds.has(id)) onToggleFeature(id);
@@ -330,12 +336,12 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             {report.report_label}
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {isBOnly
+            {checkboxDisabled
               ? `${featureIds.length}개 자동 포함`
               : `${selectedCount} / ${featureIds.length}개 선택됨`}
           </p>
         </div>
-        {!isBOnly && (
+        {!checkboxDisabled && (
           <button
             type="button"
             onClick={handleToggleAll}
@@ -356,6 +362,11 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
       {/* v0.10.18a — 안내 박스 (source_flow 별 색상 분기) */}
       <IntroBox sourceFlow={sourceFlow} text={introText} />
 
+      {/* v0.10.28b D45 a — marketing_social 의 별도 "공식 채널" 카드 (안내 박스 아래) */}
+      {isMarketingSocial && ownedChannelsCard ? (
+        <OwnedChannelCard card={ownedChannelsCard} />
+      ) : null}
+
       {/* Feature 카드 목록 */}
       <div className="space-y-2">
         {report.features.map(feature => (
@@ -365,7 +376,7 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             isSelected={selectedIds.has(feature.feature_id)}
             onToggle={() => onToggleFeature(feature.feature_id)}
             urlCoverageVisible={urlCoverageVisible}
-            checkboxDisabled={isBOnly}
+            checkboxDisabled={checkboxDisabled}
           />
         ))}
       </div>
