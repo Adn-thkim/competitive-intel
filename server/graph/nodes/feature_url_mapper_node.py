@@ -856,41 +856,17 @@ def _filter_candidates_for_report(
 
 
 # ──────────────────────── Step 3: additional_urls 검증 ───────────────────────
-
-def _validate_additional_urls(raw_features: list[dict]) -> list[AnalysisFeature]:
-    tasks: list[tuple[int, int, int, str]] = []
-    for fi, feat in enumerate(raw_features):
-        for ci, cov in enumerate(feat.get("candidate_coverage", [])):
-            for ui, au in enumerate(cov.get("additional_urls", [])):
-                url = (au.get("url") or "").strip()
-                if url:
-                    tasks.append((fi, ci, ui, url))
-
-    if not tasks:
-        return [_normalize_feature(f) for f in raw_features]
-
-    val_results: dict[tuple[int, int, int], int | None] = {}
-    with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
-        future_map = {
-            pool.submit(_check_url_status, url): (fi, ci, ui)
-            for fi, ci, ui, url in tasks
-        }
-        for future in as_completed(future_map):
-            key = future_map[future]
-            try:
-                status = future.result()
-            except Exception:  # noqa: BLE001
-                status = None
-            val_results[key] = status
-
-    logger.info("feature_url_mapper_node: additional_urls 검증 완료 (%d개)", len(tasks))
-
-    for fi, ci, ui, _ in tasks:
-        status = val_results.get((fi, ci, ui))
-        au = raw_features[fi]["candidate_coverage"][ci]["additional_urls"][ui]
-        au["validated"]   = bool(status and 200 <= status < 400)
-        au["http_status"] = status
-    return [_normalize_feature(f) for f in raw_features]
+#
+# v0.10.25 (turn-67) — _validate_additional_urls 옛 단일 분기 함수 폐기.
+# 본 단계의 책임은 `additional_urls_validation_node._validate_additional_urls_v2`
+# 로 정식 이전. 새 함수는 5 source 별 검증 분기 (videos.list·is_brand_match·
+# 발행일 36개월·화이트리스트 매칭) + source_origin 메타 기반 라우팅 적용.
+#
+# 옛 함수는 단일 _check_url_status (HEAD/GET) 만 적용했으나, source-type 의 다양
+# 한 검증 요구 (YouTube watch 페이지의 항상 200 OK · owned channel 의 브랜드 일치
+# 검증 등) 를 모두 흡수하지 못해 false positive 가 발생했음.
+#
+# 외부 import 는 모두 additional_urls_validation_node 모듈로 이전 완료.
 
 
 def _check_url_status(url: str) -> int | None:
@@ -1064,96 +1040,14 @@ _REPORT_TYPES_BY_SOURCE: dict[str, tuple[str, ...]] = {
 }
 
 
-def _union_raw_features(state: dict) -> list[dict]:
-    """v0.10.27.1 hotfix (turn-62) — candidate_coverage union 으로 개선.
-
-    v0.10.27 의 priority dedup 정책 폐기. 동일 (report_type, feature_id) 가 여러
-    source 에서 산출되면 두 결과의 candidate_coverage 를 통합:
-
-    1. **첫 등장 source 의 feature 메타 유지** — `report_type`·`feature_name`·
-       `description`·`priority` 는 priority 순서(official > blog_community >
-       youtube_reactions > owned_channels > macro) 의 첫 source 항목 유지.
-    2. **동일 candidate_id 의 URL union** — 후속 source 의 `existing_urls` 와
-       `additional_urls` 를 URL 단위 dedup 후 concat.
-    3. **coverage 갱신** — `sufficient > partial > not_found` 우선순위로 더 강한
-       쪽 채택 (예: blog_community 가 partial, youtube_reactions 가 sufficient →
-       sufficient 유지).
-    4. **새 candidate_id** — `candidate_coverage` 에 그대로 append.
-
-    Issue 3 해소 (turn-62)
-    ---------------------
-    이전 priority dedup 정책으로 인해 blog_community 가 reaction_insight 의 동일
-    feature_id 를 산출하면 youtube_reactions 의 동일 feature_id 가 폐기되어 UI 에
-    YouTube 영상 URL 이 표시되지 않는 회귀가 발생. 본 hotfix 로 두 source 의 URL
-    이 동일 feature 카드 내에 통합 렌더링됨.
-
-    v0.10.25 진입 시 본 헬퍼의 책임 (D23 candidate_coverage union) 은
-    `additional_urls_validation_node` 의 정식 헬퍼로 이관 + 본 임시 헬퍼 폐기.
-    """
-    priority = ("official", "blog_community", "youtube_reactions", "owned_channels", "macro")
-    coverage_rank = {"sufficient": 3, "partial": 2, "not_found": 1}
-    by_key: dict[tuple[str, str], dict] = {}
-
-    for src in priority:
-        key_name = (
-            f"{src}_raw_features" if src != "owned_channels"
-            else "owned_channel_raw_features"
-        )
-        for feat in state.get(key_name) or []:
-            rt  = feat.get("report_type", "")
-            fid = feat.get("feature_id", "")
-            if not rt or not fid:
-                continue
-
-            existing = by_key.get((rt, fid))
-            if existing is None:
-                # 첫 등장 — shallow copy + candidate_coverage 만 깊은 복사 (mutate 회피)
-                by_key[(rt, fid)] = {
-                    **feat,
-                    "candidate_coverage": [dict(c) for c in (feat.get("candidate_coverage") or [])],
-                }
-                continue
-
-            # 이미 있는 feature — candidate_coverage union (Issue 3 hotfix 핵심)
-            existing_covs: dict[str, dict] = {
-                c.get("candidate_id", ""): c for c in existing["candidate_coverage"]
-            }
-            for new_cov in feat.get("candidate_coverage") or []:
-                cid = new_cov.get("candidate_id", "")
-                if not cid:
-                    continue
-
-                if cid not in existing_covs:
-                    # 새 candidate_id — 그대로 append
-                    new_cov_copy = dict(new_cov)
-                    existing["candidate_coverage"].append(new_cov_copy)
-                    existing_covs[cid] = new_cov_copy
-                else:
-                    # 동일 candidate — URL union (dedup)
-                    base = existing_covs[cid]
-                    base_existing  = base.setdefault("existing_urls", [])
-                    base_seen_e    = {u.get("url", "") for u in base_existing}
-                    for u in new_cov.get("existing_urls") or []:
-                        url = u.get("url", "")
-                        if url and url not in base_seen_e:
-                            base_existing.append(u)
-                            base_seen_e.add(url)
-
-                    base_additional = base.setdefault("additional_urls", [])
-                    base_seen_a     = {u.get("url", "") for u in base_additional}
-                    for u in new_cov.get("additional_urls") or []:
-                        url = u.get("url", "")
-                        if url and url not in base_seen_a:
-                            base_additional.append(u)
-                            base_seen_a.add(url)
-
-                    # coverage 갱신 (더 강한 쪽 채택)
-                    new_rank  = coverage_rank.get(new_cov.get("coverage", ""), 0)
-                    base_rank = coverage_rank.get(base.get("coverage", ""), 0)
-                    if new_rank > base_rank:
-                        base["coverage"] = new_cov["coverage"]
-
-    return list(by_key.values())
+# v0.10.25 (turn-67) — _union_raw_features 임시 헬퍼 폐기.
+# 본 헬퍼는 v0.10.27.1 hotfix 가 도입한 임시 candidate_coverage union 로직으로,
+# v0.10.25 에서 `additional_urls_validation_node._union_raw_features` 로 정식 이전
+# 되었다. 본 모듈에는 더 이상 존재하지 않으며, additional_urls_validation_node 가
+# 자체 헬퍼를 직접 호출한다 (D23 정식 적용 + source_origin 메타 부착).
+#
+# 외부에서 본 함수를 import 하던 코드는 모두 `additional_urls_validation_node`
+# 모듈에서 import 해야 한다.
 
 
 def _run_source_mapping(
