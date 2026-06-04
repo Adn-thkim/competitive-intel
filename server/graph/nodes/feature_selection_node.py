@@ -289,6 +289,49 @@ def _candidate_label(candidate_id: str) -> str:
     return _CANDIDATE_LABEL_OVERRIDES.get(candidate_id, candidate_id)
 
 
+def _truncate_youtube_reactions(existing_urls: list[dict]) -> list[dict]:
+    """v0.10.28c (D48·D49·D50 a) — youtube_reactions origin URL 정렬 + 대표 1건 truncate.
+
+    동일 candidate × feature 의 existing_urls 중 origin="youtube_reactions" URL 이 N건
+    있으면 view_count 내림차순 정렬 + 1건만 채택. 나머지 (N-1) 건은 제거 + 채택된 1건에
+    `youtube_truncated_count` 메타 부착 (UI 가 "+ N건 추가 영상 식별" pill 표시).
+
+    다른 origin URL 은 영향 없음 (정렬·truncate 미적용) — D49 a 정합.
+
+    Parameters
+    ----------
+    existing_urls : list[dict]
+        v0.10.28a 메타 carry 가 완료된 URL 목록 (view_count·origin 등 보존).
+
+    Returns
+    -------
+    list[dict]
+        youtube_reactions 가 1건으로 축소된 URL 목록 + 비-youtube URL 그대로 유지.
+        순서: 비-youtube URL (원래 순서) + youtube 대표 1건 (말단 추가).
+    """
+    if not existing_urls:
+        return existing_urls
+
+    non_yt: list[dict] = []
+    yt: list[dict]     = []
+    for u in existing_urls:
+        if u.get("origin") == "youtube_reactions":
+            yt.append(u)
+        else:
+            non_yt.append(u)
+
+    # youtube 1건 이하면 truncate 불필요
+    if len(yt) <= 1:
+        return existing_urls
+
+    # view_count 내림차순 정렬 (None 은 0 으로 취급)
+    yt_sorted = sorted(yt, key=lambda u: (u.get("view_count") or 0), reverse=True)
+    representative = dict(yt_sorted[0])
+    representative["youtube_truncated_count"] = len(yt) - 1
+
+    return non_yt + [representative]
+
+
 def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[dict]:
     """analysis_features (흐름 A·A+B) 의 feature 를 UI 카드용 item 으로 변환.
 
@@ -321,6 +364,8 @@ def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[d
                 for u in (cov.get("existing_urls") or [])
                 if u.get("url")
             ]
+            # v0.10.28c (D48·D49·D50 a) — youtube_reactions URL 다수 시 대표 1건만 채택
+            existing_urls = _truncate_youtube_reactions(existing_urls)
             additional_urls = [
                 {
                     "url":         (u.get("url") or "").strip(),

@@ -159,6 +159,12 @@ function CoverageDetails({ details }) {
                           </span>
                         );
                       })()}
+                      {/* v0.10.28c (D48·D49·D50 a) — youtube_reactions 다수 시 대표 1건 + N건 추가 영상 표기 */}
+                      {u.youtube_truncated_count && u.youtube_truncated_count > 0 ? (
+                        <span className="text-[10px] text-red-700 bg-red-50 border border-red-200 px-1 rounded shrink-0">
+                          + {u.youtube_truncated_count}건 추가 영상
+                        </span>
+                      ) : null}
                     </li>
                   ))}
                 </ul>
