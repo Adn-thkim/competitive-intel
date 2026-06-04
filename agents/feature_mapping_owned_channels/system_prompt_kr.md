@@ -121,6 +121,7 @@
 - **운영 채널 도메인 한정** — `instagram.com` · `x.com` · `blog.naver.com` · `*.tistory.com` · `youtube.com/@...` · 보도자료 페이지.
 - 외부 도메인 (3rd-party 블로그·뉴스) 제안 금지 — 다른 `feature_mapping_<source>` agent 의 책임.
 - 각 URL 에 `rationale` (어떤 채널 활동 정보를 기대하는지) + `url_confidence` (0~1).
+- **v0.10.25 — `source_origin` 필드 명시** — 본 노드 산출 항목은 `source_origin: "owned_channel_search"` 부착. `additional_urls_validation_node` 가 본 메타로 검증 분기 (HEAD/GET + is_brand_match 검증) 라우팅.
 - feature-candidate 쌍당 **최대 2개**.
 - `coverage="sufficient"` 시 반드시 빈 배열 `[]`.
 

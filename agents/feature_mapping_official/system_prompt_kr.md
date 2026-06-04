@@ -115,6 +115,7 @@
 - `existing_url` 의 **sub-path** 또는 **동일 호스트 내 전용 페이지** 우선.
 - **외부 도메인 제안 금지** (official 노드의 핵심 제약 — `additional_urls` 가 official 도메인 한정).
 - 각 URL 에 `rationale` (어떤 정보를 기대하는지) + `url_confidence` (0~1).
+- **v0.10.25 — `source_origin` 필드 명시** — 본 노드 산출 항목은 `source_origin: "official_subpage"` 부착. `additional_urls_validation_node` 가 본 메타로 검증 분기 (HEAD/GET) 라우팅.
 - feature-candidate 쌍당 **최대 2개**.
 - `coverage="sufficient"` 시 반드시 빈 배열 `[]`.
 

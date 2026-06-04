@@ -121,6 +121,7 @@
 
 ### 5. additional_urls 제안 (공통 + source 제약)
 - `partial` 또는 `not_found` 시에만 제안.
+- **v0.10.25 — `source_origin` 필드 명시** — 본 노드 산출 항목은 `source_origin: "macro_search"` 부착. `additional_urls_validation_node` 가 본 메타로 검증 분기 (HEAD/GET + 화이트리스트 매칭) 라우팅.
 - **매크로 화이트리스트 도메인 한정**:
   - Tier 1 통계 (`kosis.kr` · `ecos.bok.or.kr` · `index.go.kr`)
   - Tier 2 정책·연구 (`fsc.go.kr` · `mosf.go.kr` · `fss.or.kr` · `bok.or.kr` · `kdi.re.kr` · `kiet.re.kr` · `nia.or.kr` · `kotra.or.kr`)

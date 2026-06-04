@@ -108,6 +108,7 @@
 - **YouTube 도메인 한정** — `youtube.com/watch?v=...` URL 만.
 - 외부 도메인 (블로그·뉴스) 제안 금지 — 다른 `feature_mapping_<source>` agent 의 책임.
 - 각 URL 에 `rationale` (어떤 영상 후기를 기대하는지) + `url_confidence` (0~1).
+- **v0.10.25 — `source_origin` 필드 명시** — 본 노드 산출 항목은 `source_origin: "youtube_reactions"` 부착. `additional_urls_validation_node` 가 본 메타로 검증 분기 (videos.list API 호출 → view_count·like·comment_count 메타 채움) 라우팅.
 - feature-candidate 쌍당 **최대 2개**.
 - `coverage="sufficient"` 시 반드시 빈 배열 `[]`.
 

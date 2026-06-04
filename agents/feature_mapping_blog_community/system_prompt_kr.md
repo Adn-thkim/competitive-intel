@@ -114,6 +114,7 @@
 - **화이트리스트 도메인 한정** — `review_site`·`personal_blog`·`community`·`wiki` 4 분류 도메인 만.
 - `other` 도메인 (예: news.naver.com·블로그 외 매체) 제안 금지.
 - 각 URL 에 `rationale` (어떤 후기·평가를 기대하는지) + `url_confidence` (0~1).
+- **v0.10.25 — `source_origin` 필드 명시** — 본 노드 산출 항목은 `source_origin: "blog_community"` 부착. `additional_urls_validation_node` 가 본 메타로 검증 분기 (HEAD/GET + 발행일 36개월 재검증) 라우팅.
 - feature-candidate 쌍당 **최대 2개**.
 - `coverage="sufficient"` 시 반드시 빈 배열 `[]`.
 

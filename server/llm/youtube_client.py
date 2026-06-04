@@ -237,6 +237,89 @@ def youtube_search_videos(
     return merged
 
 
+def youtube_videos_list(video_id: str) -> dict | None:
+    """v0.10.25 신설 — 단일 video_id 의 메타 + statistics 조회.
+
+    `additional_urls_validation_node` 가 youtube_reactions origin URL 의 정식 검증에
+    사용. HEAD/GET 만으로는 삭제·비공개 영상 판정 불가하므로 본 함수가 정확한 메타
+    조회를 수행 (1 unit/call).
+
+    Parameters
+    ----------
+    video_id : str
+        YouTube watch URL 의 v= 파라미터 값 (예: "dQw4w9WgXcQ").
+
+    Returns
+    -------
+    dict | None
+        영상 존재 + public/unlisted 시:
+        {"video_id", "view_count", "like_count", "comment_count",
+         "channel_id", "channel_title", "title", "published_at"}
+        영상 부재 (삭제·private) 시 None.
+
+    Raises
+    ------
+    YouTubeQuotaExceeded : 일일 quota 한도 초과
+    YouTubeApiUnavailable : API key 미설정 또는 google API 응답 오류
+
+    Note
+    ----
+    캐시 미적용 — 단건 조회의 캐시 hit 율이 낮고, 24h 안에 영상 메타 (view_count)
+    가 빠르게 변동되므로 매번 신선한 값 수집이 정합. quota 부담은 호출당 1 unit 으로 미미.
+    """
+    if not YOUTUBE_API_KEY:
+        logger.warning("YOUTUBE_API_KEY 미설정 — youtube_videos_list 빈 결과")
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+    if not video_id:
+        return None
+
+    # videos.list 는 statistics·snippet·status 함께 호출 (단일 호출, 1 unit)
+    _check_and_consume_quota(_VIDEOS_LIST_COST)
+    params = {
+        "part": "snippet,statistics,status",
+        "id":   video_id,
+        "key":  YOUTUBE_API_KEY,
+    }
+    try:
+        resp = requests.get(_VIDEOS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise YouTubeApiUnavailable(f"videos.list 네트워크 오류: {exc}") from exc
+
+    if resp.status_code in (401, 403):
+        err_msg = _extract_error_message(resp)
+        if "quota" in err_msg.lower():
+            raise YouTubeQuotaExceeded(f"videos.list quota exceeded: {err_msg}")
+        raise YouTubeApiUnavailable(f"videos.list 인증 오류({resp.status_code}): {err_msg}")
+    if resp.status_code >= 500:
+        raise YouTubeApiUnavailable(f"videos.list 서버 오류: {resp.status_code}")
+    if not resp.ok:
+        raise YouTubeApiUnavailable(
+            f"videos.list 오류 {resp.status_code}: {_extract_error_message(resp)}"
+        )
+
+    items = resp.json().get("items") or []
+    if not items:
+        # 영상 부재 (삭제·private)
+        return None
+    item = items[0]
+    status = item.get("status") or {}
+    if status.get("privacyStatus") == "private":
+        return None
+
+    snippet = item.get("snippet") or {}
+    stats   = item.get("statistics") or {}
+    return {
+        "video_id":      video_id,
+        "view_count":    int(stats.get("viewCount", 0) or 0),
+        "like_count":    int(stats.get("likeCount", 0) or 0),
+        "comment_count": int(stats.get("commentCount", 0) or 0),
+        "channel_id":    snippet.get("channelId", ""),
+        "channel_title": snippet.get("channelTitle", ""),
+        "title":         snippet.get("title", ""),
+        "published_at":  snippet.get("publishedAt", ""),
+    }
+
+
 # ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
 def _call_search_list(query: str, max_results: int, region_code: str) -> dict[str, Any]:
     """search.list HTTP 호출. 5xx 또는 API key 오류 시 YouTubeApiUnavailable 발생."""
