@@ -255,17 +255,61 @@ class DomainAnalysisState(TypedDict, total=False):
 
     candidates_with_meta: list[dict[str, Any]]
     """
-    Step 1(page_meta_collect_node)이 생성한 candidate별 validated URL + page meta 통합 목록.
+    [v0.10.27 폐기 예정 — 5 통합 노드 내부에 흡수]
+    옛 Step 1(page_meta_collect_node) 가 생성하던 candidate별 validated URL + page meta
+    통합 목록. v0.10.27 의 5 통합 노드가 각자 자기 source 의 *_urls_by_candidate 를
+    직접 read 하여 노드 내부의 단계 1 (page meta 수집) 에서 처리.
     구조: [{candidate_id, source_type, validated_urls: [{url, page_title, meta_description,
                                                           origin, [matched_report_types]}]}]
-    feature_mapping_llm_node가 report_type 별 LLM 호출의 입력으로 사용한다.
+    본 키는 v0.10.27 도입 시 page_meta_collect_node.py 파일 삭제와 함께 사실상 미사용.
     """
 
     raw_features: list[dict[str, Any]]
     """
-    Step 2(feature_mapping_llm_node)가 LLM 호출로 도출한 정규화 전 feature 목록.
+    [v0.10.27 임시 호환 — D42 a 정책에 따라 v0.10.25 까지 유지]
+    옛 Step 2(feature_mapping_llm_node) 가 LLM 호출로 도출하던 정규화 전 feature 목록.
+    v0.10.27 의 5 통합 노드는 각자 자기 source 의 *_raw_features 키에 산출하고,
+    additional_urls_validation_node 의 임시 호환 어댑터가 5종을 union 머지하여 본 키로
+    재구성한다. v0.10.25 에서 정식 _union_raw_features 헬퍼 신설 시 본 키 폐기.
     additional_urls_validation_node가 각 항목의 additional_urls를 HTTP 검증한 뒤
     analysis_features로 변환한다.
+    """
+
+    # ── feature_url_mapper 5중 fan-out (2차): 5종 raw_features (v0.10.27) ────────
+    # 5 통합 노드(feature_mapping_<source>_node)가 각자 산출한 정규화 전 feature 목록.
+    # additional_urls_validation_node 가 임시 어댑터로 5종을 단일 raw_features 로 union
+    # 후 검증·정규화 (v0.10.25 의 정식 _union_raw_features 헬퍼 도입 시점에 본 키들이
+    # 1차 시민으로 격상).
+
+    official_raw_features: list[dict[str, Any]]
+    """
+    feature_mapping_official_node 산출. comparison_matrix · battlecard(A Fact) ·
+    market_context_swot(규제) 의 feature × candidate × URL 커버리지 매핑.
+    각 항목은 agents/feature_mapping_official/output.schema.json 의 features 배열 항목.
+    """
+
+    blog_community_raw_features: list[dict[str, Any]]
+    """
+    feature_mapping_blog_community_node 산출. reaction_insight 의 feature × candidate ×
+    URL 커버리지. domain_class 메타 (review_site·personal_blog·community·wiki) 보존.
+    """
+
+    youtube_reactions_raw_features: list[dict[str, Any]]
+    """
+    feature_mapping_youtube_reactions_node 산출. reaction_insight 의 feature × candidate ×
+    YouTube 영상 커버리지. view_count·like_count·comment_count 메타 보존.
+    """
+
+    owned_channel_raw_features: list[dict[str, Any]]
+    """
+    feature_mapping_owned_channels_node 산출. marketing_social · battlecard(광고 카피)
+    의 feature × candidate × 운영 채널 URL 커버리지. platform·account_scope 메타 보존.
+    """
+
+    macro_raw_features: list[dict[str, Any]]
+    """
+    feature_mapping_macro_node 산출. market_context_swot(매크로) 의 feature × URL
+    커버리지. candidate_id='macro' 단일 키. source_tier·tier_group 메타 보존.
     """
 
     # ── feature_url_mapper 최종 출력 (additional_urls_validation_node 산출) ──

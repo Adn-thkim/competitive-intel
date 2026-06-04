@@ -902,3 +902,87 @@ def _error(started_at: str, message: str) -> dict:
             "error_message": message,
         }],
     }
+
+
+# ─── v0.10.27 — 5 통합 노드 공통 헬퍼 ─────────────────────────────────────────
+
+# Source-type 별 담당 report_type (5 통합 노드의 LLM 호출 정책).
+# 본 매핑은 5 system_prompt 의 report_type enum 과 정확히 일치해야 한다.
+_REPORT_TYPES_BY_SOURCE: dict[str, tuple[str, ...]] = {
+    "official":          ("comparison_matrix", "battlecard", "market_context_swot"),
+    "blog_community":    ("reaction_insight",),
+    "youtube_reactions": ("reaction_insight",),
+    "owned_channels":    ("marketing_social", "battlecard"),
+    "macro":             ("market_context_swot",),
+}
+
+
+def _union_raw_features(state: dict) -> list[dict]:
+    """v0.10.27 임시 헬퍼 (D42 a) — 5종 *_raw_features 를 단일 raw_features 로 union.
+
+    v0.10.25 의 정식 `_union_raw_features` (D23 union 처리 + candidate_coverage union)
+    도입 전까지 `additional_urls_validation_node` 의 호환 어댑터로 사용.
+
+    동일 (report_type, feature_id) 가 여러 source 에서 산출되면 우선 source 기준 1건만
+    채택 (battlecard 가 official + owned_channels 양쪽에서 산출되는 경우). 우선 순위:
+    official > blog_community > youtube_reactions > owned_channels > macro.
+
+    v0.10.25 진입 시 본 헬퍼 폐기 + candidate_coverage union 정식 구현으로 교체.
+    """
+    priority = ("official", "blog_community", "youtube_reactions", "owned_channels", "macro")
+    seen: set[tuple[str, str]] = set()
+    union: list[dict] = []
+    for src in priority:
+        key = f"{src}_raw_features" if src != "owned_channels" else "owned_channel_raw_features"
+        for feat in state.get(key) or []:
+            rt = feat.get("report_type", "")
+            fid = feat.get("feature_id", "")
+            if (rt, fid) in seen:
+                continue
+            seen.add((rt, fid))
+            union.append(feat)
+    return union
+
+
+def _run_source_mapping(
+    *,
+    source: str,
+    state: dict,
+    config: dict | None,
+) -> dict:
+    """v0.10.27 — 5 통합 노드의 공통 동작 (page meta 수집 + report_type 별 병렬 LLM 매핑).
+
+    각 통합 노드(`feature_mapping_<source>_node`)가 본 헬퍼를 호출. 본 헬퍼는:
+      1. `{source}_urls_by_candidate` 에서 page meta 수집 → candidates_with_meta 구성
+      2. 자기 source 가 담당하는 report_type 들에 대해 병렬 LLM 호출
+      3. 결과를 `{source}_raw_features` (owned_channels 만 `owned_channel_raw_features`)
+         state 키로 반환
+
+    캐시 정책 (D44 a, 설계 §5-6a):
+      - 단계 1: agent_id=`page_meta_<source>`, cache_input={url}, TTL 24h
+        (_fetch_meta 가 이미 agent_id="page_meta_collect" 로 캐시 — 본 PR 에서는 공통
+        캐시 그대로 활용. source 별 분리는 v1.0 시점 검토.)
+      - 단계 2: agent_id=`feature_mapping_<source>`, cache_input={...},
+        prompt_version=`feature_mapping_<source>:v0.10.27`
+
+    Parameters
+    ----------
+    source : str
+        "official" | "blog_community" | "youtube_reactions" | "owned_channels" | "macro"
+    state : dict
+        DomainAnalysisState dict (TypedDict 인스턴스 또는 dict)
+    config : dict | None
+        LangGraph config (thread_id 추출용)
+
+    Returns
+    -------
+    dict
+        {<source>_raw_features 또는 owned_channel_raw_features: list, agent_steps: list}
+    """
+    # 본 함수는 5 통합 노드가 import 하여 사용. 실 구현은 통합 노드 .py 파일이 직접
+    # 작성 — 본 stub 은 책임 분리 의도 명시용 docstring 만 보유. 실제 동작은 각
+    # feature_mapping_<source>_node.py 의 노드 함수가 직접 처리.
+    raise NotImplementedError(
+        "_run_source_mapping 은 책임 분리용 docstring stub 입니다. "
+        "실제 동작은 server/graph/nodes/feature_mapping_<source>_node.py 가 직접 처리합니다."
+    )
