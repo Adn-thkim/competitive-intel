@@ -24,6 +24,8 @@ v0.10.9 토폴로지 (pipeline_topology_redesign.md §6-2 v0.10.9 확정)
                   5중 fan-out (v0.10.19): url_discovery_official · _blog_community
                                           · _youtube_reactions · _owned_channels · _macro
                                        ↓
+                  cross_reference      (v0.10.26 — youtube_reactions × owned(youtube_official) 결정론적 필터)
+                                       ↓
                   urls_merge           (5종 union → brave_urls_by_candidate, v0.10.19 임시 어댑터)
                                        ↓
                   page_meta_collect    (Step 1 — page meta 수집)
@@ -85,6 +87,7 @@ from server.graph.nodes.url_discovery_blog_community_node    import url_discover
 from server.graph.nodes.url_discovery_youtube_reactions_node import url_discovery_youtube_reactions_node
 from server.graph.nodes.url_discovery_owned_channels_node    import url_discovery_owned_channels_node
 from server.graph.nodes.url_discovery_macro_node             import url_discovery_macro_node
+from server.graph.nodes.cross_reference_node                  import cross_reference_node
 from server.graph.nodes.urls_merge_node                       import urls_merge_node
 from server.graph.nodes.page_meta_collect_node import page_meta_collect_node
 from server.graph.nodes.feature_mapping_llm_node import feature_mapping_llm_node
@@ -173,6 +176,7 @@ def build_graph() -> object:
     builder.add_node("url_discovery_youtube_reactions",  url_discovery_youtube_reactions_node)
     builder.add_node("url_discovery_owned_channels",     url_discovery_owned_channels_node)
     builder.add_node("url_discovery_macro",              url_discovery_macro_node)
+    builder.add_node("cross_reference",                  cross_reference_node)
     builder.add_node("urls_merge",                       urls_merge_node)
     builder.add_node("page_meta_collect",            page_meta_collect_node)
     builder.add_node("feature_mapping_llm",          feature_mapping_llm_node)
@@ -239,8 +243,9 @@ def build_graph() -> object:
     builder.add_edge("ab_join", "url_discovery_owned_channels")
     builder.add_edge("ab_join", "url_discovery_macro")
 
-    # 4) 5중 list-fan-in barrier → urls_merge_node 임시 어댑터 (v0.10.19)
-    #    v0.10.26 에서 urls_merge_node 폐기, cross_reference_node 로 교체 예정.
+    # 4) 5중 list-fan-in barrier → cross_reference_node (v0.10.26 신설)
+    #    cross_reference_node 가 youtube_reactions × owned_channels(youtube_official)
+    #    결정론적 후처리 필터링 수행. owned channels 가 직접 운영하는 reactions 영상 제외.
     builder.add_edge(
         [
             "url_discovery_official",
@@ -249,8 +254,11 @@ def build_graph() -> object:
             "url_discovery_owned_channels",
             "url_discovery_macro",
         ],
-        "urls_merge",
+        "cross_reference",
     )
+
+    # 4-1) cross_reference → urls_merge (v0.10.19 임시 어댑터, v0.10.27 도입 시 폐기)
+    builder.add_edge("cross_reference", "urls_merge")
 
     # 5) 기존 feature_url_mapper 3단계 직렬 (v0.10.9 그대로, v0.10.27 통합 노드로 교체 예정)
     builder.add_edge("urls_merge",                    "page_meta_collect")
@@ -336,7 +344,7 @@ try:
     _has_branch_b   = ("competitor_discovery", "domain_modeling") in _edge_pairs
     _has_list_a     = ("url_retry",            "ab_join")         in _edge_pairs
     _has_list_b     = ("domain_modeling",      "ab_join")         in _edge_pairs
-    # v0.10.19 — 5중 URL 탐색 fan-out + urls_merge_node 임시 어댑터 검증
+    # v0.10.26 — 5중 URL 탐색 fan-out + cross_reference + urls_merge 임시 어댑터 검증
     _fanout_5 = [
         ("ab_join", "url_discovery_official"),
         ("ab_join", "url_discovery_blog_community"),
@@ -345,25 +353,27 @@ try:
         ("ab_join", "url_discovery_macro"),
     ]
     _fanin_5 = [
-        ("url_discovery_official",          "urls_merge"),
-        ("url_discovery_blog_community",    "urls_merge"),
-        ("url_discovery_youtube_reactions", "urls_merge"),
-        ("url_discovery_owned_channels",    "urls_merge"),
-        ("url_discovery_macro",             "urls_merge"),
+        ("url_discovery_official",          "cross_reference"),
+        ("url_discovery_blog_community",    "cross_reference"),
+        ("url_discovery_youtube_reactions", "cross_reference"),
+        ("url_discovery_owned_channels",    "cross_reference"),
+        ("url_discovery_macro",             "cross_reference"),
     ]
     _has_fanout_5 = all(p in _edge_pairs for p in _fanout_5)
     _has_fanin_5  = all(p in _edge_pairs for p in _fanin_5)
+    # v0.10.26 — cross_reference → urls_merge edge 검증
+    _e_cr = ("cross_reference",           "urls_merge")                 in _edge_pairs
     # 기존 3단계 직렬 검증
     _e_um = ("urls_merge",                "page_meta_collect")          in _edge_pairs
     _e3   = ("page_meta_collect",         "feature_mapping_llm")        in _edge_pairs
     _e4   = ("feature_mapping_llm",       "additional_urls_validation") in _edge_pairs
     _e5   = ("additional_urls_validation","feature_selection")          in _edge_pairs
     if all([_has_branch_b, _has_list_a, _has_list_b, _has_fanout_5, _has_fanin_5,
-            _e_um, _e3, _e4, _e5]):
+            _e_cr, _e_um, _e3, _e4, _e5]):
         print(
-            "[graph.py] ✅ v0.10.19 토폴로지 확인 — "
-            "ab_join list-fan-in + 5중 URL 탐색 fan-out + urls_merge 임시 어댑터 + "
-            "feature_url_mapper 3단계 직렬 정상",
+            "[graph.py] ✅ v0.10.26 토폴로지 확인 — "
+            "ab_join list-fan-in + 5중 URL 탐색 fan-out + cross_reference + "
+            "urls_merge 임시 어댑터 + feature_url_mapper 3단계 직렬 정상",
             flush=True,
         )
     else:
@@ -372,11 +382,12 @@ try:
         if not _has_list_a:   _missing.append("url_retry → ab_join")
         if not _has_list_b:   _missing.append("domain_modeling → ab_join")
         if not _has_fanout_5: _missing.append("ab_join → 5 url_discovery_*")
-        if not _has_fanin_5:  _missing.append("5 url_discovery_* → urls_merge")
+        if not _has_fanin_5:  _missing.append("5 url_discovery_* → cross_reference")
+        if not _e_cr: _missing.append("cross_reference → urls_merge")
         if not _e_um: _missing.append("urls_merge → page_meta_collect")
         if not _e3:   _missing.append("page_meta_collect → feature_mapping_llm")
         if not _e4:   _missing.append("feature_mapping_llm → additional_urls_validation")
         if not _e5:   _missing.append("additional_urls_validation → feature_selection")
-        print(f"[graph.py] ❌ v0.10.19 토폴로지 엣지 누락: {_missing}", flush=True)
+        print(f"[graph.py] ❌ v0.10.26 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)
