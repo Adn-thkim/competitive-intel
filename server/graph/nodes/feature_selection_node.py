@@ -259,10 +259,29 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
 
 # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────────
 
+# v0.10.28a (D47 c) — candidate_id → 한국어 라벨 매핑.
+# 기본은 candidate_id 그대로 사용. macro 만 사용자 친화적 라벨로 변환.
+# 자사·경쟁사 candidate_id (own_*/comp_*) 는 client 가 own_product / competitor_candidates
+# 의 product_name 으로 별도 변환할 수 있도록 raw 값 유지.
+_CANDIDATE_LABEL_OVERRIDES: dict[str, str] = {
+    "macro": "산업·시장 데이터",
+}
+
+
+def _candidate_label(candidate_id: str) -> str:
+    """v0.10.28a (D47 c) — candidate_id 를 사용자 친화적 라벨로 변환.
+
+    overrides 미매칭 시 candidate_id 그대로 반환 — client 가 추가 라벨 매핑 가능.
+    """
+    return _CANDIDATE_LABEL_OVERRIDES.get(candidate_id, candidate_id)
+
+
 def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[dict]:
     """analysis_features (흐름 A·A+B) 의 feature 를 UI 카드용 item 으로 변환.
 
     각 item 에 coverage_summary + coverage_details 포함 — v0.10.16 UI 사양 유지.
+    v0.10.28a (D46·D47) — existing_urls 에 source 특수 메타 carry + candidate_label
+    부착으로 UI 가 origin chip 6종 분기 + 사용자 친화적 candidate 표시 가능.
     """
     items: list[dict] = []
     for feat in features_in_report:
@@ -274,9 +293,17 @@ def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[d
 
             existing_urls = [
                 {
-                    "url":            (u.get("url") or "").strip(),
-                    "relevance_note": (u.get("relevance_note") or "").strip(),
-                    "origin":         u.get("origin", "official_source"),
+                    "url":              (u.get("url") or "").strip(),
+                    "relevance_note":   (u.get("relevance_note") or "").strip(),
+                    "origin":           u.get("origin", "official_source"),
+                    # v0.10.28a — source 특수 메타 carry (D46)
+                    # 5 source-type 각자 의미 있는 메타만 채움 (LLM 출력 schema 정합)
+                    "source_tier":      u.get("source_tier"),       # macro 한정
+                    "tier_group":       u.get("tier_group"),        # macro 한정
+                    "subpage_category": u.get("subpage_category"),  # official 한정
+                    "domain_class":     u.get("domain_class"),      # blog_community 한정
+                    "view_count":       u.get("view_count"),        # youtube_reactions 한정
+                    "platform":         u.get("platform"),          # owned_channels 한정
                 }
                 for u in (cov.get("existing_urls") or [])
                 if u.get("url")
@@ -291,8 +318,10 @@ def _build_feature_items_from_analysis(features_in_report: list[dict]) -> list[d
                 for u in (cov.get("additional_urls") or [])
                 if u.get("url")
             ]
+            candidate_id = cov.get("candidate_id", "")
             coverage_details.append({
-                "candidate_id":    cov.get("candidate_id", ""),
+                "candidate_id":    candidate_id,
+                "candidate_label": _candidate_label(candidate_id),   # v0.10.28a (D47 c)
                 "coverage":        key,
                 "existing_urls":   existing_urls,
                 "additional_urls": additional_urls,
