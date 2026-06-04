@@ -47,6 +47,10 @@
 - `official_source` — `official_source_resolver_node` 가 검증한 자사·경쟁사 공식 페이지 (primary_url)
 - `official_subpage` — `url_discovery_official_node` 가 `site:{official_domain}` Brave 한정 검색으로 발견한 sub-page
 
+**v0.10.24 — body 보강 메타 (각 URL 항목에 포함)**:
+- `h1_h2` (list[str]) — 페이지의 `<h1>`·`<h2>` 헤더 목록. 페이지 목차 역할 — 어떤 카테고리·sub-topic 을 다루는지 빠르게 판단 가능.
+- `body_excerpt` (str, ~800자) — 페이지 본문의 첫 800자. 실제 정책 수치 (수수료율·한도·환율) 가 본문에 명시되어 있는지 직접 확인 가능. `page_title` + `meta_description` 만으로 판단하던 옛 방식 대비 정보량 약 5배.
+
 ---
 
 ## 출력 구조 (`output.schema.json`)
@@ -88,6 +92,8 @@
 - 각 candidate 의 `validated_urls` 를 본 feature 와 관련 있는지 판정.
 - **판정 기준**:
   - `page_title` · `meta_description` 의 키워드 매칭
+  - **`h1_h2` 헤더 매칭 (v0.10.24)** — feature 관련 헤더 1건 이상이면 강한 시그널
+  - **`body_excerpt` 본문 수치 확인 (v0.10.24)** — 본문에 수치·정책 명시 시 `coverage="sufficient"` 판정 가능 (예: `body_excerpt` 에 "수수료 0%" 명시 + `feat_transaction_fee_rate` → sufficient)
   - `matched_report_types` 의 본 report_type 포함 여부
   - **`subpage_category` 메타** (v0.10.22a 신설) — 다음 매칭 규칙으로 가중치:
     - `feat_transaction_fee_rate` (수수료) → `subpage_category="수수료"` 인 URL high priority
