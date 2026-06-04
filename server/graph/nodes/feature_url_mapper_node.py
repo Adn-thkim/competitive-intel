@@ -725,7 +725,8 @@ def _filter_candidates_for_report(
                 # 옛 v0.10.8 A안은 origin="brave_search" 만 처리했으나, v0.10.19 의 5중
                 # fan-out 도입 이후 다음 origin 들이 사용되며 matched_report_types 안전망으로
                 # 일관 처리한다:
-                #   - "brave_search"            (5종 url_discovery 노드 공통 — Brave Search API 결과의 기본 origin)
+                #   - "brave_search"            (옛 기본 origin — v0.10.22b 이후 점진 폐기, 다른 정밀화 미진행 노드에서만 잔존 가능)
+                #   - "blog_community"          (v0.10.22b url_discovery_blog_community_node 정밀화 — 공식 도메인 제외 + 화이트리스트 정렬 + domain_class 부착)
                 #   - "youtube_reactions"       (v0.10.20 url_discovery_youtube_reactions_node)
                 #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node)
                 #   - "macro_search"            (v0.10.22 url_discovery_macro_node, candidate_id="macro" 단일 키)

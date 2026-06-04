@@ -362,44 +362,80 @@ v0.10.19 까지의 스켈레톤(`_discover_via_brave_with_hints` 그대로 재�
 
 ---
 
-### 5-2. `url_discovery_blog_community_node`
+### 5-2. `url_discovery_blog_community_node` (v0.10.22b 실 구현)
 
 **역할**: 블로그·커뮤니티·후기 사이트의 외부 도메인 글을 발견하여 reaction_insight 의 입력으로 제공.
 
+**핵심 변경 (v0.10.22b turn-54)**
+
+v0.10.19 까지의 스켈레톤(`_discover_via_brave_with_hints` 그대로 재사용) 을 폐기하고 §5-2 의 **3가지 정밀화 책임을 도입** (5가지 중 2가지는 후속 PR 위임).
+
+| 결정 | 채택 옵션 | 효과 |
+|---|---|---|
+| D35 | (a) 정적 4 분류 화이트리스트 17건 + tistory subdomain 패턴 | 한국 블로그·커뮤니티 매체 정합 |
+| D36 | (b) 결과 필터링 (host 매칭) | Brave `-site:` 5개 제약 회피 + candidate 수 무관 |
+| D37 | (c) v0.10.22b 생략 → v0.10.24 도입 | `_fetch_meta` 가 본문 미수집 + Brave 결과 발행일 없음 |
+| D38 | (b) page_meta_collect 위임 | url_discovery 의 책임 외 |
+
 **입력 state 키**
-- `domain_taxonomy.report_config["reaction_insight"]` (active=true, source_flow ∈ {A, A+B} 확인)
-- `own_product`·`competitor_candidates`·`selected_competitor_ids`
+- `domain_taxonomy.report_config` — `source_hint="blog_community"` hint 추출용
+- `official_sources` — **공식 도메인 host 추출** (D36 제외 키)
+- `own_product` · `competitor_candidates` · `selected_competitor_ids`
 - `domain_name`
 
-**탐색 전략**
+**처리 흐름 (5단계)**
 
-1. report_config 의 `search_query_hints` 중 외부 도메인 지향 hint 만 추출 (예: "후기"·"커뮤니티"·"리뷰" 키워드 포함)
-2. candidate 별 토큰 치환 후 Brave 검색 (외부 도메인 강조):
-   - `{candidate_name} 후기` (Brave 자동 필터링)
-   - `{candidate_name} 사용 경험`
-   - `{candidate_name} 단점`
-   - `{own_product} vs {candidate_name} 비교`
-3. 결과 URL 중 공식 도메인 일치 항목 제외(`-site:공식도메인` 효과)
-4. 외부 도메인 화이트리스트 우선 정렬: `card-gorilla.com`·`brunch.co.kr`·`clien.net`·`*.tistory.com`·`namu.wiki`·`bizhankook.com`·`millionairefrom24.thinkmblog.com`·`info.heretravel.co.kr` 등
+1. **`source_hint="blog_community"` hints 추출** — `_extract_hints_for_source(active_reports, "blog_community")`.
+2. **공식 도메인 host 집합 추출** — `_extract_official_hosts(official_sources)` — `source_type="official"` + `validated=True` 인 항목의 `primary_url` 에서 host (`urlparse(...).hostname`, lowercase, `www.` strip).
+3. **Brave 검색** — 기존 `_discover_via_brave_with_hints` 헬퍼 (24h TTL 캐시).
+4. **공식 도메인 제외 + `domain_class` 부착 + `origin="blog_community"` 변경** — Brave 결과 URL 중 `_host_in_official(url, hosts)` 매칭 시 제외. 잔존 URL 은 `_classify_domain(url)` 으로 4 분류 enum (`review_site`·`personal_blog`·`community`·`wiki`) + 미매칭 `other`.
+5. **화이트리스트 우선 정렬** — candidate 별로 `domain_class != "other"` 항목을 상단, `other` 항목을 후순위.
+
+**정적 화이트리스트 (한국 4 분류 17건 + 1 패턴)**
+
+| 분류 | 도메인 |
+|---|---|
+| `review_site` (4건) | `card-gorilla.com` · `banksalad.com` · `finda.co.kr` · `thefirstmedia.net` |
+| `personal_blog` (4건 + tistory 패턴) | `brunch.co.kr` · `blog.naver.com` · `velog.io` · `medium.com` · `*.tistory.com` |
+| `community` (6건) | `clien.net` · `ppomppu.co.kr` · `mlbpark.donga.com` · `fmkorea.com` · `theqoo.net` · `dcinside.com` |
+| `wiki` (2건) | `namu.wiki` · `ko.wikipedia.org` |
 
 **출력 state 키**: `blog_community_urls_by_candidate: dict[candidate_id, list[dict]]`
 
 각 dict 항목:
 ```json
 {
-  "url":              str,
-  "page_title":       str,
-  "meta_description": str,
-  "origin":           "blog_community",
-  "domain_class":     "review_site" | "personal_blog" | "community" | "wiki",
-  "published_at":     str (ISO 8601, 가능 시),
+  "url":                  str,
+  "page_title":           str,
+  "meta_description":     str,
+  "origin":               "blog_community",
+  "domain_class":         "review_site" | "personal_blog" | "community" | "wiki" | "other",
+  "feature_ids":          [str, ...],
   "matched_report_types": ["reaction_insight"]
 }
 ```
 
-**검증 방법**: 발행일 ≤ 36개월(가능 시), 본문 길이 ≥ 200자, 도메인 화이트리스트 매칭.
+**검증 게이트**
 
-**캐싱**: `agent_id="url_discovery_blog_community"`, cache_input `{candidate_id, query}`, TTL 24h.
+- 공식 도메인 혼입 0건 (`_host_in_official` 매칭 시 제외)
+- 화이트리스트 매칭률 ≥ 70% (Brave 결과 URL 중 `domain_class != "other"` 비율)
+- `domain_class` 4 분류 분포 정상 (`review_site` · `personal_blog` · `community` · `wiki`) + `other` 후순위
+- `origin="blog_community"` 일관 부착 100%
+- `reaction_insight` 의 `comp_*` `existing_urls` 외부 host 비율 ≥ 85% (사용자 검증)
+
+**위임 책임 (후속 PR)**
+
+| 책임 | 위임 시점 | 근거 |
+|---|---|---|
+| 발행일 ≤ 36개월 검증 | **v0.10.24** (`_fetch_meta` 에 본문 + `<meta article:published_time>` 추출 보강) | url_discovery 단의 정보로는 정확 추출 불가 |
+| 본문 길이 ≥ 200자 검증 | **v0.10.27** 통합 노드의 단계 1 (page_meta 수집) | url_discovery 의 책임 외 — page_meta 단계의 표준 검증 |
+
+**캐싱**: `_discover_via_brave_with_hints` → `_brave_search` 24h TTL 그대로 활용. 본 노드 자체의 별도 캐시 미도입 (domain_taxonomy 변경 시 hint 변경 → 자동 invalidate).
+
+**graceful 종료**:
+- `BRAVE_SEARCH_API_KEY` 미설정 → `_discover_via_brave_with_hints` 빈 결과
+- `source_hint="blog_community"` hint 부재 → 빈 결과 + status="completed"
+- 일부 쿼리 실패 → status="completed" + errors 누적
 
 ---
 
@@ -1257,7 +1293,7 @@ list-edge barrier 는 v0.10.7 `scripts/verify_fanin.py` 로 이미 검증된 패
 | **v0.10.22** (P1b)                              | `url_discovery_macro_node` 전면 재작성 — 2-layer 화이트리스트 + Tier 그룹 site: + 2단계 fallback + candidate_id="macro" 단일 키 (D29~D32)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                |                                   약 +290줄                                   | 화이트리스트 매칭률 ≥80% + feature 별 ≥2건 + 뉴스 보강 ≤30% + KOSIS·BoK·금융위 등 정부 통계 URL ≥ 3개                                                                                                                                                                                                                                          |
 | **v0.10.22.1** (cleanup, turn-51)               | 옛 `url_discovery_brave_node.py` 삭제 + `feature_url_mapper_node.py`·`page_meta_collect_node.py`·`graph.py` docstring 의 옛 노드 언급 정리. 캐시 키(`agent_id="url_discovery_brave"`)·state 키(`brave_urls_by_candidate`) 는 호환성 위해 유지                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |                                 약 +35/-160                                  | grep -rn url_discovery_brave_node 결과 0건 + ast.parse 통과 + 분석 흐름 무회귀                                                                                                                                                                                                                                                     |
 | **v0.10.22a** (P1a-4 신설, turn-51)               | `url_discovery_official_node` 정밀화 — `official_sources` carry-through + `site:` 한정 검색 + `origin` 분리 (`official_source`/`official_subpage`) + `subpage_category` 부착 + `_check_url_status` 도달성 검증 + 별도 캐시                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                 |                                   약 +250줄                                   | 도달 불가 URL 의 LLM 입력 진입 0건 + subpage_category 부착률 ≥ 80% + 토큰 비용 ≥ 15% 절감                                                                                                                                                                                                                                                 |
-| **v0.10.22b** (P1a-5 신설, turn-51)               | `url_discovery_blog_community_node` 정밀화 — 공식 도메인 제외 (`-site:` 또는 결과 필터) + 외부 도메인 화이트리스트 우선 정렬 + `domain_class` 부착 (`review_site`·`personal_blog`·`community`·`wiki`) + 발행일 ≤ 36개월 + 본문 길이 ≥ 200자 검증 + 별도 캐시                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |                                   약 +200줄                                   | 공식 도메인 혼입 0건 + 화이트리스트 매칭률 ≥ 70% + reaction_insight `comp_*` `existing_urls` 외부 host 비율 ≥ 85%                                                                                                                                                                                                                           |
+| **v0.10.22b** (P1a-5 실 구현, turn-54)            | `url_discovery_blog_community_node` 정밀화 — **3가지 책임 도입**: 공식 도메인 제외 (D36 b 결과 필터) + 외부 도메인 화이트리스트 4 분류 17건 + tistory 패턴 (D35 a) + `domain_class` 부착 + `origin="blog_community"` 변경. **2가지 책임 위임**: 발행일 검증 → v0.10.24 (D37 c) · 본문 길이 검증 → page_meta_collect (D38 b)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                            |                                   약 +200줄                                   | 공식 도메인 혼입 0건 + 화이트리스트 매칭률 ≥ 70% + reaction_insight `comp_*` `existing_urls` 외부 host 비율 ≥ 85%                                                                                                                                                                                                                           |
 | ~~**v0.10.21a**~~ *(turn-11 폐기)*                | ~~`page_meta_collect_node` cross-reference 머지~~                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                        |                                      —                                      | v0.10.26 의 `cross_reference_node` 로 흡수                                                                                                                                                                                                                                                                                 |
 | **v0.10.23** (P2 분배) *(turn-11 축소)*             | `agents/feature_mapping_<source>/system_prompt_kr.md` 5종 신설 (단일 prompt → source-type 별 5종 분배) + `agents/feature_url_mapper/system_prompt_kr.md` 유지 (공통 schema·예외 정책 referencing)                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                       |                         약 +200줄 (5 prompt 평균 +40줄)                          | 5개 prompt 모두 jsonschema validate 통과. reaction_insight `comp_*` `existing_urls` 외부 host 비율 ≥ 75%                                                                                                                                                                                                                        |
 | **v0.10.24** (P3)                               | `_fetch_meta` 에 `<h1>`/`<h2>` + 본문 첫 800자 수집 + 5개 `page_meta_<source>` 캐시 schema bump                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                                  |                                   약 +40줄                                    | 정적 사이트 5개에서 본문 추출 성공률 100%                                                                                                                                                                                                                                                                                             |
@@ -1339,6 +1375,10 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 | **D32** *(turn-50 신설, [x] 확정)* | macro URL 의 candidate_id 키 형식 | **(a) `"macro"` 단일 키** | (a) **`"macro"` 단일 키 — 매크로 본질 정합 (채택)**, (b) `"own"` 키 사용 — own_product 와 macro 가 같은 키 의미 혼란, (c) feature_id 별 키 — 후속 노드 union 처리 복잡 |
 | **D33** *(turn-52 신설, [x] 확정)* | `url_discovery_official_node` 의 hint 활용 방식 | **(a) `source_hint="official"` hints + 정적 sub-page 키워드 7건 보강** | (a) **LLM 추천 hint + 정적 한국 카테고리 (약관·수수료·환율·한도·혜택·공지사항·이용안내) 결합 — 채택**, (b) `categories` 직접 부착 — Rubric 카테고리가 영문이라 site: 검색에 비효율, (c) 자체 정적 query template 만 — domain_taxonomy 의 LLM 추천 의도 무시 |
 | **D34** *(turn-52 신설, [x] 확정)* | `official_domain` 부재 candidate 처리 | **(a) site: 검색 스킵 + carry-through 만 유지** | (a) **resolver 의 책임 분리 — URL 발견 실패는 `official_source_resolver_node` 책임 (채택)**, (b) `site:` 없이 일반 검색 — 다른 source-type 노드와 책임 중첩, (c) `official_source_resolver` 재실행 — 비용 증가 + 결정론성 저하 |
+| **D35** *(turn-54 신설, [x] 확정)* | `url_discovery_blog_community_node` 의 외부 도메인 화이트리스트 구성 | **(a) 정적 4 분류 17건 + tistory subdomain 패턴** | (a) **review_site (카드고릴라·뱅크샐러드·핀다·더퍼스트미디어) + personal_blog (브런치·네이버·velog·medium + *.tistory.com) + community (클리앙·뽐뿌·MLB파크·에펨코리아·더쿠·디시) + wiki (나무위키·위키백과) (채택)**, (b) `domain_taxonomy` 동적 추천 — schema 보강 필요, (c) v0.11+ 도메인별 확장 — 본 시리즈 범위 외 |
+| **D36** *(turn-54 신설, [x] 확정)* | 공식 도메인 제외 방식 | **(b) 결과 필터링 (host 매칭)** | (a) Brave `-site:` 연산자 부착 — Brave 쿼리당 `-site:` 5개 미만 제약 + candidate 수 무관 보장 못함, (b) **결과 필터링 — 호출 후 host 매칭으로 제외 (채택)**, (c) hybrid (a+b) — 변경 표면적 증가 |
+| **D37** *(turn-54 신설, [x] 확정)* | 발행일 ≤ 36개월 검증 방식 | **(c) v0.10.22b 생략 → v0.10.24 도입** | (a) Brave 결과 `age` 필드 — 필드 없음, (b) `_fetch_meta` 본문 + `<meta article:published_time>` 추출 — 본문 미수집 → v0.10.24 보강 필요, (c) **v0.10.22b 생략 + v0.10.24 (`_fetch_meta` body 보강) 시점 도입 — 책임 분리 정합 (채택)** |
+| **D38** *(turn-54 신설, [x] 확정)* | 본문 길이 ≥ 200자 검증 시점 | **(b) page_meta_collect 위임** | (a) url_discovery 단 `_fetch_meta` 호출 — page_meta_collect 와 책임 중복, (b) **page_meta_collect_node (현재) 또는 v0.10.27 통합 노드의 page_meta 단계 — 책임 분리 정합 (채택)**, (c) Brave 결과 description 길이 ≥ 50자 간접 추정 — 정확도 낮음 |
 
 본 결정 항목은 사용자 검토 후 본 문서의 §10 에 [x] 체크로 확정합니다. turn-11 옵션 (e) 채택으로 **D21 은 폐기**되었습니다 (cross-reference 가 머지 시점이 아닌 별도 노드로 분리되어 선택 폭 자체가 무효화).
 
@@ -1401,6 +1441,7 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 
 | 버전 | 일자 | 변경 내용 | 비고 |
 |:-:|---|---|---|
+| 1.1 | 2026-06-04 | **v0.10.22b — `url_discovery_blog_community_node` 정밀화 실 구현 (turn-54)** — (1) §5-2 의 5가지 정밀화 책임 중 **3가지를 v0.10.22b 에서 도입** (공식 도메인 제외·외부 도메인 화이트리스트 정렬·`domain_class`·`origin="blog_community"`), **2가지는 후속 PR 위임** (발행일 검증 → v0.10.24·본문 길이 → page_meta_collect). (2) **D35·D36·D37·D38 4개 결정 일괄 확정** — D35 (a) 정적 4 분류 17건 + tistory 패턴 · D36 (b) 결과 필터링 · D37 (c) v0.10.22b 생략·v0.10.24 도입 · D38 (b) page_meta_collect 위임. (3) **정적 외부 도메인 화이트리스트 (한국 4 분류 17건)** — review_site (4): card-gorilla.com·banksalad.com·finda.co.kr·thefirstmedia.net / personal_blog (4 + tistory): brunch.co.kr·blog.naver.com·velog.io·medium.com + `*.tistory.com` subdomain 패턴 / community (6): clien.net·ppomppu.co.kr·mlbpark.donga.com·fmkorea.com·theqoo.net·dcinside.com / wiki (2): namu.wiki·ko.wikipedia.org. (4) **공식 도메인 host 추출** — `_extract_official_hosts` 헬퍼가 `official_sources` 의 `source_type="official"` + `validated=True` 항목의 `primary_url` 에서 host (`urlparse(...).hostname`·lowercase·`www.` strip). `_host_in_official` 매칭 시 결과에서 제외. (5) **처리 흐름 5단계** — hints 추출 → 공식 host 집합 → Brave 검색 → 공식 제외 + `domain_class` 부착 + `origin="blog_community"` → 화이트리스트 우선 정렬 (`domain_class != "other"` 상단). (6) **헬퍼 3종 신설** — `_extract_host(url)` · `_classify_domain(url) -> 4 enum + "other"` · `_extract_official_hosts(sources) -> set[str]` + `_host_in_official(url, hosts)`. (7) `_filter_candidates_for_report` 의 origin 주석 — `"brave_search"` (옛 기본·점진 폐기) + `"blog_community"` (v0.10.22b 확정) 명시. (8) **§5-2 전면 재작성** — D35~D38 표·처리 흐름 5단계·화이트리스트 분류 표·검증 게이트 5건·위임 책임 표. (9) **§10 D35~D38 신설 [x] 확정**. (10) 영향 파일: `server/graph/nodes/url_discovery_blog_community_node.py` (전면 재작성, 270줄) · `server/graph/nodes/feature_url_mapper_node.py` (+2, origin 주석 갱신) · 본 문서 (+100). 합계 약 +370/-50. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27~D38 [x] 확정) |
 | 1.0 | 2026-06-04 | **v0.10.22a — `url_discovery_official_node` 정밀화 실 구현 (turn-52)** — (1) §5-1 의 5가지 정밀화 책임 일괄 도입 (carry-through · site: 한정 · origin 분리 · subpage_category · `_check_url_status` 검증). (2) **D33·D34 결정 항목 [x] 확정** — D33 (a) `source_hint="official"` hints + 정적 sub-page 키워드 7건 보강 · D34 (a) `official_domain` 부재 candidate 는 site: 검색 스킵 + carry 만 유지. (3) **정적 한국어 sub-page 키워드 7건** — 약관·수수료·환율·한도·혜택·공지사항·이용안내. (4) **처리 흐름 6단계** — carry-through (official_sources → origin="official_source") → hints 추출 → site: 검색 작업 목록 (정적 키워드 + LLM hints) → 병렬 Brave + `_host_endswith` 재검증 → `_check_url_status` 병렬 도달성 검증 (2xx·3xx 만 통과) → carry+subpage 머지 (URL dedup). (5) **헬퍼 3종 신설** — `_extract_official_domain(primary_url)` (`urlparse(...).hostname` + `www.` strip) · `_build_subpage_query(name, domain, keyword)` · `_host_endswith(url, domain)`. (6) `_filter_candidates_for_report` 의 origin 주석 — `"official_subpage" 예정"` → `"확정 — site: 한정 + 도달성 검증 + subpage_category 부착"` 갱신. (7) **§5-1 전면 재작성** — 처리 흐름 6단계 + 검증 게이트 5건 + graceful 종료. (8) **§10 D33·D34 신설 [x] 확정**. (9) 영향 파일: `server/graph/nodes/url_discovery_official_node.py` (전면 재작성, 320줄) · `server/graph/nodes/feature_url_mapper_node.py` (+1, 주석 갱신) · 본 문서 (+80). 합계 약 +400/-50. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27~D34 [x] 확정) |
 | 0.9 | 2026-06-04 | **v0.10.22.1 cleanup + v0.10.22a/v0.10.22b 신설 (turn-51)** — (1) **사용자 점검 (turn-51)**: 5중 fan-out (1차) 의 5개 노드 중 `url_discovery_official_node` · `url_discovery_blog_community_node` 가 v0.10.19 스켈레톤 단계로 정밀화 미진행 상태임을 확인. 설계 문서 §5-1·§5-2 의 정밀화 책임 (site: 한정·`_check_url_status`·subpage_category·domain_class·외부 도메인 화이트리스트) 이 통합 노드 (§5-6a) 에서 흡수되지 않음을 의존성 표로 확인. (2) **진행 옵션 (A) 3 PR 분리 채택** — v0.10.22.1 cleanup + v0.10.22a (official 정밀화) + v0.10.22b (blog_community 정밀화). (3) **v0.10.22.1 cleanup 진행** — 옛 `server/graph/nodes/url_discovery_brave_node.py` 파일 삭제 (graph.py 호출 없음 확인). `feature_url_mapper_node.py`·`page_meta_collect_node.py`·`graph.py` docstring 의 옛 노드 언급 정리. 캐시 키 `agent_id="url_discovery_brave"` 와 state 키 `brave_urls_by_candidate` 는 기존 24h TTL 캐시 호환성 + `urls_merge_node` 의 활성 매개체이므로 **변경 금지**. (4) **§9 PR 시리즈 갱신** — v0.10.22.1 (cleanup) + v0.10.22a (official 정밀화 약 +250줄) + v0.10.22b (blog_community 정밀화 약 +200줄) 3 entry 신설. (5) **v0.10.22a 책임** — `official_sources` carry + `site:` 한정 + `origin` 분리 + `subpage_category` + `_check_url_status` + 별도 캐시. (6) **v0.10.22b 책임** — 공식 도메인 제외 + 외부 도메인 화이트리스트 정렬 + `domain_class` + 발행일/본문 검증 + 별도 캐시. (7) 변경 파일: `server/graph/nodes/url_discovery_brave_node.py` (삭제) · `server/graph/nodes/feature_url_mapper_node.py` (docstring +25/-15, line 11 5중 fan-out 갱신·line 85 본 모듈 import 노드 목록 갱신·line 709 origin 주석 갱신) · `server/graph/nodes/page_meta_collect_node.py` (docstring +5/-3 line 9·15 갱신) · `server/graph/graph.py` (docstring +3/-2 line 24·77·228 갱신) · 본 문서 (+30) | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27~D32 [x] 확정) |
 | 0.8 | 2026-06-04 | **`url_discovery_macro_node` 전면 재작성 — 2-layer 화이트리스트 + Tier 그룹 + 2단계 fallback + candidate_id="macro" (turn-50)** — (1) **사용자 지적 (turn-50)**: macro feature 는 산업·시장 수준 데이터이므로 candidate 비종속. 다른 노드의 `{candidate_name}` 치환 hint 로직을 적용하면 잘못된 URL 탐색. (2) **D29~D32 4개 결정 일괄 확정** — D29 (c) 2-layer 화이트리스트 (정적 코어 11건 + 동적 도메인 의존) · D30 (c) Tier 그룹 3쿼리 · D31 (b) feature 별 <2건 → Stage 2 진입 · D32 (a) `candidate_id="macro"` 단일 키. (3) **정적 화이트리스트 (한국 정부·통계·연구 17건)** — Tier 1 (통계 핵심 3): `kosis.kr`·`ecos.bok.or.kr`·`index.go.kr` / Tier 2 (정책·연구 8): `fsc.go.kr`·`mosf.go.kr`·`fss.or.kr`·`bok.or.kr`·`kdi.re.kr`·`kiet.re.kr`·`nia.or.kr`·`kotra.or.kr` / 뉴스 보강 (6): `yna.co.kr`·`hankyung.com`·`mk.co.kr`·`mt.co.kr`·`etnews.com`·`dt.co.kr`. (4) **동적 화이트리스트 — `agents/domain_modeling/output.schema.json` 의 `reportEntry.macro_data_sources` 신설** — 0~8건, TLD 패턴 강제 (`*.go.kr`·`*.or.kr`·`*.re.kr`·`*.ac.kr`·`*.kr`). `system_prompt_kr.md` 의 macro 출처 추천 규칙 절 신설 (정적 코어 중복 기재 금지 + TLD 가이드 + 도메인별 예시 4건 — 해외여행/핀테크/헬스케어/모빌리티). (5) **Brave `site:` 연산자 Tier 그룹화** — hint 1건당 Tier1·Tier2·Tier3 각 1쿼리 = 최대 3쿼리. `(site:a OR site:b OR ...)` 형식. Tier 3 도메인 없으면 스킵. (6) **2단계 fallback** — Stage 1 (공식) 완료 후 feature 별 < 2건 결손 시 Stage 2 (뉴스 보강) 진입. 결손 feature 의 hint 만 뉴스 화이트리스트 대상 재검색. `source_tier` 필드 (`official_statistics` / `news_supplement`) 부착. (7) **화이트리스트 매칭 검증** — Brave 의 `site:` 누락 대비 `_host_matches` 헬퍼로 결과 host 재검증. 미매칭 URL 제외. (8) **`candidate_id="macro"` 단일 키 집계** — `_substitute_domain_only` 헬퍼로 `{domain_name}` 만 치환, candidate 차원 폐기. `_build_candidates_with_meta` 에 `source_type="macro"` 분기 신설 — 후속 v0.10.23 LLM 매핑이 macro candidate 를 자사·경쟁사와 분기 처리 가능. `_filter_candidates_for_report` 본체는 v0.10.20.1 일관 처리로 macro_search origin 자동 통과 (변경 불필요, 주석만 "예정"→"확정" 갱신). (9) 영향 절: §5-5 전면 재작성 (Tier 표·처리 흐름 7단계·검증 게이트·캐싱·`_build_candidates_with_meta` 정합 절 신설) · §9 v0.10.22 entry 갱신 (약 +120줄 → +290줄) · §10 D29~D32 신설 [x] 확정 · §11 검증 게이트 보강 · §12 v0.8 entry. (10) 변경 파일: `agents/domain_modeling/output.schema.json` (+20) · `agents/domain_modeling/system_prompt_kr.md` (+30) · `server/graph/nodes/url_discovery_macro_node.py` (전면 재작성, 350줄) · `server/graph/nodes/feature_url_mapper_node.py` (+15, `_build_candidates_with_meta.source_type` 분기 + 주석 갱신) · 본 문서 (+150). 합계 약 +565줄. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27·D28·D29·D30·D31·D32 [x] 확정) |
