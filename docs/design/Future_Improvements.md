@@ -69,12 +69,12 @@
 
 ---
 
-## 3. v0.10.28b — `marketing_social` 카드 UI 부분 채택 사양 (turn-62 사용자 명세)
+## 3. v0.10.28b — `marketing_social` 카드 UI 부분 채택 사양 (turn-62 사용자 명세) ✅ 구현 완료 (turn-64)
 
 | 항목 | 값 |
 |---|---|
 | 최초 기록 일자 | 2026-06-04 |
-| 관련 PR | v0.10.28b (사양 사전 보관, 구현 후속 진행) |
+| 관련 PR | **v0.10.28b 완료 (turn-64)** — D45 (a) 채택. `_carry_owned_channels` + `_build_owned_channels_card` + `OwnedChannelCard.jsx` 신설 |
 | 트리거 | v0.10.27.1 hotfix + 분석 재실행 후 `marketing_social` 카드 UI 확인 결과 |
 | 사용자 의도 | owned_channels 의 책임 (채널 URL 식별) 과 marketing_social 의 feature (게시물 빈도·콘텐츠 키워드 등 정량 분석) 의 단계 분리 시각화 |
 

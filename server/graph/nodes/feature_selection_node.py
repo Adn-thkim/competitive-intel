@@ -98,8 +98,8 @@ _REPORT_INTRO_TEXTS: dict[str, str] = {
         "커뮤니티 게시글에서 수집하여 작성합니다.",
     "marketing_social":
         "이 리포트는 자사·경쟁사 운영 SNS(Instagram·X·YouTube 공식 채널)·블로그·"
-        "보도자료의 URL 을 발견한 뒤, 채널 활성도·게시물 빈도·콘텐츠 키워드·광고 "
-        "정보 등의 feature 값을 수집·분석하여 작성합니다. "
+        "보도자료의 공식 채널 URL 을 식별한 뒤, 아래 채널 활성도·게시물 빈도·콘텐츠 "
+        "키워드·광고 정보 등의 feature 값을 수집·분석하여 작성합니다. "
         "(※ feature 값 수집은 v1.0 §6-6a 도입 후 자동 진행)",
     "battlecard":
         "이 리포트는 아래 선택된 feature 데이터를 수집한 뒤, "
@@ -168,33 +168,46 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
         grouped[rt].append(feature)
 
     # ── interrupt 값 조립 (v0.10.18a — source_flow 별 UI 차별화 + B-only 카드 결합) ──
+    # v0.10.28b — marketing_social 카드 재정의 (D45 a):
+    #   feature 값(SNS 게시물 빈도 등) 은 v1.0 §6-6a 책임이므로 features 영역을
+    #   B-only 형식으로 렌더 + 별도 owned_channels_card 로 candidate × platform 매트릭스 표시.
     reports_payload: list[dict] = []
     for rt in report_order:
         entry = report_config.get(rt, {}) or {}
         source_flow = entry.get("source_flow", "A")    # v0.10.18 후방 호환 기본값
         is_b_only   = source_flow == "B"
 
-        if not is_b_only:
+        # v0.10.28b — marketing_social 은 features 를 B-only 형식 (URL 영역 숨김)
+        is_marketing_social_b_view = (rt == "marketing_social")
+
+        if is_b_only or is_marketing_social_b_view:
+            # B-only 또는 marketing_social — domain_taxonomy 의 features 만 (URL 영역 없음)
+            feature_items = _build_feature_items_from_taxonomy(entry)
+            if not feature_items and not is_marketing_social_b_view:
+                continue
+            # marketing_social 은 owned_channels 카드도 함께 렌더링 — features 0건이라도 카드 유지
+        else:
             # 흐름 A · A+B — analysis_features 의 결과 그대로 사용
             features_in_report = grouped.get(rt, [])
             if not features_in_report:
                 # active=true 인데 features 0건이면 카드 자체 미렌더 (옛 동작 유지)
                 continue
             feature_items = _build_feature_items_from_analysis(features_in_report)
-        else:
-            # B-only — domain_taxonomy 의 features 만 (URL 영역 없음)
-            feature_items = _build_feature_items_from_taxonomy(entry)
-            if not feature_items:
-                continue
 
-        reports_payload.append({
+        report_item: dict = {
             "report_type":          rt,
             "report_label":         report_label_map.get(rt, rt),
             "source_flow":          source_flow,                          # v0.10.18a 신설
             "intro_text":           _REPORT_INTRO_TEXTS.get(rt, ""),      # v0.10.18a 신설
-            "url_coverage_visible": not is_b_only,                        # v0.10.18a 신설
+            "url_coverage_visible": not (is_b_only or is_marketing_social_b_view),
             "features":             feature_items,
-        })
+        }
+
+        # v0.10.28b D45 a — marketing_social 에 owned_channels_card payload 부착
+        if is_marketing_social_b_view:
+            report_item["owned_channels_card"] = _build_owned_channels_card(state)
+
+        reports_payload.append(report_item)
 
     total_feature_count = sum(len(r["features"]) for r in reports_payload)
     logger.info(
@@ -357,6 +370,128 @@ def _build_feature_items_from_taxonomy(report_entry: dict) -> list[dict]:
             "coverage_details": None,                     # 동일
         })
     return items
+
+
+# v0.10.28b D45 a — owned_channels_card payload 빌더 ────────────────────────
+
+_PLATFORM_LABELS: dict[str, str] = {
+    "instagram":       "Instagram",
+    "x":               "X (Twitter)",
+    "blog_naver":      "네이버 블로그",
+    "blog_tistory":    "티스토리 블로그",
+    "press_release":   "보도자료",
+    "youtube_official": "YouTube 공식 채널",
+}
+
+_PLATFORM_ORDER: tuple[str, ...] = (
+    "instagram", "x", "youtube_official",
+    "blog_naver", "blog_tistory", "press_release",
+)
+
+
+def _build_owned_channels_card(state: dict) -> dict:
+    """v0.10.28b D45 a — marketing_social 카드의 candidate × platform 매트릭스 payload.
+
+    `owned_channel_urls_by_candidate` (url_discovery_owned_channels_node 산출) 를
+    candidate × platform 그리드로 재구성. 각 셀은 platform 별 URL + handle +
+    account_scope + channel_id (youtube_official) + confidence 메타.
+
+    own_product / competitor_candidates 의 product_name 으로 candidate 라벨 변환.
+
+    Returns
+    -------
+    dict
+        {
+          "candidates": [
+            {
+              "candidate_id":   "own_xxx" | "comp_xxx",
+              "candidate_label": "트래블월렛" | "토스뱅크" | candidate_id,
+              "candidate_type": "own" | "competitor",
+              "platforms": [
+                {
+                  "platform":      "instagram",
+                  "platform_label": "Instagram",
+                  "found":         true,
+                  "url":           str,
+                  "handle":        str,
+                  "account_scope": "parent_company" | ... | "" ,
+                  "channel_id":    str | "",     # youtube_official 한정
+                  "subscriber_count": int | null, # youtube_official 한정
+                  "confidence":    float,
+                },
+                ...
+              ],
+            },
+            ...
+          ]
+        }
+    """
+    urls_by_candidate: dict = state.get("owned_channel_urls_by_candidate") or {}
+    own_product: dict        = state.get("own_product") or {}
+    competitor_candidates: list = state.get("competitor_candidates") or []
+    selected_ids: list[str]   = state.get("selected_competitor_ids") or []
+
+    own_id = own_product.get("product_id") or "own"
+    own_name = (
+        own_product.get("name") or own_product.get("product_name") or "자사 상품"
+    )
+
+    # candidate_id → (label, type) 매핑
+    label_by_id: dict[str, tuple[str, str]] = {own_id: (own_name, "own")}
+    for cand in competitor_candidates:
+        cid = cand.get("candidate_id", "")
+        if cid and (not selected_ids or cid in selected_ids):
+            name = cand.get("product_name") or cand.get("brand", "") or cid
+            label_by_id[cid] = (name, "competitor")
+
+    candidates_out: list[dict] = []
+    # 결과는 own → competitor 순서로 정렬 (label_by_id 의 own_id 우선 + 선택 경쟁사 순서)
+    ordered_ids = [own_id] + [
+        c.get("candidate_id", "") for c in competitor_candidates
+        if c.get("candidate_id") and (not selected_ids or c.get("candidate_id") in selected_ids)
+    ]
+    for cid in ordered_ids:
+        if cid not in label_by_id:
+            continue
+        candidate_label, candidate_type = label_by_id[cid]
+        # platform → url 매핑 (첫 매칭 URL 채택)
+        urls = urls_by_candidate.get(cid, []) or []
+        urls_by_platform: dict[str, dict] = {}
+        for u in urls:
+            p = u.get("platform", "")
+            if p and p not in urls_by_platform:
+                urls_by_platform[p] = u
+
+        platforms_out: list[dict] = []
+        for p in _PLATFORM_ORDER:
+            label = _PLATFORM_LABELS.get(p, p)
+            if p in urls_by_platform:
+                u = urls_by_platform[p]
+                platforms_out.append({
+                    "platform":         p,
+                    "platform_label":   label,
+                    "found":            True,
+                    "url":              u.get("url", ""),
+                    "handle":           u.get("handle", ""),
+                    "account_scope":    u.get("account_scope", ""),
+                    "channel_id":       u.get("channel_id", "") or "",
+                    "subscriber_count": u.get("follower_count"),
+                    "confidence":       float(u.get("confidence", 0)),
+                })
+            else:
+                platforms_out.append({
+                    "platform":       p,
+                    "platform_label": label,
+                    "found":          False,
+                })
+        candidates_out.append({
+            "candidate_id":    cid,
+            "candidate_label": candidate_label,
+            "candidate_type":  candidate_type,
+            "platforms":       platforms_out,
+        })
+
+    return {"candidates": candidates_out}
 
 
 def _error(started_at: str, message: str) -> dict:
