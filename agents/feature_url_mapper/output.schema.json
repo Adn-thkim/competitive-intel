@@ -85,7 +85,7 @@
                     "properties": {
                       "url":            { "type": "string", "format": "uri" },
                       "relevance_note": { "type": "string" },
-                      "origin":         { "type": "string", "enum": ["official_source", "brave_search"] }
+                      "origin":         { "type": "string", "enum": ["official_source", "official_subpage", "blog_community", "youtube_reactions", "owned_channel_search", "macro_search", "brave_search"], "description": "v0.10.23 (D41 b) — 5중 fan-out 의 6종 신규 origin + 옛 brave_search (점진 폐기 대상) 포함. v0.10.27 통합 노드 도입 시 본 schema 폐기 예정." }
                     }
                   }
                 },
