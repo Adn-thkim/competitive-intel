@@ -729,7 +729,7 @@ def _filter_candidates_for_report(
                 #   - "youtube_reactions"       (v0.10.20 url_discovery_youtube_reactions_node)
                 #   - "owned_channel_search"    (v0.10.21 url_discovery_owned_channels_node)
                 #   - "macro_search"            (v0.10.22 url_discovery_macro_node, candidate_id="macro" 단일 키)
-                #   - "official_subpage"·기타   (v0.10.22a 예정 url_discovery_official_node 정밀화)
+                #   - "official_subpage"        (v0.10.22a url_discovery_official_node 정밀화 — site: 한정 + 도달성 검증 + subpage_category 부착)
                 # 옛 주석 "알 수 없는 origin 은 보수적으로 제외" 는 v0.10.20 신규 origin 들이
                 # report_type 호출에서 누락되는 회귀를 유발하여 v0.10.20.1 에서 제거.
                 if report_type in (u.get("matched_report_types") or []):

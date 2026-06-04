@@ -301,43 +301,64 @@ def _fetch_meta(url: str) -> dict:
 
 ## 5. 노드별 상세 설계
 
-### 5-1. `url_discovery_official_node`
+### 5-1. `url_discovery_official_node` (v0.10.22a 실 구현)
 
-**역할**: 자사·경쟁사 공식 사이트와 그 sub-page 를 발견하여 comparison_matrix·battlecard(A 부분)·market_context_swot(규제 부분) 의 입력으로 제공.
+**역할**: 자사·경쟁사 공식 사이트와 그 sub-page 를 발견하여 comparison_matrix · battlecard(A 부분) · market_context_swot(규제 부분) 의 입력으로 제공.
+
+**핵심 변경 (v0.10.22a turn-52)**
+
+v0.10.19 까지의 스켈레톤(`_discover_via_brave_with_hints` 그대로 재사용) 을 폐기하고 §5-1 의 5가지 정밀화 책임을 일괄 도입했습니다.
+
+| 결정 | 채택 옵션 | 효과 |
+|---|---|---|
+| D33 | (a) `source_hint="official"` hints + 정적 sub-page 키워드 7건 보강 | LLM 추천 + 한국 일반 카테고리 (약관·수수료·환율·한도·혜택·공지사항·이용안내) 결합 |
+| D34 | (a) `official_domain` 부재 candidate 는 site: 검색 스킵 + carry-through 만 유지 | official_source_resolver 의 책임 분리 (URL 발견 실패는 resolver 책임) |
 
 **입력 state 키**
-- `domain_taxonomy.report_config` 에서 `source_flow ∈ {A, A+B}` + `categories ⊇ {공식·약관·요율표}` 리포트 추출
-- `official_sources` (official_source_resolver 산출 — 재사용)
-- `own_product`·`competitor_candidates`·`selected_competitor_ids`
+- `official_sources` — `official_source_resolver_node` 산출. `[{source_type, candidate_id, primary_url, validated, reference_sources}, ...]`
+- `domain_taxonomy.report_config` — `source_hint="official"` hint 추출용
+- `own_product` · `competitor_candidates` · `selected_competitor_ids`
 - `domain_name`
 
-**탐색 전략**
+**처리 흐름 (6단계)**
 
-1. `official_sources` 의 validated URL 을 1차 후보로 carry-through
-2. Brave `site:` 한정 검색으로 sub-page 발견:
-   - `site:{official_domain} 약관`
-   - `site:{official_domain} 수수료`
-   - `site:{official_domain} 환율`
-   - 도메인별 `categories` 키워드 1~3개
-3. 발견된 URL 을 candidate × URL 매트릭스로 집계
+1. **Carry-through** — `official_sources` 의 `validated=True` + `primary_url` 항목을 origin=`"official_source"` 로 통과. `urlparse(primary_url).hostname` 으로 `official_domain` 추출.
+2. **hints 추출** — `_extract_hints_for_source(active_reports, "official")` 로 source_hint="official" 인 hint 의 (query, feature_id, report_type) 튜플.
+3. **site: 한정 검색 작업 목록 생성**:
+   - 정적 sub-page 키워드 7건 × candidate (carry 보유) → `"{cand_name} {keyword} site:{official_domain}"`
+   - LLM 추천 hints × candidate → `_substitute_tokens` 치환 후 `site:{official_domain}` 부착 (hint 에 이미 site: 가 있으면 그대로)
+4. **병렬 Brave 검색** — `_brave_search` 24h TTL 캐시 활용 + `_host_endswith(url, domain)` 으로 결과 host 재검증 (site: 누락 대비).
+5. **`_check_url_status` 도달성 검증 (병렬)** — Brave 발견 URL 모두 HEAD/GET. status 2xx·3xx 만 통과 — 도달 불가 URL 의 LLM 입력 진입 0건 보장.
+6. **머지** — carry (origin=`"official_source"`) + 검증 통과 subpage (origin=`"official_subpage"`) union. URL dedup 후 candidate 별 dict 산출.
 
 **출력 state 키**: `official_urls_by_candidate: dict[candidate_id, list[dict]]`
 
 각 dict 항목:
 ```json
 {
-  "url":              str,
-  "page_title":       str,
-  "meta_description": str,
-  "origin":           "official_source" | "official_subpage",
-  "subpage_category": "약관" | "수수료" | "환율" | ...,
-  "matched_report_types": [str, ...]
+  "url":                  str,
+  "page_title":           str,
+  "meta_description":     str,
+  "origin":               "official_source" | "official_subpage",
+  "subpage_category":     "" | "약관" | "수수료" | "환율" | "한도" | "혜택" | "공지사항" | "이용안내" | "hint",
+  "matched_report_types": ["comparison_matrix", "battlecard", "market_context_swot"]
 }
 ```
 
-**검증 방법**: HEAD/GET 도달성(`_check_url_status`) + 본문에 카테고리 키워드 1개 이상 매칭.
+**검증 게이트**
 
-**캐싱**: `agent_id="url_discovery_official"`, cache_input `{candidate_id, query}`, TTL 24h.
+- 도달 불가 URL (status ≥ 400 또는 None) 의 결과 진입 0건
+- `subpage_category` 부착률 ≥ 80% (Brave 결과 URL)
+- `origin` 2종 분리 정상 — `official_source` (carry) + `official_subpage` (Brave)
+- `official_domain` 추출 정확률 100%
+- `_host_endswith` 재검증 통과율 ≥ 90% (Brave site: 정상 동작 시)
+
+**캐싱**: `_brave_search` 24h TTL + `_check_url_status` 24h TTL agent_cache 그대로 활용 (별도 노드 캐시 미도입 — `_filter_candidates_for_report` 의 origin 기반 통과 로직과 정합 유지).
+
+**graceful 종료**:
+- `official_sources` 빈 입력 → site: 검색 0건, 빈 결과 산출
+- `BRAVE_SEARCH_API_KEY` 미설정 → `_brave_search` 빈 리스트 → carry 만 유지
+- 일부 URL HEAD 실패 → status="completed" + errors 누적
 
 ---
 
@@ -1316,6 +1337,8 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 | **D30** *(turn-50 신설, [x] 확정)* | Brave `site:` 연산자 적용 방식 | **(c) Tier 그룹화 3쿼리 (Tier1·Tier2·Tier3)** | (a) 전체 도메인 OR 조합 1쿼리 — Brave `site:` OR 토큰 한계 (~5건), (b) 도메인별 1쿼리 — hint 1건당 14 호출 비용 증가, (c) **Tier 그룹화 3쿼리 — 호출 수 (hint × 3) + 우선순위 (채택)** |
 | **D31** *(turn-50 신설, [x] 확정)* | 뉴스 보강 진입 임계 | **(b) feature 별 < 2건 → Stage 2 진입** | (a) Stage 1 결과 0건 → 진입 — 1~2건 발견 시 뉴스 보강 누락, (b) **feature 별 < 2건 → 진입 (채택)** — 이미지의 "미확보 2~3" 빈도 해소, (c) 항상 진입 — 비용·중복 증가 |
 | **D32** *(turn-50 신설, [x] 확정)* | macro URL 의 candidate_id 키 형식 | **(a) `"macro"` 단일 키** | (a) **`"macro"` 단일 키 — 매크로 본질 정합 (채택)**, (b) `"own"` 키 사용 — own_product 와 macro 가 같은 키 의미 혼란, (c) feature_id 별 키 — 후속 노드 union 처리 복잡 |
+| **D33** *(turn-52 신설, [x] 확정)* | `url_discovery_official_node` 의 hint 활용 방식 | **(a) `source_hint="official"` hints + 정적 sub-page 키워드 7건 보강** | (a) **LLM 추천 hint + 정적 한국 카테고리 (약관·수수료·환율·한도·혜택·공지사항·이용안내) 결합 — 채택**, (b) `categories` 직접 부착 — Rubric 카테고리가 영문이라 site: 검색에 비효율, (c) 자체 정적 query template 만 — domain_taxonomy 의 LLM 추천 의도 무시 |
+| **D34** *(turn-52 신설, [x] 확정)* | `official_domain` 부재 candidate 처리 | **(a) site: 검색 스킵 + carry-through 만 유지** | (a) **resolver 의 책임 분리 — URL 발견 실패는 `official_source_resolver_node` 책임 (채택)**, (b) `site:` 없이 일반 검색 — 다른 source-type 노드와 책임 중첩, (c) `official_source_resolver` 재실행 — 비용 증가 + 결정론성 저하 |
 
 본 결정 항목은 사용자 검토 후 본 문서의 §10 에 [x] 체크로 확정합니다. turn-11 옵션 (e) 채택으로 **D21 은 폐기**되었습니다 (cross-reference 가 머지 시점이 아닌 별도 노드로 분리되어 선택 폭 자체가 무효화).
 
@@ -1378,6 +1401,7 @@ turn-11 옵션 (e) 채택으로 v0.10.21a 가 폐기되어 v0.10.26 의 `cross_r
 
 | 버전 | 일자 | 변경 내용 | 비고 |
 |:-:|---|---|---|
+| 1.0 | 2026-06-04 | **v0.10.22a — `url_discovery_official_node` 정밀화 실 구현 (turn-52)** — (1) §5-1 의 5가지 정밀화 책임 일괄 도입 (carry-through · site: 한정 · origin 분리 · subpage_category · `_check_url_status` 검증). (2) **D33·D34 결정 항목 [x] 확정** — D33 (a) `source_hint="official"` hints + 정적 sub-page 키워드 7건 보강 · D34 (a) `official_domain` 부재 candidate 는 site: 검색 스킵 + carry 만 유지. (3) **정적 한국어 sub-page 키워드 7건** — 약관·수수료·환율·한도·혜택·공지사항·이용안내. (4) **처리 흐름 6단계** — carry-through (official_sources → origin="official_source") → hints 추출 → site: 검색 작업 목록 (정적 키워드 + LLM hints) → 병렬 Brave + `_host_endswith` 재검증 → `_check_url_status` 병렬 도달성 검증 (2xx·3xx 만 통과) → carry+subpage 머지 (URL dedup). (5) **헬퍼 3종 신설** — `_extract_official_domain(primary_url)` (`urlparse(...).hostname` + `www.` strip) · `_build_subpage_query(name, domain, keyword)` · `_host_endswith(url, domain)`. (6) `_filter_candidates_for_report` 의 origin 주석 — `"official_subpage" 예정"` → `"확정 — site: 한정 + 도달성 검증 + subpage_category 부착"` 갱신. (7) **§5-1 전면 재작성** — 처리 흐름 6단계 + 검증 게이트 5건 + graceful 종료. (8) **§10 D33·D34 신설 [x] 확정**. (9) 영향 파일: `server/graph/nodes/url_discovery_official_node.py` (전면 재작성, 320줄) · `server/graph/nodes/feature_url_mapper_node.py` (+1, 주석 갱신) · 본 문서 (+80). 합계 약 +400/-50. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27~D34 [x] 확정) |
 | 0.9 | 2026-06-04 | **v0.10.22.1 cleanup + v0.10.22a/v0.10.22b 신설 (turn-51)** — (1) **사용자 점검 (turn-51)**: 5중 fan-out (1차) 의 5개 노드 중 `url_discovery_official_node` · `url_discovery_blog_community_node` 가 v0.10.19 스켈레톤 단계로 정밀화 미진행 상태임을 확인. 설계 문서 §5-1·§5-2 의 정밀화 책임 (site: 한정·`_check_url_status`·subpage_category·domain_class·외부 도메인 화이트리스트) 이 통합 노드 (§5-6a) 에서 흡수되지 않음을 의존성 표로 확인. (2) **진행 옵션 (A) 3 PR 분리 채택** — v0.10.22.1 cleanup + v0.10.22a (official 정밀화) + v0.10.22b (blog_community 정밀화). (3) **v0.10.22.1 cleanup 진행** — 옛 `server/graph/nodes/url_discovery_brave_node.py` 파일 삭제 (graph.py 호출 없음 확인). `feature_url_mapper_node.py`·`page_meta_collect_node.py`·`graph.py` docstring 의 옛 노드 언급 정리. 캐시 키 `agent_id="url_discovery_brave"` 와 state 키 `brave_urls_by_candidate` 는 기존 24h TTL 캐시 호환성 + `urls_merge_node` 의 활성 매개체이므로 **변경 금지**. (4) **§9 PR 시리즈 갱신** — v0.10.22.1 (cleanup) + v0.10.22a (official 정밀화 약 +250줄) + v0.10.22b (blog_community 정밀화 약 +200줄) 3 entry 신설. (5) **v0.10.22a 책임** — `official_sources` carry + `site:` 한정 + `origin` 분리 + `subpage_category` + `_check_url_status` + 별도 캐시. (6) **v0.10.22b 책임** — 공식 도메인 제외 + 외부 도메인 화이트리스트 정렬 + `domain_class` + 발행일/본문 검증 + 별도 캐시. (7) 변경 파일: `server/graph/nodes/url_discovery_brave_node.py` (삭제) · `server/graph/nodes/feature_url_mapper_node.py` (docstring +25/-15, line 11 5중 fan-out 갱신·line 85 본 모듈 import 노드 목록 갱신·line 709 origin 주석 갱신) · `server/graph/nodes/page_meta_collect_node.py` (docstring +5/-3 line 9·15 갱신) · `server/graph/graph.py` (docstring +3/-2 line 24·77·228 갱신) · 본 문서 (+30) | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27~D32 [x] 확정) |
 | 0.8 | 2026-06-04 | **`url_discovery_macro_node` 전면 재작성 — 2-layer 화이트리스트 + Tier 그룹 + 2단계 fallback + candidate_id="macro" (turn-50)** — (1) **사용자 지적 (turn-50)**: macro feature 는 산업·시장 수준 데이터이므로 candidate 비종속. 다른 노드의 `{candidate_name}` 치환 hint 로직을 적용하면 잘못된 URL 탐색. (2) **D29~D32 4개 결정 일괄 확정** — D29 (c) 2-layer 화이트리스트 (정적 코어 11건 + 동적 도메인 의존) · D30 (c) Tier 그룹 3쿼리 · D31 (b) feature 별 <2건 → Stage 2 진입 · D32 (a) `candidate_id="macro"` 단일 키. (3) **정적 화이트리스트 (한국 정부·통계·연구 17건)** — Tier 1 (통계 핵심 3): `kosis.kr`·`ecos.bok.or.kr`·`index.go.kr` / Tier 2 (정책·연구 8): `fsc.go.kr`·`mosf.go.kr`·`fss.or.kr`·`bok.or.kr`·`kdi.re.kr`·`kiet.re.kr`·`nia.or.kr`·`kotra.or.kr` / 뉴스 보강 (6): `yna.co.kr`·`hankyung.com`·`mk.co.kr`·`mt.co.kr`·`etnews.com`·`dt.co.kr`. (4) **동적 화이트리스트 — `agents/domain_modeling/output.schema.json` 의 `reportEntry.macro_data_sources` 신설** — 0~8건, TLD 패턴 강제 (`*.go.kr`·`*.or.kr`·`*.re.kr`·`*.ac.kr`·`*.kr`). `system_prompt_kr.md` 의 macro 출처 추천 규칙 절 신설 (정적 코어 중복 기재 금지 + TLD 가이드 + 도메인별 예시 4건 — 해외여행/핀테크/헬스케어/모빌리티). (5) **Brave `site:` 연산자 Tier 그룹화** — hint 1건당 Tier1·Tier2·Tier3 각 1쿼리 = 최대 3쿼리. `(site:a OR site:b OR ...)` 형식. Tier 3 도메인 없으면 스킵. (6) **2단계 fallback** — Stage 1 (공식) 완료 후 feature 별 < 2건 결손 시 Stage 2 (뉴스 보강) 진입. 결손 feature 의 hint 만 뉴스 화이트리스트 대상 재검색. `source_tier` 필드 (`official_statistics` / `news_supplement`) 부착. (7) **화이트리스트 매칭 검증** — Brave 의 `site:` 누락 대비 `_host_matches` 헬퍼로 결과 host 재검증. 미매칭 URL 제외. (8) **`candidate_id="macro"` 단일 키 집계** — `_substitute_domain_only` 헬퍼로 `{domain_name}` 만 치환, candidate 차원 폐기. `_build_candidates_with_meta` 에 `source_type="macro"` 분기 신설 — 후속 v0.10.23 LLM 매핑이 macro candidate 를 자사·경쟁사와 분기 처리 가능. `_filter_candidates_for_report` 본체는 v0.10.20.1 일관 처리로 macro_search origin 자동 통과 (변경 불필요, 주석만 "예정"→"확정" 갱신). (9) 영향 절: §5-5 전면 재작성 (Tier 표·처리 흐름 7단계·검증 게이트·캐싱·`_build_candidates_with_meta` 정합 절 신설) · §9 v0.10.22 entry 갱신 (약 +120줄 → +290줄) · §10 D29~D32 신설 [x] 확정 · §11 검증 게이트 보강 · §12 v0.8 entry. (10) 변경 파일: `agents/domain_modeling/output.schema.json` (+20) · `agents/domain_modeling/system_prompt_kr.md` (+30) · `server/graph/nodes/url_discovery_macro_node.py` (전면 재작성, 350줄) · `server/graph/nodes/feature_url_mapper_node.py` (+15, `_build_candidates_with_meta.source_type` 분기 + 주석 갱신) · 본 문서 (+150). 합계 약 +565줄. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27·D28·D29·D30·D31·D32 [x] 확정) |
 | 0.7 | 2026-06-04 | **owned_channels LLM 어댑터 CLI 전환 + marketing_social 안내 문구 강화 (turn-49)** — (1) `url_discovery_owned_channels_node` 의 LLM 검증 단계를 `ClaudeApiAnalyzer(temperature=0)` 에서 `ClaudeCodeCliAnalyzer` 로 전환. 본 노드의 LLM 검증은 `ProductIdResolver` 같은 완전 결정론(slug 생성) 영역이 아니고 URL 의 `official` 접미사·snippet 의 "공식" 키워드 등 명확한 시그널 기반이라 CLI 의 자연어 수준 결정론으로 흡수 가능. 시리즈 전체 일관 패턴 유지 + API 과금 회피(약 $0.50/분석 → $0). (2) 영향 파일: `server/graph/nodes/url_discovery_owned_channels_node.py` import + `ANTHROPIC_API_KEY` graceful 분기 제거 + `ClaudeCodeCliAnalyzer(model=CLI_MODEL, timeout=CLI_TIMEOUT)` 인스턴스 + `cache_context.prompt_version` `v0.10.21.1` 로 갱신, `agents/url_discovery_owned_channels/system_prompt_kr.md` 첫 단락 분석기 표현 변경 (`ClaudeApiAnalyzer(temperature=0)` → `ClaudeCodeCliAnalyzer` + 자연어 결정론 완화 전략 설명). (3) `feature_selection_node._REPORT_INTRO_TEXTS["marketing_social"]` 강화 — URL 발견 단계와 §6-6a feature 값 수집 단계를 분리 명시 ("※ feature 값 수집은 v1.0 §6-6a 도입 후 자동 진행"). 사용자가 v0.10.21 ~ v1.0 사이 `marketing_social` 카드 coverage 의미 명확화. (4) `Future_Improvements.md` 신설 — "ClaudeApiAnalyzer 활용 후보 노드 검토" 항목 추가. (5) §4-3·§5-4·§10 비용 절 — LLM 검증 어댑터 표기 `ClaudeApiAnalyzer` → `ClaudeCodeCliAnalyzer` + 비용 0 + 시리즈 일관 패턴 명시. (6) `server/llm/claude_api_analyzer.py` 보존 (향후 결정론 필수 노드 활용 가능). 변경량 약 +35줄(node) +10줄(prompt) +5줄(intro_text) +60줄(Future_Improvements.md) +설계 문서 30줄. | DRAFT, §10 D14~D17·D19·D20·D22~D26 결정 대기 (D18·D21·D27·D28 [x] 확정) |
