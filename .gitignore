@@ -15,6 +15,8 @@ venv/
 data/cache/
 # 분석 실행 결과 (로컬 생성 데이터)
 data/projects/
+# 수집 노드 관측성 산출물 (raw 응답·feature_pool·backlog)
+data/collection/
 
 # ── SQLite (향후 마이그레이션 후 생성될 파일) ────────────
 *.db
