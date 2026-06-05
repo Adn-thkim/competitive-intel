@@ -19,3 +19,8 @@ pydantic==2.11.4
 
 # ── HTTP 클라이언트 (URL 검증용) ─────────────────────────────────────────────
 requests==2.32.3
+
+# ── 본문 추출 (official_content_collection Step 1 — FE-D10·§5-2) ─────────────
+trafilatura>=2.0
+beautifulsoup4>=4.12   # Trafilatura 실패 시 폴백
+pypdf>=5.0             # 약관·수수료표 PDF 텍스트 추출
