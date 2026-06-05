@@ -1,0 +1,68 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/official-content-collection/input.schema.json",
+  "title": "OfficialContentCollectionAgentInput",
+  "description": "candidate 1건 단위 LLM 호출 입력 (FE-D4 — candidate당 1회). Step 0 extraction_targets + Step 1 발췌의 결합. 설계: docs/design/feature_extraction_node_design.md §5-3.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_id", "candidate_name", "report_type", "features", "pages"],
+  "properties": {
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "own_*/comp_*/func_* 슬러그"
+    },
+    "candidate_name": {
+      "type": "string",
+      "description": "상품 한국어 명칭. 예: '트래블월렛 카드'"
+    },
+    "report_type": {
+      "type": "string",
+      "const": "comparison_matrix",
+      "description": "본 agent 는 comparison_matrix 경로 전용 (§2-1 매핑)"
+    },
+    "features": {
+      "type": "array",
+      "minItems": 1,
+      "maxItems": 12,
+      "description": "selected_feature_ids 필터를 통과한 추출 대상 feature 정의",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature_id", "feature_name", "description"],
+        "properties": {
+          "feature_id":   { "type": "string", "pattern": "^feat_" },
+          "feature_name": { "type": "string", "description": "한국어 라벨. 예: '환전 수수료'" },
+          "description":  { "type": "string", "description": "무엇을 찾아야 하는지" },
+          "category":     { "type": "string", "description": "report_config categories 중 소속 (옵션)" },
+          "priority":     { "type": "string", "enum": ["high", "medium", "low"] }
+        }
+      }
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "description": "Step 1 수집·발췌 결과. fetch_status=ok 페이지만 포함 (requires_dynamic_render·fetch_failed 제외)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["url", "origin", "excerpt"],
+        "properties": {
+          "url":              { "type": "string", "minLength": 1 },
+          "origin":           { "type": "string", "enum": ["official_source", "official_subpage", "additional_validated"] },
+          "subpage_category": { "type": "string", "description": "약관·수수료·환율·한도·혜택·공지사항·이용안내·hint 또는 빈 문자열" },
+          "feature_ids": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "이 URL 을 게이트 통과시킨 feature 목록 — 탐색 우선 단서 (단, 다른 feature 값이 보이면 추출 허용)"
+          },
+          "excerpt": {
+            "type": "string",
+            "minLength": 1,
+            "description": "_build_excerpt 산출 발췌 (페이지당 예산 적용). '[... 본문 일부 생략 ...]' 마커는 발췌 생략 구간을 의미"
+          }
+        }
+      }
+    }
+  }
+}

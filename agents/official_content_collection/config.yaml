@@ -1,0 +1,50 @@
+agent_id: official_content_collection
+agent_name: OfficialContentCollectionAgent
+version: "1.0.0"
+description: >
+  공식 출처 페이지 본문 발췌에서 feature별 사실 값을 추출·구조화한다 (전사형).
+  Step 0(extraction_targets) + Step 1(_fetch_content/_build_excerpt)의 산출을
+  candidate 단위로 입력받아, Step 3 feature_pool 조립의 단위 출력을 반환한다.
+  comparison_matrix 리포트 경로 전용 (url_discovery_official 계열).
+  설계: docs/design/feature_extraction_node_design.md (FE-D1~D10).
+
+# 실행 백엔드 — FE-D8 확정
+# ClaudeApiAnalyzer(temperature=0): 전사형 추출은 출력 변동성 최소화가 품질 요건.
+# API 비용 과다 시 "CLI 1차 + 핵심 정량 feature만 API 재검증" 하이브리드 절충 검토.
+backend: claude_api
+temperature: 0
+
+# 출력 형식 — call_with_schema(prompt, output_schema) 사용
+output_format: json
+max_tokens: 8000          # extracted_features 최대 12건 × evidence 포함 여유
+timeout_seconds: 180
+
+# 호출 단위·병렬도 — FE-D4
+# candidate당 1회 호출. 병렬 4 (rate limit ITPM 초과 시 2로 강등).
+call_unit: per_candidate
+parallel: 4
+parallel_fallback: 2
+
+# LLM 입력 예산 — FE-D5 v3 (§5-2a)
+# candidate당 발췌 총예산 30,000자, 페이지당 min(6,000, 30,000/페이지 수).
+excerpt_budget_per_candidate: 30000
+excerpt_budget_per_page_max: 6000
+
+# 캐시 — agent_cache (data/cache/agent_outputs/official_content_collection.json)
+# 키 = candidate_id + feature_ids 정렬 해시 + URL별 발췌 본문 해시
+#      + 컨텍스트 해시(system_prompt + output_schema + 모델)
+# 발췌 해시 포함 → 페이지 내용·키워드 풀 변경 시 자동 cache miss. TTL 무한.
+cache:
+  enabled: true
+  ttl_hours: null
+
+validation:
+  require_json_output: true
+  validate_input_schema: true
+  validate_output_schema: true
+  fail_on_schema_error: true
+
+files:
+  system_prompt: ./agents/official_content_collection/system_prompt_kr.md
+  input_schema: ./agents/official_content_collection/input.schema.json
+  output_schema: ./agents/official_content_collection/output.schema.json
