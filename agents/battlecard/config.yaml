@@ -13,7 +13,7 @@ backend: claude_cli            # ClaudeCodeCliAnalyzer 사용 권장
 output_format: json            # call_with_schema() 사용
 
 # Rubric 정합
-rubric_section: "Rubric §2"    # docs/reference_report_taxonomy.md §2-* 참조
+rubric_section: "Rubric §2"    # docs/reference/report_taxonomy.md §2-* 참조
 report_type: battlecard                # output.schema.json report_config의 키와 동일
 
 # 상태

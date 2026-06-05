@@ -4,7 +4,7 @@ scripts/build_prompts.py
 ========================
 D9 방식 1 채택(pipeline_topology_redesign.md v0.8 §6-0)에 따른 system_prompt 자동 빌드.
 
-`docs/reference_report_taxonomy.md`의 §1·§2·§3을 발췌하여
+`docs/reference/report_taxonomy.md`의 §1·§2·§3을 발췌하여
 `agents/domain_modeling/system_prompt_kr.md`의 RUBRIC marker 영역에 inline 인용합니다.
 
 사용
@@ -35,7 +35,7 @@ from pathlib import Path
 
 # ── 경로 상수 ──────────────────────────────────────────────────────────────
 ROOT = Path(__file__).resolve().parent.parent
-RUBRIC_PATH = ROOT / "docs" / "reference_report_taxonomy.md"
+RUBRIC_PATH = ROOT / "docs" / "reference" / "report_taxonomy.md"
 PROMPT_PATH = ROOT / "agents" / "domain_modeling" / "system_prompt_kr.md"
 
 # ── Marker 상수 ───────────────────────────────────────────────────────────

@@ -14,10 +14,10 @@ test_agent_quality.py
 사용 방법
 ---------
   # 기본 실행 (QueryIntakeAgent, 슬림 schema)
-  python test_agent_quality.py
+  python scripts/test_QI_CD_agent_quality.py
 
   # 전체 옵션
-  python test_agent_quality.py \\
+  python scripts/test_QI_CD_agent_quality.py \\
     --agent    query_intake             # query_intake | competitor_discovery
     --schema   slim                     # slim | full
     --query    "토스 트래블카드"          # 검색어 (쉼표로 여러 개)
@@ -28,7 +28,7 @@ test_agent_quality.py
 --------------
   - claude CLI 설치 및 로그인 완료 (which claude)
   - pip install jsonschema python-dotenv  (이미 설치됨)
-  - 프로젝트 루트에서 실행: python test_agent_quality.py
+  - 프로젝트 루트에서 실행: python scripts/test_QI_CD_agent_quality.py
 """
 
 import argparse
@@ -40,7 +40,7 @@ from datetime import datetime, timezone
 from pathlib import Path
 
 # ── 경로 설정 ─────────────────────────────────────────────────────────────────
-PROJECT_ROOT = Path(__file__).resolve().parent
+PROJECT_ROOT = Path(__file__).resolve().parent.parent
 sys.path.insert(0, str(PROJECT_ROOT))
 
 # .env 로드 (ANTHROPIC_API_KEY 등)

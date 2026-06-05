@@ -1,6 +1,6 @@
 # Worked Example — `positioning_map` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-6(포지셔닝 맵)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-6(포지셔닝 맵)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing 전략 + product_dev 보완 영역 식별)
@@ -183,8 +183,8 @@
 
 ## 10. 관련 문서
 
-- 방법론 reference: `docs/reference_positioning_map.md` (Perceptual vs Positioning 구분 · Ries&Trout · Aaker · 축 선택 4단계 · Porter 2x2 · 페르소나별 다중 뷰)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-6(포지셔닝 맵 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/positioning_map.md` (Perceptual vs Positioning 구분 · Ries&Trout · Aaker · 축 선택 4단계 · Porter 2x2 · 페르소나별 다중 뷰)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-6(포지셔닝 맵 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(이원 흐름 의존 관계 모델)
 - 흐름 B 인용 상류 worked example:
   - `docs/reference/examples/comparison_matrix_toss_travel_card.md` (X축·실제 좌표 산정)

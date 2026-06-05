@@ -7,7 +7,7 @@ official_content_collection 노드 Step 2 (run_llm_extraction) 단위 테스트.
 검증 목표: §9-3 — 캐시 결정성 (동일 입력 2회차 LLM 호출 0건, 본문 변경 시 cache miss)
 LLM·네트워크 호출 없음 — analyzer 는 fake 주입, _fetch_content 는 monkeypatch.
 
-실행: python -m pytest test_official_content_collection_step2.py -q
+실행: python -m pytest scripts/test_official_content_collection_step2.py -q
 """
 
 import copy

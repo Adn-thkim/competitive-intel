@@ -1,6 +1,6 @@
 # Worked Example — `battlecard` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-4(배틀카드)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-4(배틀카드)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing 우위 + product_dev 약점 보강)
@@ -161,8 +161,8 @@
 
 ## 9. 관련 문서
 
-- 방법론 reference: `docs/reference_battlecard.md` (1페이지 원칙 · FIA · Winning/Battling/Losing Zones · Win/Loss Analysis · Role-based Variations · Living Battlecard)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-4(배틀카드 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/battlecard.md` (1페이지 원칙 · FIA · Winning/Battling/Losing Zones · Win/Loss Analysis · Role-based Variations · Living Battlecard)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-4(배틀카드 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(worked example 작성·제공 방식)
 - 데이터 입력 worked example:
   - `docs/reference/examples/comparison_matrix_toss_travel_card.md` (정량 비교)

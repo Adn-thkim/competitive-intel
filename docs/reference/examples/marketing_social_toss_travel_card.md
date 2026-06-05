@@ -1,6 +1,6 @@
 # Worked Example — `marketing_social` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-3(마케팅·소셜 분석)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-3(마케팅·소셜 분석)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing 우위 + product_dev 보조)
@@ -126,8 +126,8 @@ battlecard B-4는 본 marketing_social 결과를 흐름 B로 inline 인용하므
 
 ## 9. 관련 문서
 
-- 방법론 reference: `docs/reference_marketing_social.md` (PESO · engagement benchmark · 게시 주기 best practice · 키워드 추출 · AMEC framework · 데이터 소스 신뢰성)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-3(마케팅·소셜 분석 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/marketing_social.md` (PESO · engagement benchmark · 게시 주기 best practice · 키워드 추출 · AMEC framework · 데이터 소스 신뢰성)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-3(마케팅·소셜 분석 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(이원 흐름 의존 관계 모델), §11-11(worked example 작성·제공 방식)
 - 흐름 B 인용 대상 worked example:
   - `docs/reference/examples/battlecard_toss_travel_card.md` (B-4 채널 매트릭스 inline 인용)

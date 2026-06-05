@@ -8,7 +8,7 @@
 - ❌ `output.schema.json` — Rubric §2-\* 평가 루브릭 기반 산출 구조 확정 후 작성
 
 ## Rubric 참조
-- `docs/reference_report_taxonomy.md` §2-\* (해당 리포트 정의)
+- `docs/reference/report_taxonomy.md` §2-\* (해당 리포트 정의)
 - Rubric inline 인용은 `scripts/build_prompts.py` 패턴 재사용 검토.
 
 ## 노드 코드

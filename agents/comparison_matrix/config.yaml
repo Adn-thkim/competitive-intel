@@ -1,20 +1,29 @@
 agent_id: comparison_matrix
-agent_name: comparison_matrixAgent
-version: "0.1.0-skeleton"
+agent_name: ComparisonMatrixAgent
+version: "1.0.0"
 description: >
-  D1=B 분리형 채택(v0.6 D1)에 따른 comparison_matrix 리포트 노드의 에이전트 설정.
-  v0.10 D4 enum 7종 중 하나로 report_config 키와 정합.
-  실제 system_prompt·output_schema는 §6-5/§6-6/§6-6a 산출 형식 확정 후 작성.
+  코드가 feature_pool로 구성한 비교 매트릭스 표를 입력받아 Zone 판정·Harvey Balls·
+  루브릭 자체 평가만 산출한다 (CM-D1 코드/LLM 책임 분리). 표 수치 재생성 금지.
+  설계: docs/design/comparison_matrix_node_design.md.
 
-# 실행 백엔드 (가안)
-backend: claude_cli            # ClaudeCodeCliAnalyzer 사용 권장
+# 실행 백엔드 — CM-D4 (기본 경로 원칙: 결정론 요건 노드 아님)
+backend: claude_cli            # ClaudeCodeCliAnalyzer
 
-# 출력 형식
-output_format: json            # call_with_schema() 사용
+# 출력 형식 — call_with_schema() 사용
+output_format: json
+
+# 호출 단위 — 리포트당 1회
+call_unit: per_report
+
+# 캐시 — agent_cache (키: feature_table 해시 + own_candidate_id)
+cache:
+  enabled: true
+  ttl_hours: null
 
 # Rubric 정합
-rubric_section: "Rubric §2"    # docs/reference_report_taxonomy.md §2-* 참조
-report_type: comparison_matrix                # output.schema.json report_config의 키와 동일
+rubric_section: "Rubric §2-1"   # docs/reference/report_taxonomy.md
+report_type: comparison_matrix
 
-# 상태
-status: scaffold               # §6-4 P1a 스켈레톤 — system_prompt·schema 미작성
+files:
+  system_prompt: ./agents/comparison_matrix/system_prompt_kr.md
+  output_schema: ./agents/comparison_matrix/output.schema.json

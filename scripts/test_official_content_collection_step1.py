@@ -8,7 +8,7 @@ official_content_collection 노드 Step 1 (_fetch_content + _build_excerpt) 단�
 검증 목표: §9-2 (본문 추출·SPA 분류·폴백) · §9-2a (발췌 결정론·헤더 보존·후반부 키워드)
 
 네트워크를 호출하지 않는다 — requests.get은 전부 monkeypatch.
-실행: python -m pytest test_official_content_collection_step1.py -q
+실행: python -m pytest scripts/test_official_content_collection_step1.py -q
 """
 
 import pytest
