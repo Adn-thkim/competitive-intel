@@ -1,0 +1,97 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/official-content-collection/output.schema.json",
+  "title": "OfficialContentCollectionAgentOutput",
+  "description": "candidate 1건의 공식 출처 발췌에서 추출한 feature 사실 값. feature_pool 조립(Step 3)의 단위 입력. 설계: docs/design/feature_extraction_node_design.md §5-3.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_id", "extracted_features", "profile_summary", "conflicts"],
+  "properties": {
+    "candidate_id": {
+      "type": "string",
+      "minLength": 1,
+      "description": "입력의 candidate_id 를 그대로 반환 (own_*/comp_*/func_*)"
+    },
+    "extracted_features": {
+      "type": "array",
+      "minItems": 1,
+      "description": "입력 features 의 모든 feature_id 에 대해 정확히 1항목씩. 누락 금지 — 확인 불가 항목은 상태값으로 표현.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature_id", "value", "extraction_status", "evidence", "source_url", "confidence", "is_promotional", "valid_until"],
+        "properties": {
+          "feature_id": {
+            "type": "string",
+            "pattern": "^feat_",
+            "description": "입력 features 에 존재하는 feature_id 만 허용"
+          },
+          "value": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "비교 가능한 축약값. 예: '17종', '매수 무료 / 매도 0.5%'. 나열형(혜택 목록 등)은 대표 3~5개 + '외 N종'으로 축약 — 300자 절대 초과 금지. extraction_status 가 unknown·not_found 이면 빈 문자열."
+          },
+          "value_numeric": {
+            "type": ["number", "null"],
+            "description": "정량 비교 가능 시 대표 수치 (단위는 unit). 불가하면 null."
+          },
+          "unit": {
+            "type": "string",
+            "description": "value_numeric 의 단위. 예: '%', '종', '원', 'USD'. 없으면 빈 문자열."
+          },
+          "as_of": {
+            "type": "string",
+            "description": "본문에 명시된 기준 시점·개정일만 기입 (예: '2026-05'). 페이지 발행일로 추정 금지. 없으면 빈 문자열."
+          },
+          "extraction_status": {
+            "type": "string",
+            "enum": ["explicit", "partial", "inferred", "unknown", "not_found", "requires_manual_check"],
+            "description": "explicit=본문 명시 / partial=일부 문맥만 확인 / inferred=분류 해석 개입 / unknown·not_found=확인 불가 / requires_manual_check=충돌·수동 검토 필요"
+          },
+          "evidence": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "근거 원문 발췌 — 입력 excerpt 에 실제로 존재하는 문구만. explicit·partial·inferred 는 필수(비우기 금지), unknown·not_found 는 빈 문자열."
+          },
+          "source_url": {
+            "type": "string",
+            "description": "evidence 가 발견된 페이지 URL — 입력 pages[].url 중 하나만 허용. unknown·not_found 는 빈 문자열."
+          },
+          "confidence": {
+            "type": "number",
+            "minimum": 0,
+            "maximum": 1,
+            "description": "추출 확신도. explicit ≥ 0.8 권장, not_found = 0."
+          },
+          "is_promotional": {
+            "type": "boolean",
+            "description": "기간 한정 이벤트·프로모션 조건이면 true (FE-D12). 상시 조건·확인 불가는 false."
+          },
+          "valid_until": {
+            "type": "string",
+            "description": "is_promotional=true 이고 본문에 종료일이 명시된 경우만 기입 (예: '2026-09-30'). 그 외 빈 문자열."
+          }
+        }
+      }
+    },
+    "profile_summary": {
+      "type": "string",
+      "maxLength": 600,
+      "description": "이 candidate 상품의 공식 출처 기반 요약 (사실만, 평가·비교 금지)."
+    },
+    "conflicts": {
+      "type": "array",
+      "description": "공식 문구 간 충돌 — 해당 feature 는 extraction_status=requires_manual_check 로 승격. 충돌 없으면 빈 배열.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature_id", "detail", "urls"],
+        "properties": {
+          "feature_id": { "type": "string", "pattern": "^feat_" },
+          "detail":     { "type": "string", "maxLength": 300, "description": "어떤 값이 어떻게 충돌하는지" },
+          "urls":       { "type": "array", "minItems": 1, "items": { "type": "string" } }
+        }
+      }
+    }
+  }
+}

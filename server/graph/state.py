@@ -341,13 +341,37 @@ class DomainAnalysisState(TypedDict, total=False):
     feat_* 접두사를 가진다. selected_purposes 내에서 개별 feature를 세부 조정한 결과.
     """
 
-    # ── feature_extraction_node 출력 (§6-6 D3 옵션 C — 미구현) ───────────────
+    # ── official_content_collection_node 출력 (feature_extraction 단계 §6-6,
+    #    상세: docs/design/feature_extraction_node_design.md §6) ──────────────
     product_profiles:     list[dict[str, Any]]
+    """
+    candidate별 추출 프로필 (§6-2): {candidate_id, product_name, profile_summary,
+    sources_used: [url], fetch_failures: [url], needs_manual_review: bool}.
+    needs_manual_review = conflicts 존재 또는 output 실패 또는 explicit 비율 < 50%.
+    """
     normalized_features:  list[dict[str, Any]]
+    """
+    [FE-D2 — 본 시리즈 폐기] feature_pool 의 value/value_numeric/unit 으로 흡수.
+    선언은 후속 노드 영향 검토 후 제거 예정 (미사용).
+    """
     feature_pool:         dict[str, Any]
     """
-    §11-10 흐름 A의 공유 Feature Pool. feature_extraction_node가 채우며 7개 리포트 노드가 read.
-    구조: {feature_id: {"value": Any, "source_url": str, "evidence": str, ...}}
+    §11-10 흐름 A의 공유 Feature Pool. official_content_collection_node가 채우며
+    comparison_matrix 등 리포트 노드가 read.
+
+    구조 (FE-D5 v3 — feature × candidate 2단계 키, 누락 셀 0건 보장):
+      {feature_id(feat_*): {candidate_id(own_*/comp_*/func_*): {
+          "value": str,                  # 비교 가능한 축약값 ("" = 미확인)
+          "value_numeric": float|None, "unit": str,
+          "as_of": str,                  # 본문 명시 기준일만 (발행일 추정 금지)
+          "extraction_status": "explicit|partial|inferred|unknown|not_found|requires_manual_check",
+          "evidence": str, "source_url": str,
+          "source_origin": "official_source|official_subpage|additional_validated|",
+          "confidence": float,
+          "is_promotional": bool,        # FE-D12 — 기간 한정 이벤트성 조건 구분
+          "valid_until": str             # 이벤트 종료일 (본문 명시 시)
+      }}}
+    리포트 노드는 빈 셀(not_found)을 열위로 단정하지 말고 "미확인"으로 표기한다 (AP 함정 방지).
     """
 
     # ── 신규 수집 노드 6종 출력 (§6-6a v0.6 신설, D11 비활성 1종 포함) ────────
