@@ -6,7 +6,7 @@
 
 이 taxonomy는 후속 `feature_url_mapper` 노드가 Brave 검색으로 어떤 URL을 수집할지 결정하고, 7개 분석 리포트 노드가 각 리포트의 Rubric 표준 카테고리·평가 기준에 정렬된 출력을 생성하는 데 사용됩니다.
 
-본 프롬프트의 §의미 기준(아래 RUBRIC 영역)은 `docs/reference_report_taxonomy.md`의 §1·§2·§3에서 자동 빌드된 inline 인용입니다 (D9 방식 1 채택, `scripts/build_prompts.py` 산출물). Rubric이 변경되면 본 영역도 빌드 스크립트로 자동 갱신됩니다.
+본 프롬프트의 §의미 기준(아래 RUBRIC 영역)은 `docs/reference/report_taxonomy.md`의 §1·§2·§3에서 자동 빌드된 inline 인용입니다 (D9 방식 1 채택, `scripts/build_prompts.py` 산출물). Rubric이 변경되면 본 영역도 빌드 스크립트로 자동 갱신됩니다.
 
 ---
 
@@ -227,7 +227,7 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 - 최소 1개 리포트는 `active: true`이며, active 리포트의 `features`는 최소 3개입니다.
 - 모든 active 리포트에 `search_query_hints`를 1개 이상 채웁니다.
 - `report_config["reaction_insight"].active`가 true면 `aspect_codebook`을 빠짐없이 채웁니다.
-- RUBRIC 영역 §4 anti-pattern(AP-1 ~ AP-10)을 회피합니다 (`docs/reference_report_taxonomy.md` §4 직접 참조).
+- RUBRIC 영역 §4 anti-pattern(AP-1 ~ AP-10)을 회피합니다 (`docs/reference/report_taxonomy.md` §4 직접 참조).
 - `output.schema.json`을 만족하는 JSON만 반환합니다.
 
 ## 해서는 안 되는 일
@@ -242,7 +242,7 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 
 ## RUBRIC 영역 (자동 빌드 — `scripts/build_prompts.py` 산출물)
 
-본 영역은 `docs/reference_report_taxonomy.md`의 §1·§2·§3에서 자동 인용됩니다. Rubric이 변경되면 빌드 스크립트로 자동 갱신되므로 본 영역을 직접 수정하지 마십시오.
+본 영역은 `docs/reference/report_taxonomy.md`의 §1·§2·§3에서 자동 인용됩니다. Rubric이 변경되면 빌드 스크립트로 자동 갱신되므로 본 영역을 직접 수정하지 마십시오.
 
 <!-- RUBRIC_BEGIN -->
 ## 1. 개요 — 7개 리포트의 역할 분담
@@ -251,13 +251,13 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 
 |  #  | 리포트 (enum)            | 1줄 정의                                                                              |  흐름   | 대상 독자        |
 | :-: | --------------------- | ---------------------------------------------------------------------------------- | :---: | ------------ |
-|  1  | `comparison_matrix`   | 자사·경쟁사의 **정형 feature 정량/정성 비교** [ref:reference_comparison_matrix.md §1-1]          |   A   | PM, 마케터      |
-|  2  | `reaction_insight`    | 사용자가 표현한 의견을 **ABSA aspect별로 정밀 분석** [ref:reference_reaction_insight.md §1-2]      |   A   | 마케터, CX      |
-|  3  | `marketing_social`    | 자사·경쟁사의 **채널 운영·콘텐츠 전략**(공급 측) [ref:reference_marketing_social.md §1-1]            |   A   | 마케터, 콘텐츠 헤드  |
-|  4  | `battlecard`          | 영업·마케팅이 **경쟁 메시지에 즉시 응대**할 수 있는 1페이지 카드 [ref:reference_battlecard.md §1-1]         | A + B | 영업, 마케터      |
-|  5  | `positioning_map`     | 차별화 축 2개로 **카드 좌표 시각화** [ref:reference_positioning_map.md §1-1]                    |   B   | 마케터, CMO     |
-|  6  | `market_context_swot` | 외부 시장 컨텍스트 + 자사 SWOT을 **TOWS 액션으로 통합** [ref:reference_market_context_swot.md §1-1] | A + B | CEO, CMO, PM |
-|  7  | `executive_summary`   | 의사결정자가 **1–2분 안에 결론·권고 파악** [ref:reference_executive_summary.md §1-1]              |   B   | CEO/CMO/PM   |
+|  1  | `comparison_matrix`   | 자사·경쟁사의 **정형 feature 정량/정성 비교** [ref:reference/comparison_matrix.md §1-1]          |   A   | PM, 마케터      |
+|  2  | `reaction_insight`    | 사용자가 표현한 의견을 **ABSA aspect별로 정밀 분석** [ref:reference/reaction_insight.md §1-2]      |   A   | 마케터, CX      |
+|  3  | `marketing_social`    | 자사·경쟁사의 **채널 운영·콘텐츠 전략**(공급 측) [ref:reference/marketing_social.md §1-1]            |   A   | 마케터, 콘텐츠 헤드  |
+|  4  | `battlecard`          | 영업·마케팅이 **경쟁 메시지에 즉시 응대**할 수 있는 1페이지 카드 [ref:reference/battlecard.md §1-1]         | A + B | 영업, 마케터      |
+|  5  | `positioning_map`     | 차별화 축 2개로 **카드 좌표 시각화** [ref:reference/positioning_map.md §1-1]                    |   B   | 마케터, CMO     |
+|  6  | `market_context_swot` | 외부 시장 컨텍스트 + 자사 SWOT을 **TOWS 액션으로 통합** [ref:reference/market_context_swot.md §1-1] | A + B | CEO, CMO, PM |
+|  7  | `executive_summary`   | 의사결정자가 **1–2분 안에 결론·권고 파악** [ref:reference/executive_summary.md §1-1]              |   B   | CEO/CMO/PM   |
 
 **원칙**: 단일 feature는 복수 리포트의 카테고리에 매핑될 수 있으나, 동일 feature를 두 리포트가 동시에 dedicated로 가져서는 안 됩니다(중복 수집 회피). Feature Selection UI는 "가장 비중 큰 카드에 1회 표시 + 공유 항목 배지"로 처리합니다 [ref:pipeline_topology_redesign.md §7 D6 확정].
 
@@ -267,132 +267,132 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 
 ### 2-1. `comparison_matrix` — 비교 매트릭스
 
-**목적**: 자사·경쟁사 정형 feature를 카테고리화·가중치화하여 의사결정 가능한 표로 산출 [ref:reference_comparison_matrix.md §1-1].
+**목적**: 자사·경쟁사 정형 feature를 카테고리화·가중치화하여 의사결정 가능한 표로 산출 [ref:reference/comparison_matrix.md §1-1].
 
 **핵심 액션**: "이 영역에서 자사는 우위/열위/동등 중 무엇인가"에 즉답.
 
 **표준 feature 카테고리 5–8개** (도메인 횡단):
-1. **Pricing** — 가격·수수료·요금제 [ref:reference_comparison_matrix.md §2-1 항목 2·3·4]
-2. **Core Capability** — 핵심 기능·성능·용량 [ref:reference_comparison_matrix.md §2-1 항목 1]
-3. **Integration/Compatibility** — 외부 시스템·결제·연동 [ref:reference_comparison_matrix.md §2-1 항목 6]
-4. **Additional Benefit** — 부가 혜택·로열티 [ref:reference_comparison_matrix.md §2-1 항목 7·8]
-5. **Onboarding/Eligibility** — 가입·발급·조건 [ref:reference_comparison_matrix.md §2-1 항목 9]
+1. **Pricing** — 가격·수수료·요금제 [ref:reference/comparison_matrix.md §2-1 항목 2·3·4]
+2. **Core Capability** — 핵심 기능·성능·용량 [ref:reference/comparison_matrix.md §2-1 항목 1]
+3. **Integration/Compatibility** — 외부 시스템·결제·연동 [ref:reference/comparison_matrix.md §2-1 항목 6]
+4. **Additional Benefit** — 부가 혜택·로열티 [ref:reference/comparison_matrix.md §2-1 항목 7·8]
+5. **Onboarding/Eligibility** — 가입·발급·조건 [ref:reference/comparison_matrix.md §2-1 항목 9]
 6. **UX/Support** — 사용자 경험·고객지원 (도메인별 추가)
 
 **좋은 feature 예시** [ex:comparison_matrix_toss_travel_card.md]: `re_exchange_fee_rate` — 정량 수치 + 단위(%) + 통화 범위 + 시점 + 공식 출처 URL.
 
-**나쁜 feature 예시** [ref:reference_comparison_matrix.md §2-3]: "환전 수수료 무료" — 매수/매도 비대칭, 통화 범위, 시점 모두 미명시. 함정 항목.
+**나쁜 feature 예시** [ref:reference/comparison_matrix.md §2-3]: "환전 수수료 무료" — 매수/매도 비대칭, 통화 범위, 시점 모두 미명시. 함정 항목.
 
-**평가 루브릭 (1–5점, Gartner Critical Capabilities + Harvey Balls 차용 [ref:reference_comparison_matrix.md §1-3 §1-5])**:
+**평가 루브릭 (1–5점, Gartner Critical Capabilities + Harvey Balls 차용 [ref:reference/comparison_matrix.md §1-3 §1-5])**:
 - **1점**: 단순 binary "지원/미지원"만 표기.
 - **2점**: 정량 수치만 있으나 단위·시점 누락.
 - **3점**: 수치 + 단위 + 출처 명시. 페르소나 가중치 미적용.
-- **4점**: 3점 요건 + Use case별 가중치 차별화 [ref:reference_comparison_matrix.md §1-3 §1-4].
-- **5점**: 4점 요건 + footnote로 함정 항목 4종(매수/매도 비대칭, 한시 프로모션, ATM 실효성, 통화 우대 차이) 명시 [ref:reference_comparison_matrix.md §2-3].
+- **4점**: 3점 요건 + Use case별 가중치 차별화 [ref:reference/comparison_matrix.md §1-3 §1-4].
+- **5점**: 4점 요건 + footnote로 함정 항목 4종(매수/매도 비대칭, 한시 프로모션, ATM 실효성, 통화 우대 차이) 명시 [ref:reference/comparison_matrix.md §2-3].
 
 ---
 
 ### 2-2. `reaction_insight` — 고객 반응 인사이트
 
-**목적**: 사용자가 자사·경쟁사에 대해 표현한 의견을 **ABSA(Aspect-Based Sentiment Analysis)** 로 정밀 분석 [ref:reference_reaction_insight.md §1-2].
+**목적**: 사용자가 자사·경쟁사에 대해 표현한 의견을 **ABSA(Aspect-Based Sentiment Analysis)** 로 정밀 분석 [ref:reference/reaction_insight.md §1-2].
 
 **핵심 액션**: "사용자는 어느 aspect를 좋아하고 싫어하는가" 및 product_dev suggestion 후보 추출.
 
 **표준 aspect 카테고리 5–8개** (도메인별 DomainTaxonomyAgent 자동 생성, `aspect_codebook` 필드 [ref:pipeline_topology_redesign.md §6-3]):
-1. **Core Function Convenience** — 핵심 기능 사용성 [ref:reference_reaction_insight.md §2-3 항목 1]
-2. **Pricing Perception** — 수수료/비용 체감 [ref:reference_reaction_insight.md §2-3 항목 2]
-3. **Reliability/Availability** — 안정성·가용성 [ref:reference_reaction_insight.md §2-3 항목 3]
-4. **App UX Quality** — 앱 사용성 [ref:reference_reaction_insight.md §2-3 항목 4]
-5. **Customer Support** — 분실·문의 대응 [ref:reference_reaction_insight.md §2-3 항목 5]
-6. **Additional Benefit Perception** — 부가 혜택 인식 [ref:reference_reaction_insight.md §2-3 항목 6]
-7. **Domain-specific** — 도메인 차별 aspect (예: 트래블카드의 `social_features`) [ref:reference_reaction_insight.md §2-3 항목 7]
+1. **Core Function Convenience** — 핵심 기능 사용성 [ref:reference/reaction_insight.md §2-3 항목 1]
+2. **Pricing Perception** — 수수료/비용 체감 [ref:reference/reaction_insight.md §2-3 항목 2]
+3. **Reliability/Availability** — 안정성·가용성 [ref:reference/reaction_insight.md §2-3 항목 3]
+4. **App UX Quality** — 앱 사용성 [ref:reference/reaction_insight.md §2-3 항목 4]
+5. **Customer Support** — 분실·문의 대응 [ref:reference/reaction_insight.md §2-3 항목 5]
+6. **Additional Benefit Perception** — 부가 혜택 인식 [ref:reference/reaction_insight.md §2-3 항목 6]
+7. **Domain-specific** — 도메인 차별 aspect (예: 트래블카드의 `social_features`) [ref:reference/reaction_insight.md §2-3 항목 7]
 
-**좋은 출력 단위** [ref:reference_reaction_insight.md §3]: `(aspect, polarity, intensity, quote, source_url, channel, posted_at)` 7-tuple. 원문 quote 보존(번역·요약 금지).
+**좋은 출력 단위** [ref:reference/reaction_insight.md §3]: `(aspect, polarity, intensity, quote, source_url, channel, posted_at)` 7-tuple. 원문 quote 보존(번역·요약 금지).
 
-**나쁜 출력 예시**: 단일 sentiment 점수("긍정 70%"). aspect 분리 없이는 마케팅·product 액션 도출 불가 [ref:reference_reaction_insight.md §1-2].
+**나쁜 출력 예시**: 단일 sentiment 점수("긍정 70%"). aspect 분리 없이는 마케팅·product 액션 도출 불가 [ref:reference/reaction_insight.md §1-2].
 
 **평가 루브릭 (1–5점)**:
 - **1점**: 단일 sentiment 점수 (aspect 미분리).
 - **2점**: aspect 분리되었으나 polarity만 표기, intensity 없음.
 - **3점**: 7-tuple 단일 채널 (YouTube만).
-- **4점**: 2채널 cross-validation (YouTube + 커뮤니티) [ref:reference_reaction_insight.md §1-1 §2-2, D11 확정 v0.8].
-- **5점**: 4점 요건 + 채널별 가중치 + 여행지/시점 분리 뷰 + suggestion 카테고리 별도 분리(product_dev 후보) [ref:reference_reaction_insight.md §1-4 6 카테고리 표준].
+- **4점**: 2채널 cross-validation (YouTube + 커뮤니티) [ref:reference/reaction_insight.md §1-1 §2-2, D11 확정 v0.8].
+- **5점**: 4점 요건 + 채널별 가중치 + 여행지/시점 분리 뷰 + suggestion 카테고리 별도 분리(product_dev 후보) [ref:reference/reaction_insight.md §1-4 6 카테고리 표준].
 
 ---
 
 ### 2-3. `marketing_social` — 마케팅·소셜 분석
 
-**목적**: 자사·경쟁사의 **채널 운영 전략(공급 측)** 을 PESO·engagement·키워드 차원에서 측정 [ref:reference_marketing_social.md §1-1].
+**목적**: 자사·경쟁사의 **채널 운영 전략(공급 측)** 을 PESO·engagement·키워드 차원에서 측정 [ref:reference/marketing_social.md §1-1].
 
 **핵심 액션**: "경쟁사는 어디서 어떻게 메시지를 노출하는가" 및 자사 채널·메시지 공백 식별.
 
 **표준 카테고리 5–8개**:
-1. **PESO 분류** — Paid/Owned/Shared/Earned 4분면 [ref:reference_marketing_social.md §1-2]
-2. **Channel Operations** — 주력 채널·게시 빈도·구독자 규모 [ref:reference_marketing_social.md §1-3 §1-4]
-3. **Engagement** — `interactions ÷ followers` 표준 [ref:reference_marketing_social.md §1-3]
-4. **Content Keywords/Topics** — 키워드 빈도 + 예시 게시물 URL [ref:reference_marketing_social.md §1-5]
+1. **PESO 분류** — Paid/Owned/Shared/Earned 4분면 [ref:reference/marketing_social.md §1-2]
+2. **Channel Operations** — 주력 채널·게시 빈도·구독자 규모 [ref:reference/marketing_social.md §1-3 §1-4]
+3. **Engagement** — `interactions ÷ followers` 표준 [ref:reference/marketing_social.md §1-3]
+4. **Content Keywords/Topics** — 키워드 빈도 + 예시 게시물 URL [ref:reference/marketing_social.md §1-5]
 5. **Channel × Keyword Cross-tab** — 채널별 메시지 분포
 6. **Coverage Gap** — 자사 미점유 채널·메시지 공백
-7. **Seasonality Correction** — 시즌성 보정 측정 기간 [ref:reference_marketing_social.md §2-3]
+7. **Seasonality Correction** — 시즌성 보정 측정 기간 [ref:reference/marketing_social.md §2-3]
 
-**좋은 출력 단위** [ref:reference_marketing_social.md §3]: `(channel, posting_frequency, audience_size, top_keywords[{keyword, frequency, top_examples}])` 4-tuple.
+**좋은 출력 단위** [ref:reference/marketing_social.md §3]: `(channel, posting_frequency, audience_size, top_keywords[{keyword, frequency, top_examples}])` 4-tuple.
 
-**나쁜 출력 예시** [ref:reference_marketing_social.md §1-3]: 단일 노출 수치("팔로워 N명") — 분모 정의 불명, 채널 간 비교 불가.
+**나쁜 출력 예시** [ref:reference/marketing_social.md §1-3]: 단일 노출 수치("팔로워 N명") — 분모 정의 불명, 채널 간 비교 불가.
 
-**평가 루브릭 (1–5점, AMEC Integrated Evaluation [ref:reference_marketing_social.md §1-6])**:
+**평가 루브릭 (1–5점, AMEC Integrated Evaluation [ref:reference/marketing_social.md §1-6])**:
 - **1점**: 단일 채널 게시물 수만.
 - **2점**: 다채널 PESO 분류, engagement 분모 불명.
 - **3점**: 3개 채널 + PESO + engagement 표준(`interactions ÷ followers`).
 - **4점**: 3점 요건 + 채널 × 키워드 cross-tab.
-- **5점**: 4점 요건 + 시즌성 보정(동일 기간 정렬) + 자사 공백 식별 + battlecard B-4와 정렬되는 채널 매트릭스 [ref:reference_marketing_social.md §4 결정 3].
+- **5점**: 4점 요건 + 시즌성 보정(동일 기간 정렬) + 자사 공백 식별 + battlecard B-4와 정렬되는 채널 매트릭스 [ref:reference/marketing_social.md §4 결정 3].
 
 ---
 
 ### 2-4. `battlecard` — 배틀카드
 
-**목적**: 영업·마케팅이 통화·필드 상황에서 즉시 대응 가능한 **1페이지(스크롤 1회) FIA 응축 카드** [ref:reference_battlecard.md §1-1].
+**목적**: 영업·마케팅이 통화·필드 상황에서 즉시 대응 가능한 **1페이지(스크롤 1회) FIA 응축 카드** [ref:reference/battlecard.md §1-1].
 
-**핵심 액션**: "이 경쟁사는 누구인가 / 어디서 이기는가 / 어디서 지는가 / 가격 / 응대 방법" 5개 질문 즉답 [ref:reference_battlecard.md §1-1].
+**핵심 액션**: "이 경쟁사는 누구인가 / 어디서 이기는가 / 어디서 지는가 / 가격 / 응대 방법" 5개 질문 즉답 [ref:reference/battlecard.md §1-1].
 
 **표준 카테고리 5–8개**:
-1. **Winning Zone** — 자사 명확 우위 영역 [ref:reference_battlecard.md §1-3]
+1. **Winning Zone** — 자사 명확 우위 영역 [ref:reference/battlecard.md §1-3]
 2. **Battling Zone** — 접전 영역, proof point 인용
 3. **Losing Zone** — 자사 열위, 명시적 인정 + 우회 전략
-4. **dedicated feature 4종** — `competitor_marketing_copy`·`competitor_promo_end_date`·`competitor_switch_story_quote`·`competitor_sales_objection` [ref:reference_battlecard.md §1-7]
-5. **Persona Variation** — 단기 여행자/장기 체류자/디지털노마드(B2C) 또는 BDR/AE/SE/CS(B2B) [ref:reference_battlecard.md §1-5]
-6. **Living Battlecard** — 자동 갱신 + 한시 프로모션 `valid_until` 추적 [ref:reference_battlecard.md §1-6]
+4. **dedicated feature 4종** — `competitor_marketing_copy`·`competitor_promo_end_date`·`competitor_switch_story_quote`·`competitor_sales_objection` [ref:reference/battlecard.md §1-7]
+5. **Persona Variation** — 단기 여행자/장기 체류자/디지털노마드(B2C) 또는 BDR/AE/SE/CS(B2B) [ref:reference/battlecard.md §1-5]
+6. **Living Battlecard** — 자동 갱신 + 한시 프로모션 `valid_until` 추적 [ref:reference/battlecard.md §1-6]
 
-**좋은 출력 단위** [ref:reference_battlecard.md §1-2]: 모든 항목이 **FIA 3-tuple(Fact + Impact + Act)** — Fact는 출처 URL + 인용, Impact는 "so what" 답, Act는 talk track/discovery question/follow-up 중 1개 이상.
+**좋은 출력 단위** [ref:reference/battlecard.md §1-2]: 모든 항목이 **FIA 3-tuple(Fact + Impact + Act)** — Fact는 출처 URL + 인용, Impact는 "so what" 답, Act는 talk track/discovery question/follow-up 중 1개 이상.
 
-**나쁜 출력 예시** [ref:reference_battlecard.md §1-2 §1-7]: 단순 비교 표만 (Impact·Act 누락). comparison_matrix·reaction_insight의 단순 재가공 — dedicated feature 4종 중 2종 이상 누락 시 본 anti-pattern.
+**나쁜 출력 예시** [ref:reference/battlecard.md §1-2 §1-7]: 단순 비교 표만 (Impact·Act 누락). comparison_matrix·reaction_insight의 단순 재가공 — dedicated feature 4종 중 2종 이상 누락 시 본 anti-pattern.
 
 **평가 루브릭 (1–5점)**:
 - **1점**: 단순 비교 표 (FIA 미적용).
 - **2점**: Winning/Losing Zone 2구분, Battling 없음.
 - **3점**: Zone 3구분 + FIA 3-tuple 일부 적용.
 - **4점**: 3점 요건 + dedicated feature 4종 + 페르소나 변형 1개.
-- **5점**: 4점 요건 + 페르소나 변형 3개 + 흐름 B(comparison + reaction + marketing_social) inline 인용 [ref:reference_battlecard.md §1-7, ref:pipeline_topology_redesign.md §11-10] + 한시 프로모션 `valid_until` 자동 추적 [ref:reference_battlecard.md §1-6].
+- **5점**: 4점 요건 + 페르소나 변형 3개 + 흐름 B(comparison + reaction + marketing_social) inline 인용 [ref:reference/battlecard.md §1-7, ref:pipeline_topology_redesign.md §11-10] + 한시 프로모션 `valid_until` 자동 추적 [ref:reference/battlecard.md §1-6].
 
 ---
 
 ### 2-5. `positioning_map` — 포지셔닝 맵
 
-**목적**: 차별화 축 2개로 카드 좌표 시각화 — Perceptual(인식) + Positioning(실제) 동시 산출 [ref:reference_positioning_map.md §1-1].
+**목적**: 차별화 축 2개로 카드 좌표 시각화 — Perceptual(인식) + Positioning(실제) 동시 산출 [ref:reference/positioning_map.md §1-1].
 
 **핵심 액션**: "실제 우위 vs 인식 우위의 격차"에서 마케팅 액션 기회 식별 + white space 발견.
 
 **표준 카테고리 5–8개**:
-1. **Axis Selection** — 고객 의사결정 기준의 빈도·중요도 가중 [ref:reference_positioning_map.md §1-4]
+1. **Axis Selection** — 고객 의사결정 기준의 빈도·중요도 가중 [ref:reference/positioning_map.md §1-4]
 2. **Coordinate Calculation** — comparison_matrix(X) + reaction_insight(Y) 흐름 B 인용
-3. **Quadrant Interpretation** — Porter Generic Strategies 매핑 [ref:reference_positioning_map.md §1-5]
+3. **Quadrant Interpretation** — Porter Generic Strategies 매핑 [ref:reference/positioning_map.md §1-5]
 4. **White Space** — 시장 빈 공간 식별 + 진입 가능성 평가
-5. **Persona Multi-view** — 최소 2개 페르소나 뷰(단기 + 장기) [ref:reference_positioning_map.md §4 결정 2]
-6. **Aaker 3 Conditions** — Resonate / Differentiate / Reflect 점수 [ref:reference_positioning_map.md §1-3]
-7. **Reframing Candidate** — 후발 브랜드용 재정의 카테고리 [ref:reference_positioning_map.md §1-2 Ries & Trout]
+5. **Persona Multi-view** — 최소 2개 페르소나 뷰(단기 + 장기) [ref:reference/positioning_map.md §4 결정 2]
+6. **Aaker 3 Conditions** — Resonate / Differentiate / Reflect 점수 [ref:reference/positioning_map.md §1-3]
+7. **Reframing Candidate** — 후발 브랜드용 재정의 카테고리 [ref:reference/positioning_map.md §1-2 Ries & Trout]
 
-**좋은 출력 예시** [ex:positioning_map_toss_travel_card.md, ref:reference_positioning_map.md §4 결정 3]: 동일 5개 카드를 (i) positioning map과 (ii) perceptual map 두 평면에 동시 배치 → 격차 큰 영역을 마케팅 우선순위로 표기.
+**좋은 출력 예시** [ex:positioning_map_toss_travel_card.md, ref:reference/positioning_map.md §4 결정 3]: 동일 5개 카드를 (i) positioning map과 (ii) perceptual map 두 평면에 동시 배치 → 격차 큰 영역을 마케팅 우선순위로 표기.
 
-**나쁜 출력 예시** [ref:reference_positioning_map.md §2-4]: 단일 시점 + 페르소나 평균 + 축 자의성(고객 의사결정 기준 미검증). misleading map의 전형.
+**나쁜 출력 예시** [ref:reference/positioning_map.md §2-4]: 단일 시점 + 페르소나 평균 + 축 자의성(고객 의사결정 기준 미검증). misleading map의 전형.
 
 **평가 루브릭 (1–5점)**:
 - **1점**: 단일 맵, 축 근거 없음.
@@ -405,56 +405,56 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 
 ### 2-6. `market_context_swot` — 시장 컨텍스트·SWOT
 
-**목적**: 외부 macro 컨텍스트(PESTLE·Porter)와 내부 강·약점(흐름 B 인용)을 SWOT로 통합 → **TOWS 4종 액션**으로 변환 [ref:reference_market_context_swot.md §1-1 §1-2].
+**목적**: 외부 macro 컨텍스트(PESTLE·Porter)와 내부 강·약점(흐름 B 인용)을 SWOT로 통합 → **TOWS 4종 액션**으로 변환 [ref:reference/market_context_swot.md §1-1 §1-2].
 
-**핵심 액션**: 분기당 실행 가능한 SO/WO/ST/WT 액션 2–4개 도출 [ref:reference_market_context_swot.md §4 결정 4].
+**핵심 액션**: 분기당 실행 가능한 SO/WO/ST/WT 액션 2–4개 도출 [ref:reference/market_context_swot.md §4 결정 4].
 
 **표준 카테고리 5–8개**:
-1. **SWOT 4분면** — S/W는 흐름 B(comparison + reaction + marketing_social), O/T는 흐름 A(외부 수집) [ref:reference_market_context_swot.md §1-1]
-2. **TOWS Matrix** — SO/WO/ST/WT 4종 액션 + 우선순위 [ref:reference_market_context_swot.md §1-2]
-3. **PESTLE 4요소** — P/E/S/T 우선 (Legal/Environmental은 보조) [ref:reference_market_context_swot.md §4 결정 3]
-4. **Porter's 5 Forces** — Rivalry·Substitution 우선 [ref:reference_market_context_swot.md §1-4]
-5. **Market Sizing** — TAM/SAM/SOM + CAGR, 정부·협회 1차 소스 [ref:reference_market_context_swot.md §1-6 §4 결정 2]
-6. **Seasonality** — 분기별·월별 분해 [ref:reference_market_context_swot.md §2-4]
+1. **SWOT 4분면** — S/W는 흐름 B(comparison + reaction + marketing_social), O/T는 흐름 A(외부 수집) [ref:reference/market_context_swot.md §1-1]
+2. **TOWS Matrix** — SO/WO/ST/WT 4종 액션 + 우선순위 [ref:reference/market_context_swot.md §1-2]
+3. **PESTLE 4요소** — P/E/S/T 우선 (Legal/Environmental은 보조) [ref:reference/market_context_swot.md §4 결정 3]
+4. **Porter's 5 Forces** — Rivalry·Substitution 우선 [ref:reference/market_context_swot.md §1-4]
+5. **Market Sizing** — TAM/SAM/SOM + CAGR, 정부·협회 1차 소스 [ref:reference/market_context_swot.md §1-6 §4 결정 2]
+6. **Seasonality** — 분기별·월별 분해 [ref:reference/market_context_swot.md §2-4]
 
-**좋은 출력 예시** [ex:market_context_swot_toss_travel_card.md, ref:reference_market_context_swot.md §1-2]: TOWS 4분면별 액션 2개 + 다중 S-O/W-T 페어로 뒷받침 + 정량 시장 데이터 [ref:reference_market_context_swot.md §2-1].
+**좋은 출력 예시** [ex:market_context_swot_toss_travel_card.md, ref:reference/market_context_swot.md §1-2]: TOWS 4분면별 액션 2개 + 다중 S-O/W-T 페어로 뒷받침 + 정량 시장 데이터 [ref:reference/market_context_swot.md §2-1].
 
-**나쁜 출력 예시** [ref:reference_market_context_swot.md §1-2 §2-4]: SWOT 4분면 단순 나열, 액션 도출 없음. PESTLE 6요소 모두 동등 분석으로 트래블카드와 무관한 Environmental 과대 추정.
+**나쁜 출력 예시** [ref:reference/market_context_swot.md §1-2 §2-4]: SWOT 4분면 단순 나열, 액션 도출 없음. PESTLE 6요소 모두 동등 분석으로 트래블카드와 무관한 Environmental 과대 추정.
 
 **평가 루브릭 (1–5점)**:
 - **1점**: SWOT 4분면 나열만, 액션 없음.
 - **2점**: SWOT + PESTLE (4요소) 요약.
 - **3점**: SWOT + PESTLE + TOWS 액션 1–2개.
 - **4점**: 3점 요건 + Porter's 5 Forces + 정량 시장 데이터(TAM/SAM/SOM).
-- **5점**: 4점 요건 + TOWS 액션 2–4개 + 다중 S-O/W-T 페어 우선순위 + 시즌성 보정 + 1차 출처 우선(매체 추정치는 1차 소스 부재 시만, "추정" 명시) [ref:reference_market_context_swot.md §3 §4 결정 2].
+- **5점**: 4점 요건 + TOWS 액션 2–4개 + 다중 S-O/W-T 페어 우선순위 + 시즌성 보정 + 1차 출처 우선(매체 추정치는 1차 소스 부재 시만, "추정" 명시) [ref:reference/market_context_swot.md §3 §4 결정 2].
 
 ---
 
 ### 2-7. `executive_summary` — 임원 요약
 
-**목적**: 의사결정자가 **1–2 페이지(슬라이드)에서 1–2분 안에 결론과 권고**를 파악 [ref:reference_executive_summary.md §1-1].
+**목적**: 의사결정자가 **1–2 페이지(슬라이드)에서 1–2분 안에 결론과 권고**를 파악 [ref:reference/executive_summary.md §1-1].
 
 **핵심 액션**: 3개 페르소나(CEO/CMO/PM) 모두 "무엇을 해야 하는가"의 답을 한 페이지에서 찾음.
 
 **표준 카테고리 5–8개**:
-1. **BLUF** — 첫 문장 = 단일 결론, 둘째 문장 = 핵심 근거 [ref:reference_executive_summary.md §1-4]
-2. **SCR/SCQA Structure** — Situation 10–15% / Complication 15–20% / Question 5% / Resolution 60–70% [ref:reference_executive_summary.md §1-3]
-3. **Pyramid Principle** — Top assertion + 3–5 MECE 논거 [ref:reference_executive_summary.md §1-2]
-4. **Bold-Bullet** — bold만 스캔해도 논지 파악, bullet은 정량 데이터 + 출처 inline [ref:reference_executive_summary.md §1-5]
-5. **"So What?" Test** — 각 문장은 의사결정자의 "그래서?"에 답 [ref:reference_executive_summary.md §1-6]
-6. **Persona Branching** — CEO/CMO/PM 3개 페르소나 답 [ref:reference_executive_summary.md §2-1 §4 결정 4]
+1. **BLUF** — 첫 문장 = 단일 결론, 둘째 문장 = 핵심 근거 [ref:reference/executive_summary.md §1-4]
+2. **SCR/SCQA Structure** — Situation 10–15% / Complication 15–20% / Question 5% / Resolution 60–70% [ref:reference/executive_summary.md §1-3]
+3. **Pyramid Principle** — Top assertion + 3–5 MECE 논거 [ref:reference/executive_summary.md §1-2]
+4. **Bold-Bullet** — bold만 스캔해도 논지 파악, bullet은 정량 데이터 + 출처 inline [ref:reference/executive_summary.md §1-5]
+5. **"So What?" Test** — 각 문장은 의사결정자의 "그래서?"에 답 [ref:reference/executive_summary.md §1-6]
+6. **Persona Branching** — CEO/CMO/PM 3개 페르소나 답 [ref:reference/executive_summary.md §2-1 §4 결정 4]
 7. **Cross-link** — 6개 상류 리포트로의 출처 링크 (인용 그 자체는 본문 노출 최소)
 
-**좋은 출력 예시** [ex:executive_summary_toss_travel_card.md, ref:reference_executive_summary.md §1-6]: "토스 만족도 4위는 라운지 부재의 인식 편향에서 비롯되며, 라운지 점유 없이도 만족도를 끌어올릴 메시지 공백이 존재합니다" — 사실 + Impact + Action 통합.
+**좋은 출력 예시** [ex:executive_summary_toss_travel_card.md, ref:reference/executive_summary.md §1-6]: "토스 만족도 4위는 라운지 부재의 인식 편향에서 비롯되며, 라운지 점유 없이도 만족도를 끌어올릴 메시지 공백이 존재합니다" — 사실 + Impact + Action 통합.
 
-**나쁜 출력 예시** [ref:reference_executive_summary.md §2-3]: 6개 상류 리포트 결론 단순 나열, 페르소나 평균화, 시점 표기 누락, 세부 데이터 과다 노출로 분량 폭증.
+**나쁜 출력 예시** [ref:reference/executive_summary.md §2-3]: 6개 상류 리포트 결론 단순 나열, 페르소나 평균화, 시점 표기 누락, 세부 데이터 과다 노출로 분량 폭증.
 
 **평가 루브릭 (1–5점)**:
 - **1점**: 6개 리포트 결론 단순 나열.
 - **2점**: BLUF + bullet 구조, SCR 분량 비중 미준수.
 - **3점**: BLUF + SCR (Resolution 60–70%) + Pyramid 3–5 논거.
 - **4점**: 3점 요건 + bold-bullet 일관 적용 + "so what?" 답 명시.
-- **5점**: 4점 요건 + 페르소나 3개(CEO/CMO/PM) 모두 답 + 시점 명시 + 1–2 페이지 분량 제약 준수 [ref:reference_executive_summary.md §4 결정 1·2·3·4].
+- **5점**: 4점 요건 + 페르소나 3개(CEO/CMO/PM) 모두 답 + 시점 명시 + 1–2 페이지 분량 제약 준수 [ref:reference/executive_summary.md §4 결정 1·2·3·4].
 
 ---
 

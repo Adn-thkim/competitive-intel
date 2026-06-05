@@ -143,7 +143,7 @@
         },
         "aspect_codebook": {
           "type": "array",
-          "description": "reaction_insight 리포트 한정. ABSA aspect codebook (DomainTaxonomyAgent 자동 생성). reference_reaction_insight.md §2-3 결정 1·pipeline_topology_redesign.md §6-3 참조.",
+          "description": "reaction_insight 리포트 한정. ABSA aspect codebook (DomainTaxonomyAgent 자동 생성). reference/reaction_insight.md §2-3 결정 1·pipeline_topology_redesign.md §6-3 참조.",
           "minItems": 3,
           "maxItems": 12,
           "items": {

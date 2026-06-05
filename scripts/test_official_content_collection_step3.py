@@ -7,7 +7,7 @@ official_content_collection 노드 Step 3 (assemble_feature_pool + 노드 main) 
 검증 목표: §9-4 — feature_pool 이 (선택 feature × candidate) 셀을 모두 보유
 (값 또는 상태값), 부분 실패 시 not_found 행 유지 (§9-5).
 
-실행: python -m pytest test_official_content_collection_step3.py -q
+실행: python -m pytest scripts/test_official_content_collection_step3.py -q
 """
 
 import pytest

@@ -123,7 +123,7 @@ JUDGE_PROMPT_TEMPLATE = """다음은 동일한 도메인 '{domain}'에 대해 �
 
 평가 대상 리포트: {report_types}
 
-`docs/reference_report_taxonomy.md` Rubric의 §2 각 리포트별 평가 루브릭 기준을 적용하시기 바랍니다.
+`docs/reference/report_taxonomy.md` Rubric의 §2 각 리포트별 평가 루브릭 기준을 적용하시기 바랍니다.
 
 JSON 형식으로 응답하시기 바랍니다:
 {{

@@ -6,7 +6,7 @@ official_content_collection 노드 Step 0 (입력 게이트 + extraction_targets
 설계 근거: docs/design/feature_extraction_node_design.md §4 (입력 계약) · §5-1 (Step 0)
 검증 목표: §9-1 — 비공식 origin 통과 0건 · not_found 스킵 · URL 상한 5 우선순위 정렬.
 
-실행: python -m pytest test_official_content_collection_step0.py -q
+실행: python -m pytest scripts/test_official_content_collection_step0.py -q
 """
 
 import copy

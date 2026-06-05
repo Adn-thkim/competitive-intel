@@ -1,6 +1,6 @@
 # Worked Example — `comparison_matrix` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-1(비교 매트릭스)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-1(비교 매트릭스)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing + product_dev 양쪽 라벨링)
@@ -64,6 +64,6 @@
 
 ## 6. 관련 문서
 
-- 방법론 reference: `docs/reference_comparison_matrix.md` (Crayon · Klue · Gartner Critical Capabilities · Weighted Scoring · Harvey Balls 일반 framework)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-1(비교 매트릭스 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/comparison_matrix.md` (Crayon · Klue · Gartner Critical Capabilities · Weighted Scoring · Harvey Balls 일반 framework)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-1(비교 매트릭스 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(worked example 작성·제공 방식)

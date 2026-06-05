@@ -1,6 +1,6 @@
 # Worked Example — `executive_summary` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-5(Executive Summary)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-5(Executive Summary)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing + product_dev 통합 권장)
@@ -111,8 +111,8 @@
 
 ## 8. 관련 문서
 
-- 방법론 reference: `docs/reference_executive_summary.md` (Pyramid Principle · SCQA/SCR · BLUF · bold-bullet · so-what 테스트)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-5(Executive Summary 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/executive_summary.md` (Pyramid Principle · SCQA/SCR · BLUF · bold-bullet · so-what 테스트)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-5(Executive Summary 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(이원 흐름 의존 관계 모델 — top 노드 위치)
 - 흐름 B 인용 상류 worked example (6개 모두 인용):
   - `docs/reference/examples/comparison_matrix_toss_travel_card.md` (정량 비교 — §1 Situation·§2 Complication 근거)

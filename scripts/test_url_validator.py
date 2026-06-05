@@ -4,7 +4,7 @@ test_url_validator.py
 official_source_resolver_node의 _validate_url() 헤더 수정안 효과 검증 스크립트.
 
 실행:
-  python3 test_url_validator.py
+  python3 scripts/test_url_validator.py
 
 결과 해석:
   ✅ 200~399 → 접근 성공 (validated=True 처리 가능)

@@ -1,6 +1,6 @@
 # Worked Example — `market_context_swot` × 토스 트래블카드
 
-> - **목적**: Rubric `docs/reference_report_taxonomy.md` §2-7(시장 컨텍스트 + 자사 SWOT)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
+> - **목적**: Rubric `docs/reference/report_taxonomy.md` §2-7(시장 컨텍스트 + 자사 SWOT)의 추상 기준이 트래블카드 도메인에서 어떻게 구체화되는지를 시연합니다.
 > - **도메인 슬러그**: `consumer_travel_card_kr`
 > - **자사 상품**: 토스 트래블카드 (`own_toss_travel_card`)
 > - **분석 방향**: `mixed` (marketing 전략 + product_dev 우선순위 도출)
@@ -159,8 +159,8 @@
 
 ## 8. 관련 문서
 
-- 방법론 reference: `docs/reference_market_context_swot.md` (SWOT · TOWS · PESTLE · Porter 5F · 통합 운용 · 정량 데이터 통합)
-- Rubric 본체: `docs/reference_report_taxonomy.md` §2-7(시장 컨텍스트 + 자사 SWOT 정의), §3(액션 가능성 동사 집합)
+- 방법론 reference: `docs/reference/market_context_swot.md` (SWOT · TOWS · PESTLE · Porter 5F · 통합 운용 · 정량 데이터 통합)
+- Rubric 본체: `docs/reference/report_taxonomy.md` §2-7(시장 컨텍스트 + 자사 SWOT 정의), §3(액션 가능성 동사 집합)
 - 파이프라인 설계: `docs/design/pipeline_topology_redesign.md` §6-0(P0-Rubric), §11-10(이원 흐름 의존 관계 모델 — mid/top 노드 위치)
 - 흐름 B 인용 상류 worked example:
   - `docs/reference/examples/comparison_matrix_toss_travel_card.md` (S/W 정량 항목)

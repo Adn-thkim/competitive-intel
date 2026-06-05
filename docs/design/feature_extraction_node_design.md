@@ -8,7 +8,7 @@
 > - **선행 문서**:
 >   - `docs/design/pipeline_topology_redesign.md` §6-6 (D3 옵션 C 확정) · §6-6a · §6-7
 >   - `docs/design/feature_url_mapper_redesign.md` (v2.1 — 5중 fan-out 토폴로지 완료)
->   - `docs/reference_comparison_matrix.md` · `docs/reference_report_taxonomy.md`
+>   - `docs/reference/comparison_matrix.md` · `docs/reference/report_taxonomy.md`
 > - **대상 파일**: `server/graph/nodes/official_content_collection_node.py` (신규),
 >   `agents/official_content_collection/*` (기존 `agents/feature_extraction/*` 전면 재작성·이관),
 >   `server/graph/graph.py`, `server/graph/state.py`
