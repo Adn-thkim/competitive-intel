@@ -153,6 +153,41 @@
 
 ---
 
+## 4. `normalize_competitor_ids`(ProductIdResolver) 상품명 정규화 오염 — 브랜드=상품 candidate의 own 명칭 흡수
+
+| 항목 | 값 |
+|---|---|
+| 최초 기록 일자 | 2026-06-04 |
+| 발견 경위 | official_content_collection Step 0 실데이터 검증 (`scripts/verify_step0_with_cache.py`) — `comp_토스트래블카드`의 official_domain이 `travel-wallet.com`으로 확인 |
+| 증상 | 경쟁사 "트래블월렛"이 own 상품명 "토스 트래블카드"로 정규화되어 `comp_토스트래블카드` 슬러그 생성. own 행과 동명의 경쟁사 행이 매트릭스에 공존 |
+| 원인 (확정) | `competitor_discovery`는 `brand='트래블월렛', product_name='트래블월렛 카드'`로 정상 산출(2026-05-13 캐시). 그 직후 `normalize_competitor_ids`의 ProductIdResolver가 `data/cache/product_name_normalization.json`에 **"트래블월렛카드" → "토스 트래블카드"** 오매핑을 기록 — 브랜드=상품(별도 상품명 부재)인 candidate를 도메인 대표 상품명(own)으로 붕괴시킴. `official_source_resolver`는 오염된 입력의 하류 피해자(brand 필드는 '트래블월렛'으로 보존된 채 travel-wallet.com을 정상 해소) |
+| 임시 조치 (2026-06-04 완료) | 캐시 101건 `comp_토스트래블카드` → `comp_트래블월렛` 일괄 치환 + `official_sources.json` product_name 교정 + normalization 캐시 오매핑 교정("트래블월렛카드" → "트래블월렛 카드", 재오염 방지). 백업: `backup/cache_rename_20260604/` |
+
+### 근본 해결 방향 (재검토 시 적용)
+
+- ProductIdResolver system_prompt에 "브랜드=상품(단독 상품명 부재) candidate는 브랜드명을 정규 상품명으로 유지하고, **own_product 명칭으로 정규화 금지**" 제약 추가.
+- 정규화 결과가 own_product 명칭 또는 기존 comp_* 정규명과 충돌하면 reject + 원본 명칭 유지하는 결정론적 후처리 가드.
+- 회귀 테스트: "트래블월렛 카드" 입력이 "토스 트래블카드"로 정규화되지 않는지 fixture 고정.
+
+### 부록 — 동일 노드의 추가 데이터 품질 이슈 (2026-06-04, Step 2 실측 중 발견)
+
+- **트래블월렛 primary_url 영문판 해소**: `official_sources.json`의 `comp_트래블월렛` `primary_url`이
+  한글판이 아닌 영문 랜딩(`https://www.travel-wallet.com/en`)으로 해소되어 있다. 영문 마케팅
+  카피 기반 추출은 한글 약관 대비 정보 밀도가 낮아 explicit 비율 하락의 한 원인
+  (Step 2 실측: 트래블월렛 explicit 1/8 vs own_토스 6/8). 근본 해결 시
+  official_source_resolver에 "동일 도메인 내 한국어 버전 우선" 규칙 추가 검토.
+
+### 재검토 트리거
+
+- (T1) 신규 도메인 파일럿에서 브랜드=상품형 candidate(예: Wise·Revolut) 추가 시
+- (T2) normalization 캐시에서 동일 정규명으로 수렴하는 서로 다른 브랜드 2건 이상 발견 시
+
+### 검토 시점
+
+report generation 시리즈(official_content_collection → comparison_matrix) 완료 후, youtube 계열 수집 노드 착수 전.
+
+---
+
 ## 변경 이력
 
 | 일자 | 변경 |
@@ -160,3 +195,4 @@
 | 2026-06-03 | 1번 항목 (`features` 객체 승격 옵션 B) 신설 |
 | 2026-06-04 | 2번 항목 (`ClaudeApiAnalyzer` 활용 후보 노드 검토) 신설 — v0.10.21.1 turn-49 결정에 따른 보존 자산 활용 정책 |
 | 2026-06-04 | 3번 항목 (v0.10.28b `marketing_social` 카드 UI 부분 채택 사양) 신설 — turn-62 사용자 이미지 + 명세 |
+| 2026-06-04 | 4번 항목 (ProductIdResolver 상품명 정규화 오염) 신설 — Step 0 실데이터 검증 중 발견, 임시 조치 완료 |
