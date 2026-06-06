@@ -6,7 +6,7 @@
 > - **선행 문서**:
 >   - `docs/design/feature_extraction_node_design.md` (§6-1 feature_pool 계약 · FE-D11·FE-D12)
 >   - `docs/reference/report_taxonomy.md` §2-1 (평가 루브릭 1–5점) · §4 (AP-1~AP-7)
->   - `docs/reference_comparison_matrix.md` (방법론 — Gartner CC·Harvey Balls·Weighted Scoring)
+>   - `docs/reference/comparison_matrix.md` (방법론 — Gartner CC·Harvey Balls·Weighted Scoring)
 > - **대상 파일**: `server/graph/nodes/comparison_matrix_node.py` (스켈레톤 → 구현),
 >   `agents/comparison_matrix/*` (system_prompt·output.schema 신규), `server/graph/graph.py` (배선)
 
