@@ -35,6 +35,18 @@ from typing import Annotated, Any
 from typing_extensions import TypedDict
 
 
+def merge_report_outputs(
+    left: dict[str, Any] | None, right: dict[str, Any] | None
+) -> dict[str, Any]:
+    """report_outputs 병렬 fan-in merge reducer (CM-D3, 2026-06-06).
+
+    7개 리포트 노드가 병렬 분기에서 각자 자기 키만 반환하면 LangGraph 가 본 reducer
+    로 dict 를 병합한다. 기본 replace 였다면 병렬 write 시 InvalidUpdateError 또는
+    마지막 노드의 덮어쓰기가 발생한다. 동일 키 재작성 시 우측(최신) 우선.
+    """
+    return {**(left or {}), **(right or {})}
+
+
 # ── 중첩 타입 힌트 (Design_Spec.md §4-2-1 참고) ─────────────────────────────
 
 class CompetitorCandidate(TypedDict, total=False):
@@ -396,8 +408,8 @@ class DomainAnalysisState(TypedDict, total=False):
     pr_releases:               list[dict[str, Any]]
     market_context:            dict[str, Any]
 
-    # ── 7개 리포트 노드 출력 (§6-4 D1=B 분리형, v0.10) ───────────────────────
-    report_outputs: dict[str, dict[str, Any]]
+    # ── 7개 리포트 노드 출력 (§6-4 D1=B 분리형, v0.10 / CM-D3 reducer v0.12.4) ─
+    report_outputs: Annotated[dict[str, dict[str, Any]], merge_report_outputs]
     """
     D4 enum 7종(`comparison_matrix`·`reaction_insight`·`marketing_social`·
     `battlecard`·`positioning_map`·`market_context_swot`·`executive_summary`)을 키로 하는
@@ -417,8 +429,11 @@ class DomainAnalysisState(TypedDict, total=False):
         }, ...
       }
 
-    fan-in semantics: replace per key (각 리포트 노드는 자기 키만 write).
-    LangGraph reducer 미설정 — 기본 replace 동작 사용.
+    fan-in semantics (CM-D3, 2026-06-06): merge_report_outputs reducer 적용 —
+    각 리포트 노드는 {"report_outputs": {자기 키: envelope}} 만 반환하고 LangGraph 가
+    dict merge 한다. 병렬 리포트 분기의 동시 write 충돌이 구조적으로 해소되며,
+    실행 중 체크포인트 조회(get_state) 시 완성된 리포트부터 점진 노출된다
+    (프런트 점진 렌더링의 전제).
     """
 
     # ── executive_summary 종합 출력 (§6-4 + §11-10 top 노드) ─────────────────
