@@ -16,7 +16,7 @@ import pytest
 
 import server.graph.agent_cache as agent_cache
 from server.graph.nodes.comparison_matrix_node import (
-    _deterministic_score,
+    _compute_rubric_score,
     _sanitize_llm_output,
     build_feature_table,
     comparison_matrix_node,
@@ -86,10 +86,9 @@ class FakeAnalyzer:
                 "overall_comment": "수수료 영역 우위.",
             },
             "harvey_balls": [{"feature_id": fids[1], "legend": "4=상시 다수, 1=한정",
-                              "ratings": {"own_x": 3}}],
+                              "ratings": {"own_x": 3},
+                              "interpretation": "자사가 가장 충실(◕)."}],
             "use_case_weights": [],
-            "evaluation_score": 3,
-            "score_rationale": "수치+단위+출처 충족, 가중치 미적용",
             "warnings": [],
         }
         if self.inject:
@@ -97,7 +96,8 @@ class FakeAnalyzer:
                 {"feature_id": "feat_ghost", "rationale": "환각"})
             out["harvey_balls"].append(
                 {"feature_id": fids[0], "legend": "x",
-                 "ratings": {"comp_ghost": 4, "own_x": 2}})
+                 "ratings": {"comp_ghost": 4, "own_x": 2},
+                 "interpretation": "환각 항목."})
         return out
 
 
@@ -210,15 +210,42 @@ class TestNode:
         assert out["agent_steps"][0]["status"] == "failed"
 
 
-class TestDeterministicScore:
-    def test_score_rule(self):
-        state = _base_state()
+class TestRubricScore:
+    """CM-D6 — 점수는 코드가 결정론적으로 채점 (LLM 자기평가 폐기, 표류 방지)."""
+
+    def _table(self, state):
         entry = state["domain_taxonomy"]["report_config"]["comparison_matrix"]
-        table, _, _ = build_feature_table(
-            state["feature_pool"], entry, state["selected_feature_ids"],
-            "own_x", {})
-        assert _deterministic_score(table) == 3               # 수치+단위+출처 충족
-        state["feature_pool"]["feat_fee"]["comp_a"]["unit"] = ""
-        table2, _, _ = build_feature_table(
+        return build_feature_table(
             state["feature_pool"], entry, state["selected_feature_ids"], "own_x", {})
-        assert _deterministic_score(table2) == 2
+
+    def test_score_2_when_unit_missing(self):
+        state = _base_state()
+        state["feature_pool"]["feat_fee"]["comp_a"]["unit"] = ""
+        table, promos, traps = self._table(state)
+        score, rationale = _compute_rubric_score(table, [], promos, traps)
+        assert score == 2 and "단위" in rationale
+
+    def test_score_3_without_weights(self):
+        table, promos, traps = self._table(_base_state())
+        score, rationale = _compute_rubric_score(table, [], promos, traps)
+        assert score == 3 and "가중치 부재" in rationale
+
+    def test_score_4_with_weights_but_missing_asof(self):
+        # comp_a 수수료 셀은 as_of "" → 5점 미달
+        table, promos, traps = self._table(_base_state())
+        weights = [{"use_case": "단기 여행자", "weights": {"feat_fee": 1.0}}]
+        score, rationale = _compute_rubric_score(table, weights, promos, traps)
+        assert score == 4 and "as_of" in rationale
+
+    def test_score_5_when_all_requirements_met(self):
+        state = _base_state()
+        state["feature_pool"]["feat_fee"]["comp_a"]["as_of"] = "2026-05"
+        table, promos, traps = self._table(state)
+        weights = [{"use_case": "단기 여행자", "weights": {"feat_fee": 1.0}}]
+        score, _ = _compute_rubric_score(table, weights, promos, traps)
+        assert score == 5
+
+    def test_deterministic(self):
+        table, promos, traps = self._table(_base_state())
+        assert _compute_rubric_score(table, [], promos, traps) == \
+               _compute_rubric_score(table, [], promos, traps)

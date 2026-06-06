@@ -78,8 +78,15 @@ def _candidate_rows_order(feature_pool: dict, own_id: str) -> list[str]:
 
 
 def _feature_columns(entry: dict, feature_pool: dict,
-                     selected_feature_ids: list[str]) -> list[dict]:
-    """선택 feature 중 feature_pool 에 존재하는 열 (taxonomy feature_labels 라벨)."""
+                     selected_feature_ids: list[str],
+                     label_map: dict[str, str] | None = None) -> list[dict]:
+    """선택 feature 중 feature_pool 에 존재하는 열.
+
+    라벨 우선순위: label_map(analysis_features 의 한국어 feature_name) >
+    taxonomy feature_labels > feature_id. taxonomy 라벨이 영문/누락이어도 한국어
+    feature_name 으로 표시되도록 한다.
+    """
+    label_map = label_map or {}
     labels = entry.get("feature_labels") or {}
     categories = entry.get("categories") or []
     cols = []
@@ -88,7 +95,7 @@ def _feature_columns(entry: dict, feature_pool: dict,
             continue
         cols.append({
             "feature_id": fid,
-            "label":      labels.get(fid, fid),
+            "label":      label_map.get(fid) or labels.get(fid) or fid,
             "category":   next((c for c in categories if c.lower() in fid.lower()), ""),
         })
     return cols
@@ -97,12 +104,15 @@ def _feature_columns(entry: dict, feature_pool: dict,
 def build_feature_table(
     feature_pool: dict, entry: dict, selected_feature_ids: list[str],
     own_id: str, name_by_cid: dict[str, str],
+    label_map: dict[str, str] | None = None,
 ) -> tuple[dict, list[dict], list[str]]:
     """결정론적 표 구성 + 표기 규칙(CM-D2) + footnote/자동 경고.
 
+    label_map: feature_id → 한국어 라벨(analysis_features feature_name). 없으면
+    taxonomy feature_labels → feature_id 순으로 fallback.
     반환: (feature_table, promotional_footnotes, traps_footnote)
     """
-    columns = _feature_columns(entry, feature_pool, selected_feature_ids)
+    columns = _feature_columns(entry, feature_pool, selected_feature_ids, label_map)
     promotional_footnotes: list[dict] = []
     traps: list[str] = []
     rows: list[dict] = []
@@ -187,15 +197,43 @@ def _collect_source_references(feature_table: dict) -> list[dict]:
     return [refs[k] for k in sorted(refs)]
 
 
-def _deterministic_score(feature_table: dict) -> int:
-    """CM-D5 degrade 점수 — Rubric 결정론 부분: 수치+단위+출처 충족 시 3, 아니면 2."""
+def _compute_rubric_score(
+    feature_table: dict, use_case_weights: list,
+    promo_footnotes: list, traps: list,
+) -> tuple[int, str]:
+    """CM-D6 — 루브릭 점수 결정론 산정 (LLM 자기평가 폐기, 2026-06-06).
+
+    배경: LLM 자기평가는 프롬프트 변화(예시 앵커링 등)에 따라 점수가 표류한다.
+    Rubric §2-1 의 기준은 envelope 내용물로 기계 판정 가능하므로 코드가 채점한다.
+
+    규칙 (누적):
+      2점: 정량 셀 중 단위 또는 출처 누락 존재
+      3점: 정량 셀 전부 수치+단위+출처 충족
+      4점: 3점 + use_case_weights 비어있지 않음 (LLM 이 action_lens 기반 산출)
+      5점: 4점 + 함정 각주(promotional·traps) 명시 + 정량 셀 as_of 전부 표기
+    반환: (score, rationale)
+    """
     quantitative = [
         cell for row in feature_table["rows"] for cell in row["cells"].values()
         if cell["value_numeric"] is not None
     ]
-    if quantitative and all(c["unit"] and c["source_url"] for c in quantitative):
-        return 3
-    return 2
+    met3 = bool(quantitative) and all(
+        c["unit"] and c["source_url"] for c in quantitative)
+    if not met3:
+        return 2, "정량 값 중 단위 또는 출처 누락 — 3점 요건 미달"
+    if not use_case_weights:
+        return 3, "수치·단위·출처 충족. use case 가중치 부재로 4점 미달"
+
+    missing_asof = sum(1 for c in quantitative if not c["as_of"])
+    footnotes_present = bool(promo_footnotes or traps)
+    if footnotes_present and missing_asof == 0:
+        return 5, "가중치 반영 + 함정 각주 명시 + 정량 셀 기준 시점 전부 표기"
+    gaps = []
+    if missing_asof:
+        gaps.append(f"정량 셀 {missing_asof}건 기준 시점(as_of) 미표기")
+    if not footnotes_present:
+        gaps.append("함정 각주 부재")
+    return 4, f"가중치 반영으로 4점 충족. 5점 미달 — {', '.join(gaps)}"
 
 
 # ─── LLM 파트 (CM-D1 — 판정·점수만) ──────────────────────────────────────────
@@ -258,10 +296,17 @@ def comparison_matrix_node(
         p.get("candidate_id", ""): p.get("product_name", "")
         for p in state.get("product_profiles") or []
     }
+    # 한국어 feature 라벨 — analysis_features 의 feature_name 을 1차 소스로 사용
+    # (taxonomy feature_labels 가 영문/누락이어도 한국어 표시 보장)
+    label_map = {
+        f.get("feature_id", ""): f.get("feature_name", "")
+        for f in state.get("analysis_features") or []
+        if f.get("feature_id") and f.get("feature_name")
+    }
 
     # ── 코드 파트: 표 구성 (결정론) ─────────────────────────────────────────
     feature_table, promo_footnotes, traps = build_feature_table(
-        feature_pool, entry, selected_feature_ids, own_id, name_by_cid)
+        feature_pool, entry, selected_feature_ids, own_id, name_by_cid, label_map)
     if not feature_table["columns"]:
         return make_error_result(
             REPORT_TYPE, started_at,
@@ -316,16 +361,17 @@ def comparison_matrix_node(
         zone = llm_out["zone_summary"]
         harvey = llm_out["harvey_balls"]
         use_case_weights = llm_out.get("use_case_weights", [])
-        score = llm_out["evaluation_score"]
         warnings = list(llm_out.get("warnings", []))
-        if llm_out.get("score_rationale"):
-            warnings.append(f"score_rationale: {llm_out['score_rationale']}")
     else:
         zone = {"winning": [], "battling": [], "losing": [],
                 "overall_comment": "(degraded — LLM 판정 생략, 표 데이터만 제공)"}
         harvey, use_case_weights = [], []
-        score = _deterministic_score(feature_table)
         warnings = [degraded_error]
+
+    # CM-D6 — 점수는 LLM 자기평가가 아니라 코드가 결정론적으로 채점 (표류 방지)
+    score, score_rationale = _compute_rubric_score(
+        feature_table, use_case_weights, promo_footnotes, traps)
+    warnings.append(f"score_rationale: {score_rationale}")
 
     # ── envelope 조립 ───────────────────────────────────────────────────────
     content = {
