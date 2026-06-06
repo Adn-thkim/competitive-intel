@@ -179,4 +179,5 @@ write로 LangGraph InvalidUpdateError가 발생한다 — **dict merge reducer �
 | CM-D2 | 셀 표기 규칙 — 미확인(열위 단정 금지)·⚠ 수동검토·[기간한정] footnote (AP-1) | **확정** (2026-06-05) |
 | CM-D3 | report_outputs merge reducer — 현 시리즈 불필요(단일 리포트), 복수 리포트 병렬화 전 도입 | 기록 — 후속 시리즈 선행 작업 |
 | CM-D4 | LLM 어댑터 = ClaudeCodeCliAnalyzer (기본 경로 원칙 — 결정론 요건 아님) | 제안 |
-| CM-D5 | LLM 실패 시 degrade 모드 (표 전용 envelope + 결정론 점수 2~3점) — 흐름 B 차단 방지 | 제안 |
+| CM-D5 | LLM 실패 시 degrade 모드 (표 전용 envelope) — 흐름 B 차단 방지 | 제안 |
+| CM-D6 | **루브릭 점수 = 코드 결정론 채점** (`_compute_rubric_score`) — LLM 자기평가 폐기. 배경: 프롬프트 골격 예시의 값 앵커링으로 자기평가 점수가 4→3 표류한 사고(2026-06-06). 규칙: 2점(정량 셀 단위·출처 누락) / 3점(전부 충족) / 4점(+use_case_weights 비어있지 않음) / 5점(+함정 각주 명시 + 정량 셀 as_of 전부 표기). LLM 출력에서 evaluation_score·score_rationale 제거 — 점수는 envelope 내용물의 함수로만 결정되어 프롬프트 변화에 불변 | **확정** (2026-06-06) |

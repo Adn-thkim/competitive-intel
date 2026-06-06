@@ -5,7 +5,7 @@
   "description": "코드가 구성한 feature_table을 입력받아 LLM이 산출하는 판정 부분 (CM-D1). 표 수치는 재생성하지 않는다. 설계: docs/design/comparison_matrix_node_design.md §5.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["zone_summary", "harvey_balls", "use_case_weights", "evaluation_score", "score_rationale", "warnings"],
+  "required": ["zone_summary", "harvey_balls", "use_case_weights", "warnings"],
   "properties": {
     "zone_summary": {
       "type": "object",
@@ -28,7 +28,7 @@
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["feature_id", "legend", "ratings"],
+        "required": ["feature_id", "legend", "ratings", "interpretation"],
         "properties": {
           "feature_id": { "type": "string", "pattern": "^feat_" },
           "legend": {
@@ -40,6 +40,11 @@
             "type": "object",
             "description": "candidate_id → 0(없음)~4(완전). 미확인 셀 candidate는 키 자체를 생략",
             "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 4 }
+          },
+          "interpretation": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "이 항목에 대한 candidate 간 등급 차이의 종합 해석. 가장 우수·열위 상품과 그 이유를 1~2문장으로. 표 근거만 사용."
           }
         }
       }
@@ -60,17 +65,6 @@
           }
         }
       }
-    },
-    "evaluation_score": {
-      "type": "integer",
-      "minimum": 1,
-      "maximum": 5,
-      "description": "Rubric §2-1 루브릭 자체 평가"
-    },
-    "score_rationale": {
-      "type": "string",
-      "maxLength": 300,
-      "description": "점수 산정 근거 (어느 요건 충족/미충족)"
     },
     "warnings": {
       "type": "array",
