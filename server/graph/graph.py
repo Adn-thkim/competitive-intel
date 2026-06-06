@@ -32,7 +32,11 @@ v0.10.9 토폴로지 (pipeline_topology_redesign.md §6-2 v0.10.9 확정)
                   additional_urls_validation (v0.10.27 임시 호환 — 5종 *_raw_features union)
                                        ↓
                                   feature_selection (#4)
-                                   → END  ← 임시
+                                       ↓
+                  official_content_collection (v0.12 — official 계열 수집·feature_pool)
+                                       ↓
+                  comparison_matrix (v0.12 — 비교 매트릭스 리포트)
+                                   → END  ← 임시 (후속 시리즈에서 positioning_map 등으로 교체)
 
 핵심 변경 의도 (v0.10.7 vs v0.10.5 / v0.10.6)
 ---------------------------------------------
@@ -95,6 +99,9 @@ from server.graph.nodes.feature_mapping_youtube_reactions_node import feature_ma
 from server.graph.nodes.feature_mapping_owned_channels_node    import feature_mapping_owned_channels_node
 from server.graph.nodes.feature_mapping_macro_node             import feature_mapping_macro_node
 from server.graph.nodes.additional_urls_validation_node import additional_urls_validation_node
+# report generation 시리즈 (v0.12) — official → comparison_matrix 경로
+from server.graph.nodes.official_content_collection_node import official_content_collection_node
+from server.graph.nodes.comparison_matrix_node import comparison_matrix_node
 from server.graph.nodes.human_review_node import human_review_node
 from server.graph.nodes.normalize_competitor_ids_node import normalize_competitor_ids_node
 from server.graph.nodes.official_source_resolver_node import official_source_resolver_node
@@ -188,9 +195,11 @@ def build_graph() -> object:
     builder.add_node("feature_mapping_macro",              feature_mapping_macro_node)
     builder.add_node("additional_urls_validation",   additional_urls_validation_node)
     builder.add_node("feature_selection",            feature_selection_node)
+    # report generation 시리즈 (v0.12) — official 계열 수집 + comparison_matrix
+    builder.add_node("official_content_collection",  official_content_collection_node)
+    builder.add_node("comparison_matrix",            comparison_matrix_node)
     # TODO (v0.10 + §6-6a): 아래 노드는 구현 후 주석 해제
-    # ── feature_extraction + 신규 수집 노드 6종 ─────────────────────────
-    # builder.add_node("feature_extraction",                 feature_extraction_node)
+    # ── 신규 수집 노드 (나머지 4계열) ────────────────────────────────────
     # builder.add_node("community_collection",               community_collection_node)
     # builder.add_node("app_store_review_collection",        app_store_review_collection_node)  # D11 비활성
     # builder.add_node("youtube_query_planner",              youtube_query_planner_node)
@@ -200,8 +209,7 @@ def build_graph() -> object:
     # builder.add_node("blog_rss_collection",                blog_rss_collection_node)
     # builder.add_node("pr_release_collection",              pr_release_collection_node)
     # builder.add_node("market_context_collection",          market_context_collection_node)
-    # ── 7개 리포트 노드 (D1=B 분리형) ────────────────────────────────────
-    # builder.add_node("comparison_matrix",     comparison_matrix_node)
+    # ── 7개 리포트 노드 (D1=B 분리형) — comparison_matrix 는 위에서 활성화 ─
     # builder.add_node("reaction_insight",      reaction_insight_node)
     # builder.add_node("marketing_social",      marketing_social_node)
     # builder.add_node("battlecard",            battlecard_node)
@@ -287,9 +295,14 @@ def build_graph() -> object:
     # 5) additional_urls_validation → feature_selection (v0.10.27 — page_meta_collect ·
     #    feature_mapping_llm · urls_merge 3 노드 폐기)
     builder.add_edge("additional_urls_validation",    "feature_selection")
-    # feature_selection 이후: 현재 임시 END
-    # TODO (§6-7 v0.6): 7중 fan-out + 6중 fan-in 엣지 적용
-    builder.add_edge("feature_selection",          END)
+
+    # 6) report generation 시리즈 (v0.12) — comparison_matrix 경로 활성화
+    #    (설계: docs/design/comparison_matrix_node_design.md §6.
+    #     comparison_matrix → END 는 임시 — 후속 시리즈에서 positioning_map·
+    #     battlecard list-fan-in 등으로 교체. §6-7 7중 fan-out 의 1번째 분기)
+    builder.add_edge("feature_selection",           "official_content_collection")
+    builder.add_edge("official_content_collection", "comparison_matrix")
+    builder.add_edge("comparison_matrix",           END)
 
     # TODO (§6-7 v0.6 v0.10 D11 반영) — 노드 구현 후 아래 엣지 활성화
     # ── 1) feature_selection 이후: feature_extraction + 신규 수집 노드 fan-out ──
@@ -401,12 +414,19 @@ try:
     _has_fanin_5_2  = all(p in _edge_pairs for p in _fanin_5_2)
     # 최종 직렬 검증
     _e5 = ("additional_urls_validation","feature_selection")          in _edge_pairs
+    # v0.12 — report generation 시리즈 (comparison_matrix 경로)
+    _e6 = all(p in _edge_pairs for p in [
+        ("feature_selection",           "official_content_collection"),
+        ("official_content_collection", "comparison_matrix"),
+    ])
     if all([_has_branch_b, _has_list_a, _has_list_b,
-            _has_fanout_5_1, _has_fanin_5_1, _has_fanout_5_2, _has_fanin_5_2, _e5]):
+            _has_fanout_5_1, _has_fanin_5_1, _has_fanout_5_2, _has_fanin_5_2,
+            _e5, _e6]):
         print(
-            "[graph.py] ✅ v0.10.27 토폴로지 확인 — "
+            "[graph.py] ✅ v0.12 토폴로지 확인 — "
             "ab_join list-fan-in + 5중 URL 탐색 fan-out 1차 + cross_reference + "
-            "5중 feature_mapping fan-out 2차 + additional_urls_validation → feature_selection",
+            "5중 feature_mapping fan-out 2차 + additional_urls_validation → "
+            "feature_selection → official_content_collection → comparison_matrix",
             flush=True,
         )
     else:
@@ -419,6 +439,7 @@ try:
         if not _has_fanout_5_2: _missing.append("cross_reference → 5 feature_mapping_*")
         if not _has_fanin_5_2:  _missing.append("5 feature_mapping_* → additional_urls_validation")
         if not _e5:             _missing.append("additional_urls_validation → feature_selection")
-        print(f"[graph.py] ❌ v0.10.27 토폴로지 엣지 누락: {_missing}", flush=True)
+        if not _e6:             _missing.append("feature_selection → official_content_collection → comparison_matrix")
+        print(f"[graph.py] ❌ v0.12 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)
