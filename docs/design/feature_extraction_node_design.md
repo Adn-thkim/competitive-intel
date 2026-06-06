@@ -267,7 +267,11 @@ LLM 입력 예산(페이지당 발췌 6,000자)을 맞추기 위해 단순 앞�
 - **어댑터**: `ClaudeApiAnalyzer(temperature=0)` + `call_with_schema(prompt, output_schema)`
   — 결정론적 출력 필수 (§6-6 확정). API 키는 `config.py`의 `ANTHROPIC_API_KEY` 경유.
 - **호출 단위**: candidate 1건당 1회. 입력 = (candidate 메타) + (feature 정의 목록) +
-  (URL별 본문 발췌). 병렬도 **4** (feature_mapping LLM 단계의 `parallel=4` 규약 재사용).
+  (URL별 본문 발췌). 병렬도 **1** (FE-D8 v2, 2026-06-06): candidate 입력 ~22k tok 이
+  조직 ITPM 30k 의 대부분을 차지하므로 동시 발사는 429 를 즉발한다. 직렬 처리 +
+  `ClaudeApiAnalyzer` 의 retry-after 백오프(429 시 헤더 지정 시간만큼 대기 후 동일
+  시도 재발사, schema 재시도 예산 미소모)로 한도 내 결정론적 완료를 보장한다.
+  4 candidate 약 2~3분 소요. (ITPM 상향·발췌 예산 축소 시 병렬도 재상향 검토.)
 - **feature 정의 주입**: `report_config["comparison_matrix"]`의 `features` +
   `feature_labels` + `categories`에 `analysis_features`의 `description`을 결합하여
   "무엇을 찾아야 하는지"를 명시. 구버전 travel-card-v1 같은 고정 필드 목록은 사용하지
