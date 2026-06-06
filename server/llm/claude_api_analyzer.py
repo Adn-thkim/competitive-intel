@@ -31,6 +31,7 @@ ClaudeCodeCliAnalyzer 와의 호환 인터페이스
 import json
 import logging
 import os
+import time
 
 import anthropic
 import jsonschema
@@ -38,6 +39,26 @@ import jsonschema
 from server.config import ANTHROPIC_API_KEY, API_MODEL
 
 logger = logging.getLogger(__name__)
+
+# rate limit(429) 백오프 정책
+_RATE_LIMIT_MAX_WAITS    = 6     # 누적 대기 횟수 상한 (초과 시 포기)
+_RATE_LIMIT_MAX_SLEEP    = 70    # 단일 대기 상한(초) — ITPM 창은 60초이므로 약간 여유
+_RATE_LIMIT_BASE_BACKOFF = 5     # retry-after 헤더 부재 시 지수 백오프 기준(초)
+
+
+def _retry_after_seconds(exc: Exception, wait_index: int) -> float:
+    """429 응답의 retry-after 헤더(초)를 우선 사용, 없으면 지수 백오프.
+
+    wait_index: 0부터 시작하는 누적 대기 횟수.
+    """
+    try:
+        headers = getattr(getattr(exc, "response", None), "headers", None) or {}
+        raw = headers.get("retry-after")
+        if raw is not None:
+            return min(float(raw), _RATE_LIMIT_MAX_SLEEP)
+    except (TypeError, ValueError):
+        pass
+    return min(_RATE_LIMIT_BASE_BACKOFF * (2 ** wait_index), _RATE_LIMIT_MAX_SLEEP)
 
 
 class ClaudeApiAnalyzer:
@@ -106,25 +127,49 @@ class ClaudeApiAnalyzer:
         """
         last_error: Exception | None = None
 
-        for attempt in range(1, max_retries + 1):
+        # schema/일반 오류용 재시도 예산(attempt)과 429 대기(rate_limit_waits)는 분리한다.
+        # rate limit 은 일시적 용량 문제이므로, retry-after 만큼 대기 후 같은 시도를
+        # 재발사하며 schema 재시도 예산을 소모하지 않는다.
+        attempt = 1
+        rate_limit_waits = 0
+        while attempt <= max_retries:
             try:
-                # 첫 시도: schema 전체 주입. 재시도: error feedback 만 추가 (토큰 절감)
+                # [v0.12.3 수정] 재시도에도 schema 재주입 — API 호출은 무상태(매 호출
+                # 독립 메시지)라 "앞서 제시된 schema" 가 재시도 컨텍스트에 존재하지
+                # 않는다. schema + error feedback 을 함께 전달한다.
                 if attempt == 1:
                     full_prompt = self._build_schema_prompt(prompt, output_schema)
                 else:
                     full_prompt = (
-                        prompt
+                        self._build_schema_prompt(prompt, output_schema)
                         + f"\n\n[이전 시도 {attempt - 1}회 오류: {str(last_error)[:300]}]\n"
-                        "위 오류를 수정해 올바른 JSON 만 반환하라. "
-                        "앞서 제시된 JSON Schema 를 그대로 준수할 것."
+                        "위 오류를 수정해, 위 JSON Schema 를 정확히 만족하는 JSON 만 "
+                        "다시 반환하라."
                     )
 
                 raw_output = self._invoke_api(full_prompt)
                 parsed     = self._extract_json(raw_output)
                 jsonschema.validate(parsed, output_schema)
-                if attempt > 1:
-                    logger.info("ClaudeApiAnalyzer: %d회 시도에 성공", attempt)
+                if attempt > 1 or rate_limit_waits > 0:
+                    logger.info("ClaudeApiAnalyzer: 성공 (schema 시도 %d, 429 대기 %d회)",
+                                attempt, rate_limit_waits)
                 return parsed
+
+            except anthropic.RateLimitError as exc:
+                # 429 — retry-after 만큼 대기 후 동일 시도 재발사 (attempt 미소모)
+                last_error = exc
+                if rate_limit_waits >= _RATE_LIMIT_MAX_WAITS:
+                    logger.error(
+                        "ClaudeApiAnalyzer: rate limit 대기 %d회 초과 — 포기",
+                        rate_limit_waits)
+                    break
+                sleep_s = _retry_after_seconds(exc, rate_limit_waits)
+                rate_limit_waits += 1
+                logger.warning(
+                    "ClaudeApiAnalyzer: rate limit(429) — %.1f초 대기 후 재시도 "
+                    "(대기 %d/%d)", sleep_s, rate_limit_waits, _RATE_LIMIT_MAX_WAITS)
+                time.sleep(sleep_s)
+                continue   # attempt 유지
 
             except (json.JSONDecodeError, jsonschema.ValidationError) as exc:
                 last_error = exc
@@ -132,19 +177,21 @@ class ClaudeApiAnalyzer:
                     "ClaudeApiAnalyzer: schema 검증 실패 (시도 %d/%d) — %s",
                     attempt, max_retries, str(exc)[:200],
                 )
+                attempt += 1
             except anthropic.APIError as exc:
                 last_error = exc
                 logger.error(
                     "ClaudeApiAnalyzer: API 호출 오류 (시도 %d/%d) — %s",
                     attempt, max_retries, str(exc)[:200],
                 )
+                attempt += 1
 
         logger.error(
-            "ClaudeApiAnalyzer: %d회 재시도 모두 실패 — %s",
-            max_retries, str(last_error)[:300],
+            "ClaudeApiAnalyzer: 재시도 모두 실패 — %s", str(last_error)[:300],
         )
         raise RuntimeError(
-            f"Anthropic API {max_retries}회 재시도 후 schema 검증 실패: {last_error}"
+            f"Anthropic API 재시도 후 실패 (schema 시도 {attempt - 1}, "
+            f"429 대기 {rate_limit_waits}회): {last_error}"
         )
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
