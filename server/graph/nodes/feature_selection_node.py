@@ -228,19 +228,22 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
         return _error(started_at, "selected_feature_ids가 비어 있습니다. "
                                   "최소 1개 이상의 feature를 선택해야 합니다.")
 
-    valid_feature_ids: set[str] = {
-        f.get("feature_id", "") for f in analysis_features
+    # 유효 feature_id 집합과 feature→report 매핑은 interrupt payload(reports_payload)
+    # 기준으로 구성한다. B-only(positioning_map·executive_summary)·marketing_social
+    # 카드의 feature 는 analysis_features 가 아닌 domain_taxonomy 에서 파생되므로
+    # analysis_features 만으로 검증하면 정상 선택값이 오탐된다 (프런트는 설계상 이들을
+    # selected_feature_ids 에 자동 포함 — feature_url_mapper_redesign.md §5-9).
+    feature_report_map: dict[str, str] = {
+        f.get("feature_id", ""): report_item["report_type"]
+        for report_item in reports_payload
+        for f in report_item.get("features", [])
+        if f.get("feature_id")
     }
+    valid_feature_ids: set[str] = set(feature_report_map)
     invalid = [fid for fid in selected_feature_ids if fid not in valid_feature_ids]
     if invalid:
         return _error(started_at,
                       f"유효하지 않은 feature_id가 포함되어 있습니다: {invalid}")
-
-    # selected_purposes 역산 검증 (v0.10 — report_type 목록)
-    feature_report_map: dict[str, str] = {
-        f.get("feature_id", ""): f.get("report_type", "")
-        for f in analysis_features
-    }
     derived_reports: list[str] = list(dict.fromkeys(
         feature_report_map[fid]
         for fid in selected_feature_ids
