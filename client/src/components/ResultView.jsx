@@ -1,15 +1,18 @@
 /**
  * ResultView
  * ----------
- * competitor_selection 이후 최종 state를 보여주는 화면.
+ * 파이프라인 종료 후 최종 state를 보여주는 화면.
  *
  * 표시 섹션:
+ *   0. 비교 매트릭스 리포트 (report_outputs.comparison_matrix) — v0.12, 있을 때만
  *   1. 자사 상품 요약
  *   2. 선택된 경쟁사 — competition_type별 그룹(direct / indirect / substitute)
  *   3. 선택된 기능적 대안 — 별도 섹션
  *   4. 공식 URL 조회 결과 (official_sources) — 있을 때만 표시
  *   5. Agent 실행 이력
  */
+
+import ComparisonMatrixReport from './ComparisonMatrixReport';
 
 const TYPE_META = {
   direct:     { label: '직접 경쟁',  bg: 'bg-blue-50',   border: 'border-blue-200',   badge: 'bg-blue-100 text-blue-800',   dot: 'bg-blue-500'   },
@@ -203,15 +206,18 @@ export default function ResultView({ result, onReset }) {
 
   const totalSelected = selectedIds.size;
   const ownOfficialSrc = srcMap[ownProduct.product_id];
+  const comparisonMatrix = state.report_outputs?.comparison_matrix;
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
-      <div className="max-w-3xl mx-auto">
+      <div className={`mx-auto ${comparisonMatrix ? 'max-w-5xl' : 'max-w-3xl'}`}>
 
         {/* 헤더 */}
         <div className="mb-8 flex items-start justify-between">
           <div>
-            <h2 className="text-2xl font-bold text-gray-900">경쟁사 탐색 완료</h2>
+            <h2 className="text-2xl font-bold text-gray-900">
+              {comparisonMatrix ? '분석 완료 — 비교 매트릭스' : '경쟁사 탐색 완료'}
+            </h2>
             <p className="mt-1 text-sm text-gray-500">
               프로젝트 ID:{' '}
               <code className="bg-gray-100 px-1.5 py-0.5 rounded text-xs font-mono text-gray-700">
@@ -239,6 +245,9 @@ export default function ResultView({ result, onReset }) {
             ))}
           </div>
         )}
+
+        {/* 비교 매트릭스 리포트 (v0.12 — report_outputs 존재 시) */}
+        {comparisonMatrix && <ComparisonMatrixReport report={comparisonMatrix} />}
 
         {/* 자사 상품 요약 */}
         {ownProduct.name && (
