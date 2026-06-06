@@ -428,7 +428,7 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
  * - onApproved: (data) => void
  * - onReset   : () => void
  */
-export default function FeatureSelectionPage({ intakeResult, threadId, onApproved, onReset }) {
+export default function FeatureSelectionPage({ intakeResult, threadId, onApproved, onReset, onStarted, onFailed }) {
   const iv      = intakeResult?.interrupt_value ?? {};
   const reports = iv.reports ?? [];
 
@@ -476,6 +476,9 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
 
     setSubmitting(true);
     setError('');
+    // v0.12.4 점진 렌더링 — 분석 시작을 App 에 알려 state 폴링을 가동한다.
+    // (graph 실행 중 체크포인트에서 report_outputs 가 보이는 즉시 결과 페이지로 전환)
+    onStarted?.();
 
     try {
       const res = await fetch('/api/approve', {
@@ -500,6 +503,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
       onApproved(data);
     } catch (err) {
       setError(err.message ?? '알 수 없는 오류가 발생했습니다.');
+      onFailed?.();   // 폴링 중지 (분석 시작 실패)
     } finally {
       setSubmitting(false);
     }

@@ -12,7 +12,76 @@
  *   5. Agent 실행 이력
  */
 
+import { useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
+
+/* ── 리포트 탭 정의 (v0.12.4 점진 렌더링) ──────────────────────────────────
+ * 각 리포트는 report_outputs[key] 가 생기는 순간 탭이 활성화된다.
+ * - 활성:   리포트 완성 (클릭 가능)
+ * - 생성 중: 분석 실행 중 + 미완성 (reportsRunning)
+ * - 준비 중: 분석 종료 후에도 미완성 (해당 노드 미구현 단계)
+ */
+const REPORT_TABS = [
+  { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스' },
+  { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트' },
+  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜' },
+];
+
+/* 전용 뷰가 없는 리포트의 임시 뷰어 — envelope 표준 필드만 표시 */
+function GenericReportView({ tab, report }) {
+  return (
+    <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+      <h3 className="text-lg font-bold text-gray-900 mb-1">
+        {tab.icon} {report?.content?.title ?? tab.label}
+      </h3>
+      <p className="text-xs text-gray-400 mb-3">
+        {report?.rubric_version} · 생성 {String(report?.generated_at ?? '').slice(0, 19).replace('T', ' ')}
+      </p>
+      <pre className="text-xs text-gray-600 bg-gray-50 rounded-lg p-3 overflow-x-auto max-h-96">
+        {JSON.stringify(report?.content ?? {}, null, 2)}
+      </pre>
+      <p className="text-[11px] text-gray-400 mt-2">
+        ※ 전용 화면 준비 전 임시 뷰입니다 — envelope 원본을 표시합니다.
+      </p>
+    </div>
+  );
+}
+
+/* 탭 바 — 완성된 리포트만 클릭 가능, 나머지는 생성 중/준비 중 비활성 */
+function ReportTabs({ reportOutputs, reportsRunning, activeTab, onSelect }) {
+  return (
+    <div className="mb-4 flex flex-wrap gap-2">
+      {REPORT_TABS.map(tab => {
+        const ready = Boolean(reportOutputs[tab.key]);
+        const isActive = activeTab === tab.key;
+        const statusLabel = ready ? null : (reportsRunning ? '생성 중…' : '준비 중');
+        return (
+          <button
+            key={tab.key}
+            type="button"
+            disabled={!ready}
+            onClick={() => ready && onSelect(tab.key)}
+            className={[
+              'px-4 py-2 rounded-xl border text-sm font-semibold transition-colors',
+              isActive
+                ? 'bg-white border-gray-800 text-gray-900 shadow-sm'
+                : ready
+                  ? 'bg-white border-gray-200 text-gray-600 hover:border-gray-400'
+                  : 'bg-gray-50 border-gray-200 text-gray-400 cursor-not-allowed',
+            ].join(' ')}
+          >
+            {tab.icon} {tab.label}
+            {statusLabel && (
+              <span className={`ml-1.5 text-[10px] font-normal ${reportsRunning ? 'text-indigo-500 animate-pulse' : 'text-gray-400'}`}>
+                {statusLabel}
+              </span>
+            )}
+          </button>
+        );
+      })}
+    </div>
+  );
+}
 
 const TYPE_META = {
   direct:     { label: '직접 경쟁',  bg: 'bg-blue-50',   border: 'border-blue-200',   badge: 'bg-blue-100 text-blue-800',   dot: 'bg-blue-500'   },
@@ -184,7 +253,8 @@ function GroupHeader({ type, count }) {
 }
 
 /* ── 메인 컴포넌트 ── */
-export default function ResultView({ result, onReset }) {
+export default function ResultView({ result, reportsRunning = false, onReset }) {
+  const [activeTab, setActiveTab] = useState('comparison_matrix');
   const state          = result?.state ?? {};
   const candidates     = state.competitor_candidates  ?? [];
   const functional     = state.functional_competitors ?? [];
@@ -206,7 +276,11 @@ export default function ResultView({ result, onReset }) {
 
   const totalSelected = selectedIds.size;
   const ownOfficialSrc = srcMap[ownProduct.product_id];
-  const comparisonMatrix = state.report_outputs?.comparison_matrix;
+  const reportOutputs    = state.report_outputs ?? {};
+  const comparisonMatrix = reportOutputs.comparison_matrix;
+  const hasAnyReport     = Object.keys(reportOutputs).length > 0;
+  const activeReport     = reportOutputs[activeTab];
+  const activeTabMeta    = REPORT_TABS.find(t => t.key === activeTab);
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -246,8 +320,23 @@ export default function ResultView({ result, onReset }) {
           </div>
         )}
 
-        {/* 비교 매트릭스 리포트 (v0.12 — report_outputs 존재 시) */}
-        {comparisonMatrix && <ComparisonMatrixReport report={comparisonMatrix} />}
+        {/* 리포트 탭 영역 (v0.12.4 — 점진 활성화) */}
+        {(hasAnyReport || reportsRunning) && (
+          <>
+            <ReportTabs
+              reportOutputs={reportOutputs}
+              reportsRunning={reportsRunning}
+              activeTab={activeTab}
+              onSelect={setActiveTab}
+            />
+            {activeTab === 'comparison_matrix' && comparisonMatrix && (
+              <ComparisonMatrixReport report={comparisonMatrix} />
+            )}
+            {activeTab !== 'comparison_matrix' && activeReport && (
+              <GenericReportView tab={activeTabMeta} report={activeReport} />
+            )}
+          </>
+        )}
 
         {/* 자사 상품 요약 */}
         {ownProduct.name && (
