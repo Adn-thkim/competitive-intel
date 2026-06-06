@@ -101,20 +101,21 @@ class ClaudeCodeCliAnalyzer:
                 # (schema는 이미 첫 시도에서 LLM이 수신했으므로 재전송 불필요)
                 # 효과: 재시도 1회당 ~2,700 tokens 절감
                 #
-                # ✏️  FULL로 롤백하려면 아래 if/else 블록 전체를 다음 한 줄로 교체:
-                #     full_prompt = self._build_schema_prompt(prompt, output_schema)
-                #     그리고 아래 else 블록과 이 주석 블록을 삭제한다.
+                # ── [v0.12.3 수정] 재시도에도 schema 재주입 ─────────────────
+                # 옛 SLIM 변경 #2 는 "schema 는 첫 시도에서 LLM 이 수신했다"고
+                # 가정했으나, CLI 호출은 매번 새 프로세스(무상태)라 재시도 프롬프트에
+                # schema 가 존재하지 않았다 → 재시도가 오류 메시지만 보고 수정하다
+                # required 필드(score_rationale 등)를 반복 누락하는 실패 패턴 유발.
+                # 재시도에는 schema 전체 + error feedback 을 함께 전달한다.
                 # ─────────────────────────────────────────────────────────────
                 if attempt == 1:
-                    # 첫 시도: schema 전체 주입 (슬림화 적용)
                     full_prompt = self._build_schema_prompt(prompt, output_schema)
                 else:
-                    # 재시도: schema 재주입 없이 error feedback만 추가
                     full_prompt = (
-                        prompt
+                        self._build_schema_prompt(prompt, output_schema)
                         + f"\n\n[이전 시도 {attempt - 1}회 오류: {str(last_error)[:300]}]\n"
-                        "위 오류를 수정해 올바른 JSON을 다시 반환하라. "
-                        "앞서 제시된 JSON Schema를 그대로 준수할 것."
+                        "위 오류를 수정해, 위 JSON Schema 를 정확히 만족하는 JSON 만 "
+                        "다시 반환하라."
                     )
 
                 raw_output = self._invoke_cli(full_prompt)
