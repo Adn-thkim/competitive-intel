@@ -308,12 +308,14 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
   const sourceFlow         = report.source_flow ?? 'A';
   const introText          = report.intro_text  ?? '';
   const urlCoverageVisible = report.url_coverage_visible !== false;  // 기본 true
-  const isBOnly            = sourceFlow === 'B';
 
   // v0.10.28b D45 a — marketing_social 카드는 B-only 형식 + 별도 owned_channels_card 렌더링
   const isMarketingSocial    = report.report_type === 'marketing_social';
   const ownedChannelsCard    = report.owned_channels_card;
-  const checkboxDisabled     = isBOnly || isMarketingSocial;
+  // v0.12.1 — 모든 리포트 카드의 feature 를 사용자가 선택/해제 가능하게 함.
+  // (이전: B-only·marketing_social 은 자동 포함·체크박스 비활성. URL 영역 숨김은
+  //  urlCoverageVisible 로 별도 제어되므로 선택 가능 여부와 무관하게 유지됨.)
+  const checkboxDisabled     = false;
 
   const featureIds   = report.features.map(f => f.feature_id);
   const allSelected  = featureIds.every(id => selectedIds.has(id));
