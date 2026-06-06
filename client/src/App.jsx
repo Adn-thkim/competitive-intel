@@ -1,4 +1,4 @@
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import SearchPage from './components/SearchPage';
 import ReviewForm from './components/ReviewForm';
 import CompetitorSelectionPage from './components/CompetitorSelectionPage';
@@ -39,6 +39,37 @@ export default function App() {
   const [intakeResult, setIntakeResult]   = useState(null);
   const [approveResult, setApproveResult] = useState(null);
   const [criticalError, setCriticalError] = useState(null);
+
+  // ── v0.12.4 점진 렌더링 (progressive report tabs) ─────────────────────────
+  // feature_selection 재개 직후 graph 가 END 까지 도는 동안, LangGraph 체크포인터가
+  // 노드 완료마다 갱신하는 state 를 GET /api/state/:threadId 로 폴링한다.
+  // report_outputs.comparison_matrix 가 보이는 즉시 결과 페이지로 전환하고,
+  // 이후 리포트 키가 추가될 때마다 ResultView 의 탭이 점진 활성화된다.
+  const [analysisRunning, setAnalysisRunning] = useState(false);
+  const [liveState, setLiveState]             = useState(null);
+
+  useEffect(() => {
+    if (!analysisRunning || !threadId || approveResult) return undefined;
+    const timer = setInterval(async () => {
+      try {
+        const res = await fetch(`/api/state/${encodeURIComponent(threadId)}`);
+        if (!res.ok) return;
+        const data = await res.json();
+        if (data?.state) setLiveState(data.state);
+      } catch {
+        /* 일시적 폴링 실패는 무시 — 다음 주기에 재시도 */
+      }
+    }, 2000);
+    return () => clearInterval(timer);
+  }, [analysisRunning, threadId, approveResult]);
+
+  // 첫 리포트(comparison_matrix) 완성 시점에 결과 페이지로 전환
+  useEffect(() => {
+    if (analysisRunning && page === 'feature_selection'
+        && liveState?.report_outputs?.comparison_matrix) {
+      setPage('result');
+    }
+  }, [analysisRunning, page, liveState]);
 
   /**
    * InvokeResponse에서 critical_error 값을 안전하게 추출한다.
@@ -83,6 +114,7 @@ export default function App() {
   }
 
   function handleApproved(data) {
+    setAnalysisRunning(false);   // 최종 응답 도착 — 폴링 종료
     setIntakeResult(data);
     const next = resolvePage(data);
     if (next === 'critical_error') {
@@ -99,6 +131,8 @@ export default function App() {
     setApproveResult(null);
     setThreadId(null);
     setCriticalError(null);
+    setAnalysisRunning(false);
+    setLiveState(null);
   }
 
   return (
@@ -139,12 +173,15 @@ export default function App() {
           threadId={threadId}
           onApproved={handleApproved}
           onReset={handleReset}
+          onStarted={() => { setLiveState(null); setAnalysisRunning(true); }}
+          onFailed={() => setAnalysisRunning(false)}
         />
       )}
 
       {page === 'result' && (
         <ResultView
-          result={approveResult}
+          result={approveResult ?? (liveState ? { state: liveState } : null)}
+          reportsRunning={analysisRunning && !approveResult}
           onReset={handleReset}
         />
       )}

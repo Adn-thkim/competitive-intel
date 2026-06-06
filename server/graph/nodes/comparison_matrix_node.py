@@ -394,9 +394,9 @@ def comparison_matrix_node(
     )
 
     out: dict = {
-        # CM-D3: 현 시리즈는 단일 리포트 노드 — 기본 replace 안전.
-        # 복수 리포트 병렬화 전 merge reducer 도입 필요 (설계 문서 §6).
-        "report_outputs": {**(state.get("report_outputs") or {}), REPORT_TYPE: envelope},
+        # CM-D3 (2026-06-06): merge_report_outputs reducer 도입 — 자기 키만 반환하면
+        # LangGraph 가 병합한다. 기존 state 전개(spread)는 reducer 와 중복이라 제거.
+        "report_outputs": {REPORT_TYPE: envelope},
         "agent_steps":    [make_completed_step(REPORT_TYPE, started_at)],
     }
     if degraded_error:
