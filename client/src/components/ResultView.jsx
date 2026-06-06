@@ -216,7 +216,7 @@ export default function ResultView({ result, onReset }) {
         <div className="mb-8 flex items-start justify-between">
           <div>
             <h2 className="text-2xl font-bold text-gray-900">
-              {comparisonMatrix ? '분석 완료 — 비교 매트릭스' : '경쟁사 탐색 완료'}
+              {comparisonMatrix ? '분석 완료' : '경쟁사 탐색 완료'}
             </h2>
             <p className="mt-1 text-sm text-gray-500">
               프로젝트 ID:{' '}
