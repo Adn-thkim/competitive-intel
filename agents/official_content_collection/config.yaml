@@ -19,11 +19,12 @@ output_format: json
 max_tokens: 8000          # extracted_features 최대 12건 × evidence 포함 여유
 timeout_seconds: 180
 
-# 호출 단위·병렬도 — FE-D4
-# candidate당 1회 호출. 병렬 4 (rate limit ITPM 초과 시 2로 강등).
+# 호출 단위·병렬도 — FE-D4 / FE-D8 v2
+# candidate당 1회 호출. 직렬(parallel=1): candidate 입력 ~22k tok vs 조직 ITPM 30k 라
+# 동시 발사는 429 를 유발한다. ClaudeApiAnalyzer 의 retry-after 백오프와 결합해
+# 한도 내 결정론적 완료를 보장한다 (rate limit 압박 해소 시 상향 재검토).
 call_unit: per_candidate
-parallel: 4
-parallel_fallback: 2
+parallel: 1
 
 # LLM 입력 예산 — FE-D5 v3 (§5-2a)
 # candidate당 발췌 총예산 30,000자, 페이지당 min(6,000, 30,000/페이지 수).

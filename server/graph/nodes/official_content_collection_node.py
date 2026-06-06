@@ -148,7 +148,10 @@ _EXCERPT_OMIT_MARKER      = "\n[... 본문 일부 생략 ...]\n"
 
 # ── Step 2: LLM 추출 상수 (§5-3, FE-D4·FE-D8) ────────────────────────────────
 _LLM_AGENT_ID    = "official_content_collection"
-_LLM_PARALLEL    = 4         # rate limit(ITPM) 초과 시 2로 강등 (config.yaml parallel_fallback)
+# parallel=1 (FE-D8 v2, 2026-06-06): candidate 1건 입력이 ~22k tok 이고 조직 ITPM 이
+# 30k 라, 동시 발사는 즉시 429 를 유발한다. 직렬 처리 + ClaudeApiAnalyzer 의
+# retry-after 백오프(429 시 대기 후 재발사)로 한도 내 결정론적 완료를 보장한다.
+_LLM_PARALLEL    = 1
 _LLM_MAX_TOKENS  = 8_000
 _LLM_TIMEOUT_SEC = 180
 
