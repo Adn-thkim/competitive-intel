@@ -54,14 +54,18 @@ from server.graph.agent_cache import load_agent_output, store_agent_output
 logger = logging.getLogger(__name__)
 
 # YouTube Data API v3 endpoints
-_SEARCH_ENDPOINT   = "https://www.googleapis.com/youtube/v3/search"
-_VIDEOS_ENDPOINT   = "https://www.googleapis.com/youtube/v3/videos"
-_COMMENTS_ENDPOINT = "https://www.googleapis.com/youtube/v3/commentThreads"
+_SEARCH_ENDPOINT        = "https://www.googleapis.com/youtube/v3/search"
+_VIDEOS_ENDPOINT        = "https://www.googleapis.com/youtube/v3/videos"
+_COMMENTS_ENDPOINT      = "https://www.googleapis.com/youtube/v3/commentThreads"
+_CHANNELS_ENDPOINT      = "https://www.googleapis.com/youtube/v3/channels"
+_PLAYLIST_ITEMS_ENDPOINT = "https://www.googleapis.com/youtube/v3/playlistItems"
 
 # Quota costs (Google 공식 문서 기준)
-_SEARCH_LIST_COST   = 100   # units per call
-_VIDEOS_LIST_COST   = 1     # unit per call (50 videos 까지 단일 호출 = 1 unit)
-_COMMENTS_LIST_COST = 1     # unit per call (100 comments 까지 단일 호출 = 1 unit)
+_SEARCH_LIST_COST    = 100   # units per call
+_VIDEOS_LIST_COST    = 1     # unit per call (50 videos 까지 단일 호출 = 1 unit)
+_COMMENTS_LIST_COST  = 1     # unit per call (100 comments 까지 단일 호출 = 1 unit)
+_CHANNELS_LIST_COST  = 1     # unit per call (v1.0 §6-6a 채널 메타)
+_PLAYLIST_ITEMS_COST = 1     # unit per call (50 items 까지 단일 호출 = 1 unit)
 
 # HTTP timeouts
 _CONNECT_TIMEOUT = 3
@@ -516,6 +520,146 @@ def youtube_videos_snippet(video_ids: list[str]) -> dict[str, dict]:
     store_agent_output(agent_id="youtube_snippets", cache_input=cache_input,
                        context=cache_context, output={"by_id": by_id}, logger=logger)
     return by_id
+
+
+def youtube_channel_info(channel_url: str) -> dict | None:
+    """공식 채널 메타 조회 (channels.list, 1 unit). 24h TTL 캐시. v1.0 §6-6a.
+
+    URL 형태별 조회 파라미터 (url_discovery_owned_channels 와 동일 규약):
+    - /channel/UC…  → id
+    - /user/X       → forUsername
+    - /@handle      → forHandle
+    - /c/X          → forHandle (@X 시도 — 실패 시 None)
+
+    Returns
+    -------
+    dict | None
+        {"channel_id", "title", "subscriber_count", "video_count",
+         "uploads_playlist_id"} — 채널 미발견 시 None
+    """
+    if not YOUTUBE_API_KEY:
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+
+    rest = channel_url.split("//", 1)[-1]
+    path = rest.split("/", 1)[1] if "/" in rest else ""
+    segs = [s for s in path.split("?")[0].split("#")[0].split("/") if s]
+    if segs and segs[0] == "channel" and len(segs) >= 2:
+        lookup = {"id": segs[1]}
+    elif segs and segs[0] == "user" and len(segs) >= 2:
+        lookup = {"forUsername": segs[1]}
+    elif segs and segs[0] == "c" and len(segs) >= 2:
+        lookup = {"forHandle": f"@{segs[1]}"}
+    elif segs and segs[0].startswith("@"):
+        lookup = {"forHandle": segs[0]}
+    else:
+        return None
+
+    cache_input = {"lookup": lookup}
+    cache_context = {"agent_id": "youtube_channels", "v": 1}
+    cached = load_agent_output(
+        agent_id="youtube_channels", cache_input=cache_input,
+        context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return cached.get("info") or None
+
+    _check_and_consume_quota(_CHANNELS_LIST_COST)
+    params = {
+        "part": "snippet,statistics,contentDetails", **lookup, "key": YOUTUBE_API_KEY,
+    }
+    try:
+        resp = requests.get(_CHANNELS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise YouTubeApiUnavailable(f"channels.list 네트워크 오류: {exc}") from exc
+    if resp.status_code in (401, 403):
+        err_msg = _extract_error_message(resp)
+        if "quota" in err_msg.lower():
+            raise YouTubeQuotaExceeded(f"channels.list quota exceeded: {err_msg}")
+        raise YouTubeApiUnavailable(f"channels.list 인증 오류: {err_msg}")
+    if not resp.ok:
+        raise YouTubeApiUnavailable(
+            f"channels.list 오류 {resp.status_code}: {_extract_error_message(resp)}")
+
+    items = resp.json().get("items") or []
+    info = None
+    if items:
+        it = items[0]
+        stats = it.get("statistics") or {}
+        info = {
+            "channel_id":          it.get("id", ""),
+            "title":               (it.get("snippet") or {}).get("title", ""),
+            "subscriber_count":    int(stats.get("subscriberCount", 0) or 0),
+            "video_count":         int(stats.get("videoCount", 0) or 0),
+            "uploads_playlist_id": ((it.get("contentDetails") or {})
+                                    .get("relatedPlaylists") or {}).get("uploads", ""),
+        }
+    store_agent_output(agent_id="youtube_channels", cache_input=cache_input,
+                       context=cache_context, output={"info": info}, logger=logger)
+    return info
+
+
+def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[dict]:
+    """업로드 playlist 의 최근 영상 목록 (playlistItems.list, 50건까지 1 unit). 24h TTL 캐시.
+
+    Returns
+    -------
+    list[dict]
+        [{"video_id", "title", "published_at"}] — 최신순 (API 기본 정렬)
+    """
+    if not playlist_id:
+        return []
+    if not YOUTUBE_API_KEY:
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+
+    cache_input = {"playlist_id": playlist_id, "max_results": max_results}
+    cache_context = {"agent_id": "youtube_playlist_items", "v": 1}
+    cached = load_agent_output(
+        agent_id="youtube_playlist_items", cache_input=cache_input,
+        context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return cached.get("items", []) or []
+
+    _check_and_consume_quota(_PLAYLIST_ITEMS_COST)
+    params = {
+        "part":       "snippet,contentDetails",
+        "playlistId": playlist_id,
+        "maxResults": min(max_results, 50),
+        "key":        YOUTUBE_API_KEY,
+    }
+    try:
+        resp = requests.get(_PLAYLIST_ITEMS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise YouTubeApiUnavailable(f"playlistItems.list 네트워크 오류: {exc}") from exc
+    if resp.status_code == 404:
+        # playlist 부재 (영상 0건 채널) — 빈 목록 캐시
+        store_agent_output(agent_id="youtube_playlist_items", cache_input=cache_input,
+                           context=cache_context, output={"items": []}, logger=logger)
+        return []
+    if resp.status_code in (401, 403):
+        err_msg = _extract_error_message(resp)
+        if "quota" in err_msg.lower():
+            raise YouTubeQuotaExceeded(f"playlistItems.list quota exceeded: {err_msg}")
+        raise YouTubeApiUnavailable(f"playlistItems.list 인증 오류: {err_msg}")
+    if not resp.ok:
+        raise YouTubeApiUnavailable(
+            f"playlistItems.list 오류 {resp.status_code}: {_extract_error_message(resp)}")
+
+    items: list[dict] = []
+    for it in resp.json().get("items") or []:
+        snippet = it.get("snippet") or {}
+        vid = ((it.get("contentDetails") or {}).get("videoId")
+               or ((snippet.get("resourceId") or {}).get("videoId")))
+        if vid:
+            items.append({
+                "video_id":     vid,
+                "title":        snippet.get("title", ""),
+                "published_at": ((it.get("contentDetails") or {}).get("videoPublishedAt")
+                                 or snippet.get("publishedAt", "")),
+            })
+    store_agent_output(agent_id="youtube_playlist_items", cache_input=cache_input,
+                       context=cache_context, output={"items": items}, logger=logger)
+    return items
 
 
 def _call_search_list(query: str, max_results: int, region_code: str) -> dict[str, Any]:
