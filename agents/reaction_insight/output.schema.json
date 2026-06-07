@@ -1,0 +1,43 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/reaction-insight/output.schema.json",
+  "title": "ReactionInsightAgentOutput",
+  "description": "코드가 집계한 aspect × polarity 매트릭스를 입력받아 LLM 이 산출하는 서술 부분 (CM-D1 분리). 수치 재생성 금지. 설계: docs/design/reaction_insight_node_design.md §6.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["aspect_insights", "overall_summary", "warnings"],
+  "properties": {
+    "aspect_insights": {
+      "type": "array",
+      "description": "aspect 별 인사이트 서술 — 입력 매트릭스의 aspect 키만 허용 (코드 가드 병행)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["aspect", "headline", "narrative"],
+        "properties": {
+          "aspect": { "type": "string" },
+          "headline": {
+            "type": "string",
+            "maxLength": 80,
+            "description": "한 줄 요지 (예: '환율 우대는 칭찬, 재환전은 불만 집중')"
+          },
+          "narrative": {
+            "type": "string",
+            "maxLength": 400,
+            "description": "근거 서술 — 입력 매트릭스 수치·대표 quote 인용. 입력에 없는 사실 금지"
+          }
+        }
+      }
+    },
+    "overall_summary": {
+      "type": "string",
+      "maxLength": 600,
+      "description": "자사 관점 종합 — 어떤 aspect 에서 칭찬/불만이 쏠리는지, 경쟁사 대비 반응 차이"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string", "maxLength": 300 },
+      "description": "표본 편향·해석 주의 사항"
+    }
+  }
+}
