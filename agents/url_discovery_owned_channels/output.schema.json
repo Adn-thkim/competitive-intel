@@ -41,6 +41,10 @@
             "type": "string",
             "minLength": 5,
             "description": "공식 판정 근거 1~2문장 (brand 명 매칭·verified 시그널·도메인 일치 등)."
+          },
+          "title": {
+            "type": "string",
+            "description": "(선택) 페이지 제목 — LLM 이 입력 candidate_urls 의 title 을 함께 반환하는 경향이 있어 허용 (2026-06-07 schema 검증 3회 실패 사례). 노드는 사용하지 않음."
           }
         }
       }
