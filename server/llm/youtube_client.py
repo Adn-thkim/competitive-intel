@@ -33,6 +33,7 @@ Quota 관리
 """
 from __future__ import annotations
 
+import hashlib
 import logging
 import threading
 from datetime import datetime, timezone
@@ -53,12 +54,14 @@ from server.graph.agent_cache import load_agent_output, store_agent_output
 logger = logging.getLogger(__name__)
 
 # YouTube Data API v3 endpoints
-_SEARCH_ENDPOINT = "https://www.googleapis.com/youtube/v3/search"
-_VIDEOS_ENDPOINT = "https://www.googleapis.com/youtube/v3/videos"
+_SEARCH_ENDPOINT   = "https://www.googleapis.com/youtube/v3/search"
+_VIDEOS_ENDPOINT   = "https://www.googleapis.com/youtube/v3/videos"
+_COMMENTS_ENDPOINT = "https://www.googleapis.com/youtube/v3/commentThreads"
 
 # Quota costs (Google 공식 문서 기준)
-_SEARCH_LIST_COST = 100   # units per call
-_VIDEOS_LIST_COST = 1     # unit per call (50 videos 까지 단일 호출 = 1 unit)
+_SEARCH_LIST_COST   = 100   # units per call
+_VIDEOS_LIST_COST   = 1     # unit per call (50 videos 까지 단일 호출 = 1 unit)
+_COMMENTS_LIST_COST = 1     # unit per call (100 comments 까지 단일 호출 = 1 unit)
 
 # HTTP timeouts
 _CONNECT_TIMEOUT = 3
@@ -321,6 +324,200 @@ def youtube_videos_list(video_id: str) -> dict | None:
 
 
 # ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
+def youtube_comment_threads(video_id: str, *, max_results: int = 100) -> list[dict]:
+    """영상 1건의 최상위 댓글 수집 (commentThreads.list, 1 unit). 24h TTL 캐시.
+
+    v0.13 (reaction_insight 시리즈) — youtube_reaction_collection_node 가 사용.
+    order=relevance 1 page 수집 후 좋아요 상위 선별은 호출자(코드) 책임.
+
+    Returns
+    -------
+    list[dict]
+        각 댓글 항목 (작성자 식별정보 비저장 — D11):
+        {"comment_id", "text"(textOriginal 원문), "like_count", "published_at",
+         "author_hash"(중복 작성자 탐지용 sha256 prefix)}
+        댓글 비활성(commentsDisabled) 영상은 빈 리스트 반환 (예외 아님 — 부분 실패 허용).
+
+    Raises
+    ------
+    YouTubeQuotaExceeded / YouTubeApiUnavailable
+    """
+    if not YOUTUBE_API_KEY:
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+
+    cache_input = {"video_id": video_id, "max_results": max_results}
+    cache_context = {"agent_id": "youtube_comments", "v": 1}
+    cached = load_agent_output(
+        agent_id="youtube_comments", cache_input=cache_input,
+        context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return cached.get("items", []) or []
+
+    _check_and_consume_quota(_COMMENTS_LIST_COST)
+    params = {
+        "part":       "snippet",
+        "videoId":    video_id,
+        "order":      "relevance",
+        "maxResults": min(max_results, 100),     # API 제한 100
+        "textFormat": "plainText",
+        "key":        YOUTUBE_API_KEY,
+    }
+    try:
+        resp = requests.get(_COMMENTS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise YouTubeApiUnavailable(f"commentThreads.list 네트워크 오류: {exc}") from exc
+
+    if resp.status_code == 403:
+        err_msg = _extract_error_message(resp)
+        if "quota" in err_msg.lower():
+            raise YouTubeQuotaExceeded(f"commentThreads quota exceeded: {err_msg}")
+        if "disabled" in err_msg.lower() or "commentsDisabled" in resp.text:
+            # 댓글 비활성 영상 — 빈 결과 캐시 (반복 호출 방지)
+            logger.info("youtube_comment_threads: 댓글 비활성 영상 skip (%s)", video_id)
+            store_agent_output(agent_id="youtube_comments", cache_input=cache_input,
+                               context=cache_context, output={"items": []}, logger=logger)
+            return []
+        raise YouTubeApiUnavailable(f"commentThreads 인증 오류(403): {err_msg}")
+    if resp.status_code == 401:
+        raise YouTubeApiUnavailable(f"commentThreads 인증 오류(401): {_extract_error_message(resp)}")
+    if resp.status_code == 404:
+        logger.info("youtube_comment_threads: 영상 없음 skip (%s)", video_id)
+        store_agent_output(agent_id="youtube_comments", cache_input=cache_input,
+                           context=cache_context, output={"items": []}, logger=logger)
+        return []
+    if resp.status_code >= 500:
+        raise YouTubeApiUnavailable(f"commentThreads 서버 오류: {resp.status_code}")
+    if not resp.ok:
+        raise YouTubeApiUnavailable(
+            f"commentThreads 오류 {resp.status_code}: {_extract_error_message(resp)}")
+
+    items: list[dict] = []
+    for thread in resp.json().get("items") or []:
+        top = ((thread.get("snippet") or {}).get("topLevelComment") or {}).get("snippet") or {}
+        text = (top.get("textOriginal") or top.get("textDisplay") or "").strip()
+        if not text:
+            continue
+        author_channel = (top.get("authorChannelId") or {}).get("value", "")
+        items.append({
+            "comment_id":   thread.get("id", ""),
+            "text":         text,
+            "like_count":   int(top.get("likeCount", 0) or 0),
+            "published_at": top.get("publishedAt", ""),
+            # D11 — 작성자 식별정보 비저장. 동일 작성자 도배 탐지용 해시 prefix 만 보존.
+            "author_hash":  hashlib.sha256(author_channel.encode("utf-8")).hexdigest()[:12]
+                            if author_channel else "",
+        })
+
+    store_agent_output(agent_id="youtube_comments", cache_input=cache_input,
+                       context=cache_context, output={"items": items}, logger=logger)
+    logger.info("youtube_comment_threads: %d comments (quota_used=%d, video=%s)",
+                len(items), current_quota_used(), video_id)
+    return items
+
+
+def youtube_videos_statistics(video_ids: list[str]) -> dict[str, dict]:
+    """영상 통계 일괄 조회 (videos.list part=statistics, 50건까지 1 unit). 24h TTL 캐시.
+
+    v0.13.1 (RI-D9) — feature_mapping 출력의 existing_urls 가 view_count 메타를
+    carry 하지 않아(실측: 전부 0) RI-D4 조회수 정렬이 무력화되는 문제의 보강.
+    수집 노드가 선별 전에 후보 풀 전체의 통계를 일괄 조회한다.
+
+    Returns
+    -------
+    dict[str, dict]
+        {video_id: {"view_count", "like_count", "comment_count"}}
+        (비공개·삭제 영상은 _call_videos_list 에서 제외됨)
+    """
+    if not video_ids:
+        return {}
+    if not YOUTUBE_API_KEY:
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+
+    out: dict[str, dict] = {}
+    ids_sorted = sorted(set(video_ids))
+    for i in range(0, len(ids_sorted), 50):          # API 제한 50건/호출
+        chunk = ids_sorted[i:i + 50]
+        cache_input = {"video_ids": chunk, "part": "statistics"}
+        cache_context = {"agent_id": "youtube_statistics", "v": 1}
+        cached = load_agent_output(
+            agent_id="youtube_statistics", cache_input=cache_input,
+            context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
+        )
+        if cached is not None:
+            out.update(cached.get("by_id", {}) or {})
+            continue
+        _check_and_consume_quota(_VIDEOS_LIST_COST)
+        stats_by_id = _call_videos_list(chunk)
+        by_id = {
+            vid: {
+                "view_count":    int(stats.get("viewCount", 0) or 0),
+                "like_count":    int(stats.get("likeCount", 0) or 0),
+                "comment_count": int(stats.get("commentCount", 0) or 0),
+            }
+            for vid, stats in stats_by_id.items()
+        }
+        store_agent_output(agent_id="youtube_statistics", cache_input=cache_input,
+                           context=cache_context, output={"by_id": by_id}, logger=logger)
+        out.update(by_id)
+    return out
+
+
+def youtube_videos_snippet(video_ids: list[str]) -> dict[str, dict]:
+    """영상 제목·설명 일괄 조회 (videos.list part=snippet, 50건까지 1 unit). 24h TTL 캐시.
+
+    v0.13 — 댓글 해석 맥락용 영상 메타 (RI-D2: 자막 대신 공식 snippet 수집).
+
+    Returns
+    -------
+    dict[str, dict]
+        {video_id: {"title", "description", "published_at", "channel_title"}}
+    """
+    if not video_ids:
+        return {}
+    if not YOUTUBE_API_KEY:
+        raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
+
+    ids_sorted = sorted(set(video_ids))[:50]
+    cache_input = {"video_ids": ids_sorted}
+    cache_context = {"agent_id": "youtube_snippets", "v": 1}
+    cached = load_agent_output(
+        agent_id="youtube_snippets", cache_input=cache_input,
+        context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
+    )
+    if cached is not None:
+        return cached.get("by_id", {}) or {}
+
+    _check_and_consume_quota(_VIDEOS_LIST_COST)
+    params = {"part": "snippet", "id": ",".join(ids_sorted), "key": YOUTUBE_API_KEY}
+    try:
+        resp = requests.get(_VIDEOS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+    except requests.RequestException as exc:
+        raise YouTubeApiUnavailable(f"videos.list(snippet) 네트워크 오류: {exc}") from exc
+    if resp.status_code in (401, 403):
+        err_msg = _extract_error_message(resp)
+        if "quota" in err_msg.lower():
+            raise YouTubeQuotaExceeded(f"videos.list(snippet) quota exceeded: {err_msg}")
+        raise YouTubeApiUnavailable(f"videos.list(snippet) 인증 오류: {err_msg}")
+    if not resp.ok:
+        raise YouTubeApiUnavailable(
+            f"videos.list(snippet) 오류 {resp.status_code}: {_extract_error_message(resp)}")
+
+    by_id: dict[str, dict] = {}
+    for item in resp.json().get("items") or []:
+        snippet = item.get("snippet") or {}
+        if item.get("id"):
+            by_id[item["id"]] = {
+                "title":         snippet.get("title", ""),
+                "description":   snippet.get("description", ""),
+                "published_at":  snippet.get("publishedAt", ""),
+                "channel_title": snippet.get("channelTitle", ""),
+            }
+    store_agent_output(agent_id="youtube_snippets", cache_input=cache_input,
+                       context=cache_context, output={"by_id": by_id}, logger=logger)
+    return by_id
+
+
 def _call_search_list(query: str, max_results: int, region_code: str) -> dict[str, Any]:
     """search.list HTTP 호출. 5xx 또는 API key 오류 시 YouTubeApiUnavailable 발생."""
     params = {
