@@ -15,6 +15,7 @@
 import { useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
 import ReactionInsightReport from './ReactionInsightReport';
+import MarketingSocialReport from './MarketingSocialReport';
 
 /* ── 리포트 탭 정의 (v0.12.4 점진 렌더링) ──────────────────────────────────
  * 각 리포트는 report_outputs[key] 가 생기는 순간 탭이 활성화된다.
@@ -351,7 +352,14 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
                 ownProductId={ownProduct.product_id}
               />
             )}
-            {!['comparison_matrix', 'reaction_insight'].includes(activeTab) && activeReport && (
+            {activeTab === 'marketing_social' && reportOutputs.marketing_social && (
+              <MarketingSocialReport
+                report={reportOutputs.marketing_social}
+                candidateNames={candidateNameMap}
+                ownProductId={ownProduct.product_id}
+              />
+            )}
+            {!['comparison_matrix', 'reaction_insight', 'marketing_social'].includes(activeTab) && activeReport && (
               <GenericReportView tab={activeTabMeta} report={activeReport} />
             )}
           </>
