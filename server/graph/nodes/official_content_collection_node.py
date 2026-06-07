@@ -445,7 +445,9 @@ def _fetch_content(url: str) -> dict:
         logger=logger,
     )
     if cached is not None:
-        return cached
+        # from_cache: 호출자가 네트워크 발생 여부를 알 수 있게 표시
+        # (community_collection 의 rate limit 은 실제 네트워크 호출에만 적용 — D11)
+        return {**cached, "from_cache": True}
 
     try:
         resp = requests.get(

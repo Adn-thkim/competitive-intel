@@ -72,6 +72,9 @@ STAGE_MESSAGES: dict[str, str] = {
     # 기존 호환 — 단일 feature_mapping 단계 (UI STAGE_INDEX 매핑용)
     "feature_mapping":         "분석 항목 매핑 중",
     "feature_mapping_done":    "분석 항목 매핑 완료",
+    # v0.13 — reaction_insight 시리즈 (수집·ABSA 단계)
+    "reaction_collection":     "사용자 반응 수집 중",
+    "reaction_analysis":       "반응 ABSA 분석 중",
 }
 
 # candidate.stage → UI 라벨 (C-1)

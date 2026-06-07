@@ -1,0 +1,58 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/reaction-analysis/output.schema.json",
+  "title": "ReactionAnalysisAgentOutput",
+  "description": "candidate 1건의 사용자 반응 ABSA 7-tuple (+ is_suggestion). 설계: docs/design/reaction_insight_node_design.md §5. aspect 는 입력 aspect_codebook 의 aspect_id 만 허용 (코드 가드 병행).",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["candidate_id", "tuples"],
+  "properties": {
+    "candidate_id": { "type": "string", "minLength": 1 },
+    "tuples": {
+      "type": "array",
+      "description": "반응 1건 = tuple 1건. 한 텍스트에서 복수 aspect 추출 가능. 잡담·영상 자체 언급은 추출하지 않음.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["aspect", "polarity", "intensity", "quote", "source_url", "channel", "posted_at", "is_suggestion"],
+        "properties": {
+          "aspect": {
+            "type": "string",
+            "description": "입력 aspects 목록의 aspect_id 만 허용. 목록 밖 신조어 금지."
+          },
+          "polarity": {
+            "type": "string",
+            "enum": ["positive", "negative", "neutral"]
+          },
+          "intensity": {
+            "type": "integer",
+            "minimum": 1,
+            "maximum": 3,
+            "description": "1=약(언급 수준) · 2=중(명확한 의견) · 3=강(강한 감정·반복 강조)"
+          },
+          "quote": {
+            "type": "string",
+            "maxLength": 300,
+            "description": "근거 원문 발췌 — 입력 텍스트에 실존하는 연속 문구 그대로 (번역·요약·수정 금지)"
+          },
+          "source_url": {
+            "type": "string",
+            "description": "입력 items 의 source_url 중 하나만 허용"
+          },
+          "channel": {
+            "type": "string",
+            "enum": ["youtube", "community"]
+          },
+          "posted_at": {
+            "type": "string",
+            "description": "해당 입력 item 의 posted_at 그대로. 없으면 빈 문자열 (추정 금지)"
+          },
+          "is_suggestion": {
+            "type": "boolean",
+            "description": "개선 요청·기능 제안 성격이면 true (product_dev suggestion 후보 — 5점 요건)"
+          }
+        }
+      }
+    }
+  }
+}

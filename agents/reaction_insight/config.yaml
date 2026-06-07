@@ -1,20 +1,30 @@
 agent_id: reaction_insight
-agent_name: reaction_insightAgent
-version: "0.1.0-skeleton"
+agent_name: ReactionInsightAgent
+version: "1.0.0"
 description: >
-  D1=B 분리형 채택(v0.6 D1)에 따른 reaction_insight 리포트 노드의 에이전트 설정.
-  v0.10 D4 enum 7종 중 하나로 report_config 키와 정합.
-  실제 system_prompt·output_schema는 §6-5/§6-6/§6-6a 산출 형식 확정 후 작성.
+  코드가 집계한 aspect × polarity 매트릭스(채널 가중치 적용)를 입력받아 aspect 별
+  인사이트 서술·종합 요지만 산출한다 (CM-D1 분리 — 수치 재계산 금지).
+  집계·가중치·suggestion 분리·루브릭 채점은 reaction_insight_node 코드 책임.
+  설계: docs/design/reaction_insight_node_design.md §6 (RI-D6·RI-D7).
 
-# 실행 백엔드 (가안)
-backend: claude_cli            # ClaudeCodeCliAnalyzer 사용 권장
+# 실행 백엔드
+backend: claude_cli            # ClaudeCodeCliAnalyzer
 
-# 출력 형식
-output_format: json            # call_with_schema() 사용
+# 출력 형식 — call_with_schema() 사용
+output_format: json
+
+# 호출 단위 — 리포트당 1회
+call_unit: per_report
+
+# 캐시 — agent_cache (키: 집계 payload 해시)
+cache:
+  enabled: true
+  ttl_hours: null
 
 # Rubric 정합
-rubric_section: "Rubric §2"    # docs/reference/report_taxonomy.md §2-* 참조
-report_type: reaction_insight                # output.schema.json report_config의 키와 동일
+rubric_section: "Rubric §2-2"   # docs/reference/report_taxonomy.md
+report_type: reaction_insight
 
-# 상태
-status: scaffold               # §6-4 P1a 스켈레톤 — system_prompt·schema 미작성
+files:
+  system_prompt: ./agents/reaction_insight/system_prompt_kr.md
+  output_schema: ./agents/reaction_insight/output.schema.json
