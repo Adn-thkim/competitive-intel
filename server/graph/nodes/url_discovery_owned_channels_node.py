@@ -92,19 +92,52 @@ logger = logging.getLogger(__name__)
 
 
 _OWNED_CHANNEL_CACHE_TTL_HOURS = 24 * 7   # 7일 (공식 핸들 변동 적음)
-_BRAVE_COUNT_PER_PLATFORM      = 5         # 각 platform 당 Brave 상위 5개 URL
+# v0.13.6 — 5 → 20 상향 (Brave 과금은 요청 단위라 무비용. 트래블월렛 네이버 블로그
+# 케이스: 공식 블로그 홈이 상위 5위 밖 — Google 대비 Brave 랭킹 격차 보완.
+# count 는 Brave 캐시 키에 포함되므로 owned_channels 쿼리만 재검색됨)
+_BRAVE_COUNT_PER_PLATFORM      = 20        # 각 platform 당 Brave 상위 20개 URL
 _LLM_CONFIDENCE_THRESHOLD      = 0.7        # D16 권장안 — 0.7 이상만 verified 채택
 _HTTP_TIMEOUT                  = (3, 7)
 _YOUTUBE_CHANNELS_ENDPOINT     = "https://www.googleapis.com/youtube/v3/channels"
 
-# v0.10.21 — 5 platforms + 쿼리 템플릿 (D14: X 는 핸들까지만)
+# v0.13.3 — platform 별 허용 host 화이트리스트 (도메인 가드)
+# LLM 검증이 official 사이트 페이지를 SNS 채널로 오판·통과시키는 사례 차단
+# (예: x platform 에 m.hanacard.co.kr, youtube_official 에 shinhancard.com).
+# press_release 는 자사 사이트·언론 도메인이 다양하므로 제한 없음.
+# blog_self_hosted (v0.13.4) 는 역방향 가드 — 타 platform 도메인이면 불통과
+# (_platform_host_allowed 에서 별도 처리).
+_PLATFORM_ALLOWED_HOSTS: dict[str, tuple[str, ...]] = {
+    "instagram":        ("instagram.com",),
+    "x":                ("x.com", "twitter.com"),
+    "youtube_official": ("youtube.com",),
+    "blog_naver":       ("blog.naver.com",),
+    "blog_tistory":     ("tistory.com",),
+}
+
+# v0.10.21 — 쿼리 템플릿 (D14: X 는 핸들까지만)
+# v0.13.4 — blog_self_hosted 추가 (자체 호스팅 블로그, 예: blog.hanabank.com)
 _PLATFORM_QUERIES: dict[str, str] = {
-    "instagram":       "{candidate_name} instagram 공식 계정",
-    "x":               "{candidate_name} 공식 X 트위터",
-    "blog_naver":      "{candidate_name} 공식 블로그 네이버",
-    "blog_tistory":    "{candidate_name} 공식 블로그 티스토리",
-    "press_release":   "{candidate_name} 보도자료",
+    "instagram":        "{candidate_name} instagram 공식 계정",
+    "x":                "{candidate_name} 공식 X 트위터",
+    "blog_naver":       "{candidate_name} 공식 블로그 네이버",
+    "blog_tistory":     "{candidate_name} 공식 블로그 티스토리",
+    "blog_self_hosted": "{candidate_name} 공식 블로그",
+    "press_release":    "{candidate_name} 보도자료",
     "youtube_official": "{candidate_name} 공식 유튜브 채널",
+}
+
+# v0.13.4 — 법인 브랜드 기반 site: 한정 보조 쿼리.
+# 실사(2026-06-07) 결과: 상품명 쿼리의 Brave 상위 5건에 실 채널 URL 부재가 미탐지의
+# 주원인 — ① 채널은 법인 브랜드(하나카드·신한카드) 단위 운영, ② Brave 일반 검색은
+# x.com 을 노출하지 않음(캐시 281개 쿼리에서 x.com 0건). site: 연산자 + 브랜드명으로
+# platform 도메인 내 검색을 강제한다. press_release 는 보조 쿼리 불필요.
+_PLATFORM_BRAND_QUERIES: dict[str, str] = {
+    "instagram":        "site:instagram.com {candidate_brand} 공식",
+    "x":                "site:x.com {candidate_brand}",
+    "blog_naver":       "site:blog.naver.com {candidate_brand} 공식",
+    "blog_tistory":     "site:tistory.com {candidate_brand} 공식",
+    "blog_self_hosted": "{candidate_brand} 공식 블로그",
+    "youtube_official": "site:youtube.com {candidate_brand} 공식 채널",
 }
 
 
@@ -188,8 +221,8 @@ def url_discovery_owned_channels_node(
         model=CLI_MODEL,
         system_prompt=system_prompt,
         output_schema=output_schema,
-        # turn-49 CLI 어댑터 전환 — prompt_version 갱신으로 캐시 무효화
-        prompt_version="url_discovery_owned_channels:v0.10.21.1",
+        # v0.13.4 — 브랜드 site: 쿼리 병행 + blog_self_hosted 추가 (캐시 무효화)
+        prompt_version="url_discovery_owned_channels:v0.13.4",
     )
 
     # ── candidate × platform 6종 호출 (병렬) ─────────────────────────────────
@@ -215,9 +248,19 @@ def url_discovery_owned_channels_node(
     def _process_one(cid: str, cname: str, cbrand: str, platform: str) -> tuple[str, list[dict]]:
         """(cand, platform) 단위 처리: Brave → LLM 검증 → (YT 한정) channels.list."""
         query = _PLATFORM_QUERIES[platform].format(candidate_name=cname)
+        # v0.13.4 — 법인 브랜드 site: 보조 쿼리 (상품명 쿼리와 다를 때만 병행)
+        brand_query = ""
+        brand_tpl = _PLATFORM_BRAND_QUERIES.get(platform)
+        if brand_tpl and cbrand:
+            bq = brand_tpl.format(candidate_brand=cbrand)
+            if bq != query:
+                brand_query = bq
 
-        # 1) 캐시 조회 (cache_input = {candidate_id, platform, query})
-        cache_input = {"candidate_id": cid, "platform": platform, "query": query}
+        # 1) 캐시 조회 (cache_input = {candidate_id, platform, query, brand_query})
+        cache_input = {
+            "candidate_id": cid, "platform": platform,
+            "query": query, "brand_query": brand_query,
+        }
         cached = load_agent_output(
             agent_id="url_discovery_owned_channels",
             cache_input=cache_input,
@@ -229,24 +272,32 @@ def url_discovery_owned_channels_node(
             return cid, cached.get("handles", [])
 
         # 2) Brave 검색 (기존 _brave_search 헬퍼 재사용 — Brave 24h TTL 캐시 적용)
+        #    상품명 쿼리 + 브랜드 site: 쿼리 결과 합집합 (URL 기준 dedupe, 순서 보존)
         brave_results = _brave_search(query, count=_BRAVE_COUNT_PER_PLATFORM)
-        candidate_urls = [
-            {
-                "url":     (r.get("url") or "").strip(),
+        if brand_query:
+            brave_results = brave_results + _brave_search(
+                brand_query, count=_BRAVE_COUNT_PER_PLATFORM,
+            )
+        seen_urls: set[str] = set()
+        candidate_urls = []
+        for r in brave_results:
+            u = (r.get("url") or "").strip()
+            if not u or u in seen_urls:
+                continue
+            seen_urls.add(u)
+            candidate_urls.append({
+                "url":     u,
                 "title":   (r.get("title") or "").strip(),
                 "snippet": (r.get("description") or "").strip(),
-            }
-            for r in brave_results
-            if r.get("url")
-        ]
+            })
         if not candidate_urls:
-            # 빈 결과 캐시 (반복 호출 방지)
-            store_agent_output(
-                agent_id="url_discovery_owned_channels",
-                cache_input=cache_input, context=cache_context,
-                output={"handles": []}, logger=logger,
-            )
-            return cid, []
+            # v0.13.5 — 빈 결과를 캐시하지 않는다 (2026-06-07 회귀 교훈).
+            # Brave rate limit 폭주로 전 호출이 실패한 실행에서, 빈 결과가 7일 TTL 로
+            # 박제되어 재실행에도 전부 "미발견"으로 고정되는 사고 발생. Brave 실패와
+            # 정상 0건을 호출부에서 구분할 수 없으므로 둘 다 캐시 금지 — 정상 0건의
+            # 재호출 비용은 Brave 24h 캐시·rate limiter 가 흡수한다.
+            # RuntimeError 로 올려 호출부 except 가 errors 에 적재 (실패 가시화).
+            raise RuntimeError("Brave 후보 0건 (검색 실패 또는 무결과) — 캐시 미저장")
 
         # 3) LLM 검증
         llm_input = {
@@ -272,6 +323,13 @@ def url_discovery_owned_channels_node(
         for h in verified:
             conf = float(h.get("confidence", 0) or 0)
             if conf < _LLM_CONFIDENCE_THRESHOLD:
+                continue
+            # v0.13.3 도메인 가드 — platform-host 불일치 URL 은 confidence 와 무관하게 드롭
+            if not _platform_host_allowed(h.get("url", ""), platform):
+                logger.info(
+                    "url_discovery_owned_channels: platform-도메인 불일치 드롭 (%s, %s)",
+                    platform, h.get("url", ""),
+                )
                 continue
             handle: dict = {
                 "url":           h.get("url", ""),
@@ -352,6 +410,36 @@ def url_discovery_owned_channels_node(
 
 # ─────────────────────────────────── 헬퍼 ────────────────────────────────────
 
+def _platform_host_allowed(url: str, platform: str) -> bool:
+    """v0.13.3 도메인 가드 — URL host 가 platform 허용 도메인(또는 서브도메인)인지 검증.
+
+    - _PLATFORM_ALLOWED_HOSTS 등재 platform: 해당 도메인(서브도메인 포함)만 통과.
+    - blog_self_hosted (v0.13.4): 역방향 가드 — 타 platform 도메인이면 불통과
+      (예: blog.naver.com 은 blog_naver 로 분류되어야 하므로 self_hosted 에서 제외).
+    - 그 외 (press_release): 항상 통과.
+    """
+    def _host_of(u: str) -> str:
+        return u.split("//", 1)[-1].split("/", 1)[0].split("?")[0].lower()
+
+    def _matches(host: str, domains: tuple[str, ...]) -> bool:
+        return any(host == d or host.endswith("." + d) for d in domains)
+
+    if platform == "blog_self_hosted":
+        if not url:
+            return False
+        host = _host_of(url)
+        return not any(
+            _matches(host, domains) for domains in _PLATFORM_ALLOWED_HOSTS.values()
+        )
+
+    allowed = _PLATFORM_ALLOWED_HOSTS.get(platform)
+    if allowed is None:
+        return True
+    if not url:
+        return False
+    return _matches(_host_of(url), allowed)
+
+
 def _extract_handle_from_url(url: str, platform: str) -> str:
     """URL 에서 platform 별 handle 문자열 추출.
 
@@ -364,6 +452,11 @@ def _extract_handle_from_url(url: str, platform: str) -> str:
       예: "https://hanamoney.tistory.com/"                   → "hanamoney"
     - youtube_official: path 첫 segment 의 @ prefix 제거
       예: "https://www.youtube.com/@TossBank"                → "TossBank"
+      구형 URL (v0.13.3 보정):
+        "https://www.youtube.com/user/TOSSservice"           → "TOSSservice"
+        "https://www.youtube.com/c/TossBank"                 → "TossBank"
+        "https://www.youtube.com/channel/UCxxx"              → "" (핸들 부재 —
+        _fetch_youtube_channel_meta 가 URL 의 channel_id 로 직접 조회)
     - press_release: 본 노드는 URL 자체를 핸들로 사용하지 않음 (빈 문자열 반환)
     """
     if not url:
@@ -384,30 +477,52 @@ def _extract_handle_from_url(url: str, platform: str) -> str:
         # tistory.com 직전 segment
         return parts[0] if len(parts) >= 2 else h
 
-    if platform == "press_release":
-        # press release 는 host + path 조합이라 단일 handle 부재
+    if platform in ("press_release", "blog_self_hosted"):
+        # press release · 자체 호스팅 블로그는 host + path 조합이라 단일 handle 부재
+        # (UI 는 handle 부재 시 URL 자체를 표시)
         return ""
 
     # 그 외 platform — path 첫 segment
     raw = path.rstrip("/").split("?")[0].split("#")[0]
     if raw.startswith("@"):
-        return raw[1:]
+        raw = raw[1:]
+        return raw.split("/")[0]
+    if platform == "youtube_official":
+        # v0.13.3 — 구형 URL 형태 보정: /user/X·/c/X 는 둘째 segment 가 채널명,
+        # /channel/UC… 는 핸들 네임스페이스 부재
+        segs = raw.split("/")
+        if segs[0] in ("user", "c") and len(segs) >= 2:
+            return segs[1]
+        if segs[0] == "channel":
+            return ""
     return raw.split("/")[0]
 
 
 def _fetch_youtube_channel_meta(url: str, handle: str) -> dict | None:
     """YouTube channels.list 호출로 channel_id + subscriber_count + verified 수집.
 
-    1 unit/call. handle 이 비어있으면 호출 skip.
+    1 unit/call. URL 형태별 조회 파라미터 (v0.13.3 — 구형 URL 보정):
+    - /channel/UC…  → id (channel_id 직접 조회)
+    - /user/X       → forUsername (구형 username — handle 과 별개 네임스페이스)
+    - 그 외 (/@X 등) → forHandle (handle 비어있으면 skip)
     """
-    if not handle:
-        return None
     if not YOUTUBE_API_KEY:
         return None
+    rest = url.split("//", 1)[-1]
+    path = rest.split("/", 1)[1] if "/" in rest else ""
+    segs = [s for s in path.split("?")[0].split("#")[0].split("/") if s]
+    if segs and segs[0] == "channel" and len(segs) >= 2:
+        lookup = {"id": segs[1]}
+    elif segs and segs[0] == "user" and len(segs) >= 2:
+        lookup = {"forUsername": segs[1]}
+    elif handle:
+        lookup = {"forHandle": handle if handle.startswith("@") else f"@{handle}"}
+    else:
+        return None
     params = {
-        "part":      "snippet,statistics,status",
-        "forHandle": handle if handle.startswith("@") else f"@{handle}",
-        "key":       YOUTUBE_API_KEY,
+        "part": "snippet,statistics,status",
+        **lookup,
+        "key":  YOUTUBE_API_KEY,
     }
     try:
         resp = requests.get(_YOUTUBE_CHANNELS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)

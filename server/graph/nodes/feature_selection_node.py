@@ -423,17 +423,18 @@ def _build_feature_items_from_taxonomy(report_entry: dict) -> list[dict]:
 # v0.10.28b D45 a — owned_channels_card payload 빌더 ────────────────────────
 
 _PLATFORM_LABELS: dict[str, str] = {
-    "instagram":       "Instagram",
-    "x":               "X (Twitter)",
-    "blog_naver":      "네이버 블로그",
-    "blog_tistory":    "티스토리 블로그",
-    "press_release":   "보도자료",
+    "instagram":        "Instagram",
+    "x":                "X (Twitter)",
+    "blog_naver":       "네이버 블로그",
+    "blog_tistory":     "티스토리 블로그",
+    "blog_self_hosted": "자체 블로그",
+    "press_release":    "보도자료",
     "youtube_official": "YouTube 공식 채널",
 }
 
 _PLATFORM_ORDER: tuple[str, ...] = (
     "instagram", "x", "youtube_official",
-    "blog_naver", "blog_tistory", "press_release",
+    "blog_naver", "blog_tistory", "blog_self_hosted", "press_release",
 )
 
 

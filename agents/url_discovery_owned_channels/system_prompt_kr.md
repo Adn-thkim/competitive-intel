@@ -12,7 +12,7 @@
 {
   "candidate_name":  "트래블월렛",
   "candidate_brand": "Travelwallet",
-  "platform":        "instagram" | "x" | "blog_naver" | "blog_tistory" | "press_release" | "youtube_official",
+  "platform":        "instagram" | "x" | "blog_naver" | "blog_tistory" | "blog_self_hosted" | "press_release" | "youtube_official",
   "domain_name":     "핀테크 / 해외여행 특화 카드",
   "candidate_urls": [
     {
@@ -89,7 +89,15 @@
 - `confidence ∈ [0.5, 0.7)`: 약한 확신 — verified_handles 에 포함하되 `is_official=false` 또는 "needs_validation" 배지
 - `confidence < 0.5`: **verified_handles 에서 제외** — Brave 결과의 매우 낮은 매칭
 
-### 5. X(트위터) platform 의 특이 사항 (D14)
+### 5. blog_self_hosted platform 의 판정 기준 (v0.13.4)
+
+자체 호스팅 공식 블로그(예: `blog.hanabank.com`, `www.shinhancardblog.com`)를 판정합니다. 네이버·티스토리 같은 외부 호스팅과 달리 도메인 규약이 없으므로 다음 기준을 엄격히 적용하십시오.
+
+- **positive**: ① host 가 `blog.` 서브도메인 또는 `blog`·`story` 가 포함된 candidate 법인 소유 도메인, ② snippet 이 게시글 목록·아티클 성격("블로그", "이야기", "콘텐츠")을 명시.
+- **negative (반드시 제외)**: 상품 소개·카드 신청·고객센터 등 **official 사이트의 일반 페이지** (예: `xxx.com/pconts/...`, `xxx.com/card/...`). 블로그는 "정기 게시물이 누적되는 콘텐츠 허브"여야 하며, 상품 페이지는 블로그가 아닙니다.
+- 네이버·티스토리·instagram·x·youtube 도메인은 본 platform 에서 제외 (각자의 platform 으로 분류).
+
+### 6. X(트위터) platform 의 특이 사항 (D14)
 
 X(트위터) 는 2023년 이후 무료 read 권한이 거의 제거되어 본문 metadata 수집이 사실상 불가합니다. 본 에이전트는 X platform 한정으로 다음 정책을 따릅니다.
 
