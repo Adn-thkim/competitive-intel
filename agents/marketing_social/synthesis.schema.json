@@ -2,15 +2,38 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/marketing-social/synthesis.schema.json",
   "title": "MarketingSocialSynthesisOutput",
-  "description": "synthesis 모드 (v1.0.3 분할 호출 2단계) — 후보별 산출(copy_tones·channel_insights)과 코드 집계(coverage_gaps·engagement·빈도 요약)를 입력받아 자사 관점 종합 서술만 산출. 수치 재계산 금지.",
+  "description": "synthesis 모드 (v1.0.3 분할 호출 2단계) — 후보별 산출과 코드 집계를 입력받아 자사 관점 종합을 구조화 산출. 수치 재계산 금지. v1.0.4: 단일 문단 → headline + key_points 구조 (가독성).",
   "type": "object",
   "additionalProperties": false,
-  "required": ["overall_summary", "warnings"],
+  "required": ["headline", "key_points", "warnings"],
   "properties": {
-    "overall_summary": {
+    "headline": {
       "type": "string",
-      "maxLength": 800,
-      "description": "자사 관점 종합 3~5문장 — 경쟁사 대비 채널 운영·메시지 차이, 자사 공백 시사점. 입력에 없는 수치·사실 생성 금지"
+      "maxLength": 100,
+      "description": "자사 관점 핵심 진단 1문장 (예: '자사는 유튜브 참여율 최상위이나 트래블카드 전용 콘텐츠가 부재')"
+    },
+    "key_points": {
+      "type": "array",
+      "minItems": 2,
+      "maxItems": 5,
+      "description": "항목별 시사점 — 자사 공백·경쟁사 특징·권고. 각 1~2문장.",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["label", "detail"],
+        "properties": {
+          "label": {
+            "type": "string",
+            "maxLength": 24,
+            "description": "항목 라벨 (예: '자사 공백', '경쟁사 강점', '권고')"
+          },
+          "detail": {
+            "type": "string",
+            "maxLength": 220,
+            "description": "근거 서술 — 입력에 없는 수치·사실 생성 금지"
+          }
+        }
+      }
     },
     "warnings": {
       "type": "array",

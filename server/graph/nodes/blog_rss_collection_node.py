@@ -61,7 +61,7 @@ logger = logging.getLogger(__name__)
 
 REPORT_TYPE    = "marketing_social"
 _PLATFORMS     = ("blog_naver", "blog_tistory", "blog_self_hosted")
-_MAX_POSTS     = 50
+_MAX_POSTS     = 100   # v1.0.4 — 50→100 (12개월 윈도우 커버, 사용자 요청)
 _SUMMARY_CHARS = 300   # MS-D10 — RSS 동봉 요약 발췌 상한
 _RATE_LIMIT_S  = 1.0
 _HTTP_TIMEOUT  = (3, 10)
@@ -175,11 +175,15 @@ def _slug_title(url: str) -> str:
     return unquote(seg).replace("-", " ").replace("_", " ").strip()[:120]
 
 
-def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> list[dict]:
+def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> tuple[list[dict], bool]:
     """MS-D13 — sitemap 에서 블로그 하위 URL 수집 + page meta 보강.
 
     fetcher / meta_collector 는 테스트 주입용 (기본: _fetch_rss / _collect_page_meta).
-    반환: posts [{title, published_at, link, summary}] — 최신 lastmod 우선.
+    반환: (posts, reachable)
+      - posts: [{title, published_at, link, summary}] — 최신 lastmod 우선
+      - reachable: sitemap.xml 이 200 으로 도달했는가 (MS-D16 — 도달했으나 블로그
+        글이 0건이면 "측정 완료, 게시물 없음"으로 구분하기 위함)
+    RSS 피드·sitemap 은 공개 배포 자원이므로 robots 체크를 적용하지 않는다 (MS-D15).
     """
     fetch = fetcher or _fetch_rss
     collect_meta = meta_collector or _collect_page_meta
@@ -190,13 +194,12 @@ def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> lis
     path_prefix = "/" + rest.split("/", 1)[1].split("?")[0].strip("/") if "/" in rest else ""
 
     sitemap_url = f"{base}/sitemap.xml"
-    if not _robots_allowed(sitemap_url):
-        return []
     result = fetch(sitemap_url)
     if not result.get("from_cache"):
         time.sleep(_RATE_LIMIT_S)
     if result.get("status") != 200 or not result.get("body"):
-        return []
+        return [], False
+    reachable = True
 
     entries, children = parse_sitemap(result["body"])
     # sitemapindex — 블로그 경로 포함 하위 sitemap 우선, 상한 내 추적
@@ -225,7 +228,7 @@ def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> lis
     candidates.sort(key=lambda e: e.get("lastmod") or "", reverse=True)
     top = candidates[:_SITEMAP_POSTS]
     if not top:
-        return []
+        return [], reachable   # sitemap 도달했으나 블로그 경로 글 0건
 
     meta_by_url = collect_meta({e["link"] for e in top}) or {}
     posts: list[dict] = []
@@ -238,7 +241,7 @@ def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> lis
             "link":         e["link"],
             "summary":      (m.get("meta_description") or m.get("body_excerpt") or "")[:_SUMMARY_CHARS],
         })
-    return [p for p in posts if p["title"]]
+    return [p for p in posts if p["title"]], reachable
 
 
 def select_blog_urls(state: dict) -> list[dict]:
@@ -303,29 +306,30 @@ def blog_rss_collection_node(
 
     for t in targets:
         posts: list[dict] = []
+        # status: ok(글 ≥1) | measured_empty(피드 도달, 글 0) | rss_unavailable(미도달)
+        # MS-D15 — RSS·sitemap 은 구독·배포 목적 공개 자원이라 robots 체크 면제.
         status = "rss_unavailable"
         method = "rss"
         for feed_url in rss_candidate_urls(t["url"], t["platform"], t["handle"]):
-            if not _robots_allowed(feed_url):
-                status = "robots_disallowed"
-                continue
             result = _fetch_rss(feed_url)
             if not result.get("from_cache"):
                 time.sleep(_RATE_LIMIT_S)
-            if result.get("status") == 200 and result.get("body"):
-                posts = parse_feed(result["body"])
-                if posts:
-                    status = "ok"
-                    break
+            if result.get("status") == 200:
+                # MS-D16 — 200 도달 = 측정. 항목 0건이어도 "게시물 없음"으로 측정 처리.
+                status = "measured_empty"
+                if result.get("body"):
+                    posts = parse_feed(result["body"])
+                    if posts:
+                        status = "ok"
+                        break
         # MS-D13 — self_hosted 한정 sitemap 폴백 (RSS 부재 콘텐츠 허브, 예: 토스피드)
         if status != "ok" and t["platform"] == "blog_self_hosted":
-            posts = fetch_sitemap_posts(t["url"])
-            if posts:
-                status, method = "ok", "sitemap"
-        # v1.0.1 — 강등은 errors 에 적재하지 않는다 (설계된 presence-only 경로).
-        # 정보는 fetch_status(state) + step.error_message + PESO 매트릭스 3곳에 이미
-        # 기록되며, errors 적재 시 UI 가 "오류 발생" 배너로 오표출 (2026-06-07 E2E).
-        if status != "ok":
+            sm_posts, reachable = fetch_sitemap_posts(t["url"])
+            if sm_posts:
+                posts, status, method = sm_posts, "ok", "sitemap"
+            elif reachable:
+                status, method = "measured_empty", "sitemap"
+        if status not in ("ok", "measured_empty"):
             logger.info("blog_rss_collection: presence-only 강등 (%s, %s) %s",
                         t["candidate_id"], t["platform"], status)
         blog_rss_posts.append({
@@ -337,11 +341,12 @@ def blog_rss_collection_node(
             "collection_method": method,   # MS-D13 — rss | sitemap (lastmod 근사 명기용)
         })
 
-    ok_n = sum(1 for b in blog_rss_posts if b["fetch_status"] == "ok")
+    measured_n = sum(1 for b in blog_rss_posts
+                     if b["fetch_status"] in ("ok", "measured_empty"))
     step = _step("completed", started_at)
-    if ok_n < len(blog_rss_posts):
-        step["error_message"] = f"{len(blog_rss_posts) - ok_n}건 presence-only 강등"
-    logger.info("blog_rss_collection: %d/%d 피드 수집", ok_n, len(blog_rss_posts))
+    if measured_n < len(blog_rss_posts):
+        step["error_message"] = f"{len(blog_rss_posts) - measured_n}건 presence-only 강등"
+    logger.info("blog_rss_collection: %d/%d 측정", measured_n, len(blog_rss_posts))
 
     return {"blog_rss_posts": blog_rss_posts, "agent_steps": [step]}
 

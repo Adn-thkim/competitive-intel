@@ -48,9 +48,10 @@ const PLATFORM_ORDER = [
 ];
 
 const STATUS_META = {
-  measured:      { label: '측정',  cls: 'bg-green-100 text-green-800 border-green-200' },
-  presence_only: { label: '운영',  cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  none:          { label: '—',     cls: 'bg-gray-50 text-gray-300 border-gray-100' },
+  measured:       { label: '측정',     cls: 'bg-green-100 text-green-800 border-green-200' },
+  measured_empty: { label: '측정·0건', cls: 'bg-green-50 text-green-600 border-green-200' },
+  presence_only:  { label: '운영',     cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  none:           { label: '—',        cls: 'bg-gray-50 text-gray-300 border-gray-100' },
 };
 
 /* item id → 원문 링크 (youtube video_id 또는 게시물 URL) */
@@ -94,6 +95,11 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
   const insights  = content.channel_insights ?? [];
   const window_   = content.measurement_window?.months ?? [];
   const judgement = content.related_judgement ?? {};
+  // 종합 — v1.0.4 {headline, key_points} 구조 / 구형 문자열 호환
+  const rawSummary = content.overall_summary;
+  const summary = typeof rawSummary === 'string'
+    ? (rawSummary ? { headline: rawSummary, key_points: [] } : null)
+    : (rawSummary?.headline || rawSummary?.key_points?.length ? rawSummary : null);
   const warnings  = report.warnings ?? [];
   const score     = report.evaluation_score ?? 0;
   const degraded  = warnings.some(w => String(w).includes('degrade'));
@@ -188,7 +194,7 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
       </div>
 
       {/* 3. 채널 운영 표 (4-tuple) */}
-      <SectionTitle sub={`측정 윈도우(${window_[0] ?? ''}~${window_[window_.length - 1] ?? ''}) 내 게시 수 — 상품 관련은 분석 대상 상품을 직접 다루는 게시물`}>
+      <SectionTitle sub={`모집단: 측정 윈도우(${window_[0] ?? ''}~${window_[window_.length - 1] ?? ''}, 최근 ${window_.length}개월) 내 게시물. 상품 관련 = 분석 대상 상품을 직접 다루는 게시물`}>
         채널 운영 지표
       </SectionTitle>
       <div className="overflow-x-auto mb-6">
@@ -216,7 +222,12 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
                       </span>
                     )}
                   </td>
-                  <td className="px-2 py-1.5 text-center text-gray-700">{row.posting_frequency}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-700">
+                    {row.posting_frequency}
+                    {f.window_total === 0 && (
+                      <span className="ml-1 text-[10px] text-gray-400">게시 없음</span>
+                    )}
+                  </td>
                   <td className="px-2 py-1.5 text-center font-semibold text-indigo-700">{row.product_related}</td>
                   <td className="px-2 py-1.5 text-center text-gray-500">{f.window_total ? `${ratio}%` : '—'}</td>
                   <td className="px-2 py-1.5 text-center text-gray-700">
@@ -268,7 +279,10 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
       </p>
 
       {/* 5. Engagement */}
-      <SectionTitle sub="YouTube 한정 · 주 지표 = (좋아요+댓글)÷조회수 중앙값 — 구독자 분모는 영상별 도달 변동을 왜곡하므로 보조 병기">
+      <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 mb-1 inline-block">
+        <span className="text-xs font-bold text-rose-700">📺 YouTube 전용 지표</span>
+      </div>
+      <SectionTitle sub="모집단: 수집된 최근 영상 전체(채널당 최대 100개) — 위 '게시 빈도'(6/12개월 윈도우)와 표본이 다름. 주 지표 = (좋아요+댓글)÷조회수 중앙값. 구독자 분모는 영상별 도달 변동을 왜곡하므로 보조. ※ YouTube는 2021년 싫어요 수 API 제공을 중단해 싫어요 기반 지표는 산출 불가">
         Engagement
       </SectionTitle>
       <div className="overflow-x-auto mb-6">
@@ -401,10 +415,24 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
           </div>
         </>
       )}
-      {content.overall_summary && (
+      {summary && (
         <div className="mb-5 rounded-xl bg-gray-50 border border-gray-200 p-4">
-          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-1.5">종합</p>
-          <p className="text-sm text-gray-800 leading-relaxed">{content.overall_summary}</p>
+          <p className="text-xs font-semibold text-gray-500 uppercase tracking-wider mb-2">종합</p>
+          {summary.headline && (
+            <p className="text-sm font-bold text-gray-900 leading-relaxed mb-2.5">{summary.headline}</p>
+          )}
+          {summary.key_points?.length > 0 && (
+            <ul className="space-y-1.5">
+              {summary.key_points.map((kp, i) => (
+                <li key={i} className="flex gap-2 text-sm text-gray-700 leading-relaxed">
+                  <span className="shrink-0 mt-0.5 inline-block px-1.5 py-0.5 rounded text-[10px] font-semibold bg-gray-200 text-gray-600 whitespace-nowrap">
+                    {kp.label}
+                  </span>
+                  <span>{kp.detail}</span>
+                </li>
+              ))}
+            </ul>
+          )}
         </div>
       )}
 

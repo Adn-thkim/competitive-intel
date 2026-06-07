@@ -64,7 +64,7 @@ REPORT_TYPE    = "marketing_social"
 RUBRIC_VERSION = "report_taxonomy.md §2-3 (2026-05)"
 
 _LLM_TIMEOUT_SEC = 300
-_WINDOW_MONTHS   = 6          # MS-D5 — 동일 기간 윈도우
+_WINDOW_MONTHS   = 12         # MS-D5 — 동일 기간 윈도우 (v1.0.4: 6→12, 사용자 요청)
 _LLM_EXCERPT     = 150        # LLM 입력 발췌 상한 (저장은 300자)
 _DEDUP_OVERLAP   = 0.5        # MS-D11 — 제목 중복도 임계
 _GENERIC_TOKENS  = {"카드", "체크카드", "신용카드"}
@@ -99,7 +99,8 @@ def dedup_blog_feeds(feeds: list[dict]) -> list[dict]:
     out: list[dict] = []
     by_cid: dict[str, list[dict]] = defaultdict(list)
     for f in feeds:
-        if f.get("fetch_status") == "ok":
+        # MS-D16 — measured_empty(피드 도달, 글 0)도 측정 채널로 포함 (PESO measured)
+        if f.get("fetch_status") in ("ok", "measured_empty"):
             by_cid[f["candidate_id"]].append(f)
     for cid in sorted(by_cid):
         kept: list[dict] = []
@@ -239,14 +240,18 @@ def build_engagement(meta: dict) -> dict[str, dict]:
 
 def build_peso_matrix(owned_urls: dict, meta: dict,
                       ok_feeds: list[dict]) -> dict[str, dict[str, str]]:
-    """candidate × platform — measured | presence_only | none.
+    """candidate × platform — measured | measured_empty | presence_only | none.
 
-    instagram(MS-D3a) · x(MS-D3b) · press_release(MS-D12)는 URL 존재 시 presence_only.
+    MS-D16 — 블로그 피드가 도달했으나 게시물 0건이면 measured_empty (인스타·X 의
+    presence_only 와 구분: 후자는 수집 시도 자체 안 함). instagram(MS-D3a) ·
+    x(MS-D3b) · press_release(MS-D12)는 URL 존재 시 presence_only.
     """
-    measured_blog: set[tuple[str, str]] = set()
+    # 블로그 platform → 측정 상태 (글 ≥1: measured, 글 0: measured_empty)
+    blog_state: dict[tuple[str, str], str] = {}
     for f in ok_feeds:
+        st = "measured" if f.get("posts") else "measured_empty"
         for p in f.get("merged_platforms") or [f["platform"]]:
-            measured_blog.add((f["candidate_id"], p))
+            blog_state[(f["candidate_id"], p)] = st
 
     matrix: dict[str, dict[str, str]] = {}
     for cid in sorted(owned_urls):
@@ -255,8 +260,8 @@ def build_peso_matrix(owned_urls: dict, meta: dict,
         for p in _PLATFORMS:
             if p == "youtube_official" and cid in meta:
                 row[p] = "measured"
-            elif p in _BLOG_PLATFORMS and (cid, p) in measured_blog:
-                row[p] = "measured"
+            elif p in _BLOG_PLATFORMS and (cid, p) in blog_state:
+                row[p] = blog_state[(cid, p)]
             elif p in present:
                 row[p] = "presence_only"
             else:
@@ -470,8 +475,10 @@ def marketing_social_node(
         degraded_error = "LLM 판정·서술 전체 실패 — 집계 전용 degrade"
         warnings.append("상품 관련 빈도는 코드 선판정 하한치 (LLM 문맥 판정 누락)")
 
-    # 종합 단계 — 후보별 산출 + 코드 집계로 overall_summary 1회 (작은 payload)
-    overall = "(degraded — LLM 판정·서술 생략, 코드 집계만 제공)"
+    # 종합 단계 — 후보별 산출 + 코드 집계로 종합 1회 (작은 payload)
+    # v1.0.4 — headline + key_points 구조 (가독성). degrade 시 None.
+    overall_summary = {"headline": "(degraded — LLM 종합 생략, 코드 집계만 제공)",
+                       "key_points": []}
     if not degraded_error:
         frequency_pre = build_frequency(channels, related_ids, window)
         syn_payload = {
@@ -507,7 +514,8 @@ def marketing_social_node(
                                 f"{type(exc).__name__}: {str(exc)[:120]}")
                 syn_out = None
         if syn_out is not None:
-            overall = syn_out["overall_summary"]
+            overall_summary = {"headline": syn_out["headline"],
+                               "key_points": syn_out["key_points"]}
             warnings += syn_out.get("warnings", [])
 
     frequency = build_frequency(channels, related_ids, window)
@@ -542,7 +550,7 @@ def marketing_social_node(
         "copy_tones":         copy_tones,
         "influencer_signals": influencer,
         "channel_insights":   insights,
-        "overall_summary":    overall,
+        "overall_summary":    overall_summary,       # {headline, key_points} (v1.0.4)
         "related_judgement": {                       # MS-D10 추적 메타
             "prejudged": len(prejudged),
             "llm_added": len(related_ids) - len(prejudged),

@@ -152,11 +152,10 @@ def test_parse_feed_rss_and_atom():
 
 
 def test_blog_node_degrades_to_presence_only(monkeypatch):
-    """모든 피드 경로 실패 → fetch_status=rss_unavailable. errors 미적재 (v1.0.1 —
-    설계된 강등을 UI 오류 배너로 오표출하지 않도록 step.error_message 만 기록)."""
-    monkeypatch.setattr(brc, "_robots_allowed", lambda url: True)
+    """모든 피드 경로 미도달(404) + sitemap 미도달 → rss_unavailable. errors 미적재."""
     monkeypatch.setattr(brc, "_fetch_rss",
                         lambda url: {"status": 404, "body": "", "from_cache": True})
+    monkeypatch.setattr(brc, "fetch_sitemap_posts", lambda url: ([], False))
     out = blog_rss_collection_node(dict(_STATE))  # type: ignore[arg-type]
     assert len(out["blog_rss_posts"]) == 3       # own_a self_hosted + comp_b naver·tistory
     assert all(b["fetch_status"] == "rss_unavailable" for b in out["blog_rss_posts"])
@@ -213,8 +212,9 @@ def test_fetch_sitemap_posts_filters_and_enriches():
             "page_title": "새 글 제목", "meta_description": "트래블카드 안내",
             "published_at": "2026-06-01T09:00:00"}}
 
-    posts = fetch_sitemap_posts("https://toss.im/tossfeed",
-                                fetcher=fake_fetch, meta_collector=fake_meta)
+    posts, reachable = fetch_sitemap_posts("https://toss.im/tossfeed",
+                                           fetcher=fake_fetch, meta_collector=fake_meta)
+    assert reachable is True
     # /career/jobs(경로 밖)·/tossfeed(자기 자신) 제외 → 2건, 최신 우선
     assert [p["link"] for p in posts] == [
         "https://toss.im/tossfeed/article/new", "https://toss.im/tossfeed/article/old"]
@@ -227,17 +227,29 @@ def test_fetch_sitemap_posts_filters_and_enriches():
 
 def test_blog_node_sitemap_fallback(monkeypatch):
     """self_hosted RSS 실패 → sitemap 폴백 성공 → fetch_status=ok·method=sitemap."""
-    monkeypatch.setattr(brc, "_robots_allowed", lambda url: True)
     monkeypatch.setattr(brc, "_fetch_rss",
                         lambda url: {"status": 404, "body": "", "from_cache": True})
-    monkeypatch.setattr(brc, "fetch_sitemap_posts", lambda url: [
-        {"title": "글", "published_at": "2026-06-01", "link": "https://x/1", "summary": ""}])
+    monkeypatch.setattr(brc, "fetch_sitemap_posts", lambda url: ([
+        {"title": "글", "published_at": "2026-06-01", "link": "https://x/1", "summary": ""}], True))
     out = blog_rss_collection_node(dict(_STATE))  # type: ignore[arg-type]
     by_platform = {b["platform"]: b for b in out["blog_rss_posts"]}
     assert by_platform["blog_self_hosted"]["fetch_status"] == "ok"
     assert by_platform["blog_self_hosted"]["collection_method"] == "sitemap"
     # naver·tistory 는 sitemap 폴백 비대상 — 강등 유지
     assert by_platform["blog_naver"]["fetch_status"] == "rss_unavailable"
+
+
+def test_blog_node_measured_empty(monkeypatch):
+    """MS-D16 — 피드 200 도달했으나 글 0건 → measured_empty (presence-only 아님)."""
+    monkeypatch.setattr(brc, "_fetch_rss",
+                        lambda url: {"status": 200, "body": "<rss></rss>", "from_cache": True})
+    monkeypatch.setattr(brc, "fetch_sitemap_posts", lambda url: ([], True))
+    out = blog_rss_collection_node(dict(_STATE))  # type: ignore[arg-type]
+    # naver·tistory: RSS 200·item 0 → measured_empty
+    for b in out["blog_rss_posts"]:
+        assert b["fetch_status"] == "measured_empty"
+        assert b["posts"] == []
+    assert "errors" not in out
 
 
 # ─────────────────────────── 수집 ③ 보도자료 ────────────────────────────────

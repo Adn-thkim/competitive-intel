@@ -162,9 +162,11 @@ class _FakeAnalyzer:
         self.calls = {"per_candidate": 0, "synthesis": 0}
 
     def call_with_schema(self, prompt, output_schema):
-        if "overall_summary" in (output_schema.get("required") or []):
+        if "headline" in (output_schema.get("required") or []):
             self.calls["synthesis"] += 1
-            return {"overall_summary": "요약", "warnings": []}
+            return {"headline": "자사 공백 존재",
+                    "key_points": [{"label": "자사 공백", "detail": "블로그 미운영"}],
+                    "warnings": []}
         self.calls["per_candidate"] += 1
         return {
             "channel_keywords": [{"channel_key": "own_a/youtube",
@@ -209,7 +211,8 @@ def test_node_full_envelope(monkeypatch, tmp_path):
     # v1.0.3 분할 — candidate 2명(own_a·comp_b) per_candidate + synthesis 1회
     assert fake.calls == {"per_candidate": 2, "synthesis": 1}
     c = env["content"]
-    assert c["overall_summary"] == "요약"
+    assert c["overall_summary"]["headline"] == "자사 공백 존재"
+    assert c["overall_summary"]["key_points"][0]["label"] == "자사 공백"
     # MS-D10: prejudged(v1 트래블카드) + LLM(v2) → related 2건
     assert c["frequency_table"]["own_a/youtube"]["related_total"] == 2
     assert c["related_judgement"]["prejudged"] == 1
@@ -228,7 +231,7 @@ def test_node_degrade_caps_score(monkeypatch):
     assert out["errors"]
     # 관련 빈도는 코드 선판정 하한치
     assert env["content"]["frequency_table"]["own_a/youtube"]["related_total"] == 1
-    assert "(degraded" in env["content"]["overall_summary"]
+    assert "(degraded" in env["content"]["overall_summary"]["headline"]
 
 
 def test_node_skips_without_purpose():
