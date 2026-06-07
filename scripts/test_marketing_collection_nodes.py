@@ -152,14 +152,16 @@ def test_parse_feed_rss_and_atom():
 
 
 def test_blog_node_degrades_to_presence_only(monkeypatch):
-    """모든 피드 경로 실패 → fetch_status=rss_unavailable + errors."""
+    """모든 피드 경로 실패 → fetch_status=rss_unavailable. errors 미적재 (v1.0.1 —
+    설계된 강등을 UI 오류 배너로 오표출하지 않도록 step.error_message 만 기록)."""
     monkeypatch.setattr(brc, "_robots_allowed", lambda url: True)
     monkeypatch.setattr(brc, "_fetch_rss",
                         lambda url: {"status": 404, "body": "", "from_cache": True})
     out = blog_rss_collection_node(dict(_STATE))  # type: ignore[arg-type]
     assert len(out["blog_rss_posts"]) == 3       # own_a self_hosted + comp_b naver·tistory
     assert all(b["fetch_status"] == "rss_unavailable" for b in out["blog_rss_posts"])
-    assert len(out["errors"]) == 3
+    assert "errors" not in out
+    assert "3건 presence-only 강등" in out["agent_steps"][0]["error_message"]
 
 
 def test_blog_node_collects(monkeypatch):

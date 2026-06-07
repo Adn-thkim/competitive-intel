@@ -1,0 +1,88 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/marketing-social/output.schema.json",
+  "title": "MarketingSocialAgentOutput",
+  "description": "코드가 수집·집계한 운영 채널 게시물 목록에 대해 LLM 이 산출하는 판정·서술 부분 (CM-D1 분리). 수치 재계산 금지. 설계: docs/design/marketing_social_node_design.md §5-2.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["channel_keywords", "product_related_ids", "copy_tones", "influencer_signals", "channel_insights", "overall_summary", "warnings"],
+  "properties": {
+    "channel_keywords": {
+      "type": "array",
+      "description": "채널별 상위 키워드 ≤5 — cross-tab 원료. channel_key·example_ids 는 입력 실존 항목만 (코드 가드 병행)",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_key", "keywords"],
+        "properties": {
+          "channel_key": { "type": "string" },
+          "keywords": {
+            "type": "array",
+            "maxItems": 5,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["keyword", "example_ids"],
+              "properties": {
+                "keyword":     { "type": "string", "maxLength": 30 },
+                "example_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } }
+              }
+            }
+          }
+        }
+      }
+    },
+    "product_related_ids": {
+      "type": "array",
+      "description": "MS-D10 2단계 — prejudged 외 항목 중 상품 관련으로 판정한 item id (입력 실존 id 만, 확신 없으면 제외)",
+      "items": { "type": "string" }
+    },
+    "copy_tones": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "tone_summary"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "tone_summary": { "type": "string", "maxLength": 200 }
+        }
+      }
+    },
+    "influencer_signals": {
+      "type": "array",
+      "description": "협찬·광고·콜라보 표기 흔적이 있는 candidate 만",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["candidate_id", "evidence_ids", "note"],
+        "properties": {
+          "candidate_id": { "type": "string" },
+          "evidence_ids": { "type": "array", "minItems": 1, "items": { "type": "string" } },
+          "note":         { "type": "string", "maxLength": 150 }
+        }
+      }
+    },
+    "channel_insights": {
+      "type": "array",
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["channel_key", "insight"],
+        "properties": {
+          "channel_key": { "type": "string" },
+          "insight":     { "type": "string", "maxLength": 300 }
+        }
+      }
+    },
+    "overall_summary": {
+      "type": "string",
+      "maxLength": 800,
+      "description": "자사 관점 종합 3~5문장 — 입력에 없는 수치·사실 생성 금지"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

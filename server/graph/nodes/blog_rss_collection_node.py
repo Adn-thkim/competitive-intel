@@ -183,7 +183,6 @@ def blog_rss_collection_node(
         return {"agent_steps": [_step("skipped", started_at)]}
 
     blog_rss_posts: list[dict] = []
-    errors: list[dict] = []
 
     for t in targets:
         posts: list[dict] = []
@@ -200,12 +199,12 @@ def blog_rss_collection_node(
                 if posts:
                     status = "ok"
                     break
+        # v1.0.1 — 강등은 errors 에 적재하지 않는다 (설계된 presence-only 경로).
+        # 정보는 fetch_status(state) + step.error_message + PESO 매트릭스 3곳에 이미
+        # 기록되며, errors 적재 시 UI 가 "오류 발생" 배너로 오표출 (2026-06-07 E2E).
         if status != "ok":
-            errors.append({
-                "node":      "blog_rss_collection_node",
-                "error":     f"({t['candidate_id']}, {t['platform']}) {status}: {t['url'][:80]}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+            logger.info("blog_rss_collection: presence-only 강등 (%s, %s) %s",
+                        t["candidate_id"], t["platform"], status)
         blog_rss_posts.append({
             "candidate_id": t["candidate_id"],
             "platform":     t["platform"],
@@ -220,10 +219,7 @@ def blog_rss_collection_node(
         step["error_message"] = f"{len(blog_rss_posts) - ok_n}건 presence-only 강등"
     logger.info("blog_rss_collection: %d/%d 피드 수집", ok_n, len(blog_rss_posts))
 
-    out: dict = {"blog_rss_posts": blog_rss_posts, "agent_steps": [step]}
-    if errors:
-        out["errors"] = errors
-    return out
+    return {"blog_rss_posts": blog_rss_posts, "agent_steps": [step]}
 
 
 def _step(status: str, started_at: str) -> AgentStep:
