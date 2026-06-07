@@ -604,7 +604,8 @@ def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[d
     Returns
     -------
     list[dict]
-        [{"video_id", "title", "published_at"}] — 최신순 (API 기본 정렬)
+        [{"video_id", "title", "published_at", "description"}] — 최신순 (API 기본 정렬)
+        description 은 300자 발췌 (MS-D10 상품 관련성 판정용 — quota 추가 없음)
     """
     if not playlist_id:
         return []
@@ -612,7 +613,7 @@ def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[d
         raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
 
     cache_input = {"playlist_id": playlist_id, "max_results": max_results}
-    cache_context = {"agent_id": "youtube_playlist_items", "v": 1}
+    cache_context = {"agent_id": "youtube_playlist_items", "v": 2}   # v2: +description
     cached = load_agent_output(
         agent_id="youtube_playlist_items", cache_input=cache_input,
         context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
@@ -656,6 +657,7 @@ def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[d
                 "title":        snippet.get("title", ""),
                 "published_at": ((it.get("contentDetails") or {}).get("videoPublishedAt")
                                  or snippet.get("publishedAt", "")),
+                "description":  (snippet.get("description") or "")[:300],
             })
     store_agent_output(agent_id="youtube_playlist_items", cache_input=cache_input,
                        context=cache_context, output={"items": items}, logger=logger)

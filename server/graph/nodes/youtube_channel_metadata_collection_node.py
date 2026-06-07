@@ -19,8 +19,9 @@ write keys
 ----------
 - youtube_channel_metadata : {candidate_id: {channel_url, channel_id, title,
                               subscriber_count, video_total, recent_videos:
-                              [{video_id, title, published_at, view_count,
-                                like_count, comment_count}]}}
+                              [{video_id, title, published_at, description,
+                                view_count, like_count, comment_count}]}}
+  (description = 영상 설명 300자 발췌 — MS-D10 상품 관련성 판정용, quota 추가 없음)
 - agent_steps / errors (누적 reducer)
 
 graceful 종료
@@ -77,6 +78,7 @@ def build_channel_record(entry: dict, info: dict, recent: list[dict],
             "video_id":      v["video_id"],
             "title":         v.get("title", ""),
             "published_at":  v.get("published_at", ""),
+            "description":   v.get("description", ""),   # MS-D10 상품 관련성 판정용
             "view_count":    (stats_by_id.get(v["video_id"]) or {}).get("view_count", 0),
             "like_count":    (stats_by_id.get(v["video_id"]) or {}).get("like_count", 0),
             "comment_count": (stats_by_id.get(v["video_id"]) or {}).get("comment_count", 0),
