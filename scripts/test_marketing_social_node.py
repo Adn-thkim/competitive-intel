@@ -105,6 +105,9 @@ def test_build_engagement_two_denominators():
     assert eng["per_view_median"] == round(((8 + 2) / 100 + (10 + 0) / 200) / 2, 5)
     assert eng["per_subscriber_median"] == round(((8 + 2) / 1000 + 10 / 1000) / 2, 6)
     assert eng["denominators"] == ["view_count", "subscriber_count"]
+    # v1.0.5 — 원수치 (비율 해석 보조)
+    assert eng["total_views"] == 300 and eng["total_likes"] == 18
+    assert eng["total_comments"] == 2 and eng["subscriber_count"] == 1000
 
 
 def test_peso_matrix_and_gaps():
