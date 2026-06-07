@@ -256,10 +256,14 @@ def url_discovery_owned_channels_node(
             if bq != query:
                 brand_query = bq
 
-        # 1) 캐시 조회 (cache_input = {candidate_id, platform, query, brand_query})
+        # 1) 캐시 조회 (cache_input = {candidate_id, platform, query, brand_query, count})
+        # v1.0.1 — count 를 키에 추가: count 5→20 상향(v0.13.6)이 캐시 히트에 가려져
+        # 실제 재검색이 일어나지 않았던 결함 수정 (2026-06-07 실사 — Brave 캐시
+        # 319건 전부 count=5). count 변경 시 자동으로 재탐색된다.
         cache_input = {
             "candidate_id": cid, "platform": platform,
             "query": query, "brand_query": brand_query,
+            "count": _BRAVE_COUNT_PER_PLATFORM,
         }
         cached = load_agent_output(
             agent_id="url_discovery_owned_channels",

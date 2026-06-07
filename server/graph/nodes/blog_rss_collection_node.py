@@ -17,6 +17,15 @@ RSS 경로 규약 (MS-D8 — stdlib xml.etree, 신규 의존성 없음)
 - blog_self_hosted : {base}/rss → {base}/feed → {base}/atom.xml 순차 시도 (v0.13.4)
 - 전부 실패 시 presence-only 강등 (fetch_status="rss_unavailable")
 
+sitemap 폴백 (MS-D13 — blog_self_hosted 한정, 2026-06-07 사용자)
+----------------------------------------------------------------
+RSS 미제공 자체 호스팅 콘텐츠 허브(예: toss.im/tossfeed)는 sitemap.xml 에서
+블로그 경로 하위 URL + lastmod 를 수집하고, 최신 상위 15건의 page meta
+(_collect_page_meta 재사용 — 제목·설명·게시일)를 보강해 MS-D10 판정 소스를
+확보한다. HTML 목록 파싱은 게시일 부재로 빈도 측정이 불가해 채택하지 않음.
+- 게시일 우선순위: 페이지 published_at > sitemap lastmod (수정일 근사 — 한계 명기)
+- 성공 시 fetch_status="ok" + collection_method="sitemap"
+
 D11 정책 (community_collection 재사용)
 --------------------------------------
 robots.txt 준수 + 실제 네트워크 호출 간 1초 대기. 24h TTL agent 캐시.
@@ -40,10 +49,13 @@ from urllib.parse import urlparse
 
 import requests
 
+from urllib.parse import unquote
+
 from server.graph.agent_cache import load_agent_output, store_agent_output
 from server.graph.progress_store import set_progress
 from server.graph.state import AgentStep, DomainAnalysisState
 from server.graph.nodes.community_collection_node import _robots_allowed
+from server.graph.nodes.feature_url_mapper_node import _collect_page_meta
 
 logger = logging.getLogger(__name__)
 
@@ -55,6 +67,10 @@ _RATE_LIMIT_S  = 1.0
 _HTTP_TIMEOUT  = (3, 10)
 _CACHE_TTL_H   = 24
 _USER_AGENT    = "Mozilla/5.0 (compatible; competitive-intel/1.0)"
+
+# MS-D13 — sitemap 폴백 상한
+_SITEMAP_POSTS       = 15   # page meta 보강 대상 (개별 fetch 비용 상한)
+_SITEMAP_CHILD_LIMIT = 3    # sitemapindex 의 하위 sitemap 추적 상한
 
 _ATOM_NS = "{http://www.w3.org/2005/Atom}"
 
@@ -124,6 +140,107 @@ def parse_feed(xml_text: str) -> list[dict]:
     return [p for p in posts if p["title"]][:_MAX_POSTS]
 
 
+def parse_sitemap(xml_text: str) -> tuple[list[dict], list[str]]:
+    """sitemap XML → (urlset 항목, 하위 sitemap loc 목록) (순수 함수 — MS-D13).
+
+    네임스페이스 무관 파싱 (tag 끝 이름 기준). urlset 항목: {"link", "lastmod"}.
+    """
+    try:
+        root = ET.fromstring(xml_text)
+    except ET.ParseError:
+        return [], []
+    entries: list[dict] = []
+    children: list[str] = []
+    is_index = root.tag.rsplit("}", 1)[-1] == "sitemapindex"
+    for el in root:
+        loc = lastmod = ""
+        for sub in el:
+            name = sub.tag.rsplit("}", 1)[-1]
+            if name == "loc":
+                loc = (sub.text or "").strip()
+            elif name == "lastmod":
+                lastmod = (sub.text or "").strip()
+        if not loc:
+            continue
+        if is_index:
+            children.append(loc)
+        else:
+            entries.append({"link": loc, "lastmod": lastmod})
+    return entries, children
+
+
+def _slug_title(url: str) -> str:
+    """URL 마지막 경로 segment → 제목 근사 (퍼센트 인코딩 한글 디코딩)."""
+    seg = url.split("?")[0].split("#")[0].rstrip("/").rsplit("/", 1)[-1]
+    return unquote(seg).replace("-", " ").replace("_", " ").strip()[:120]
+
+
+def fetch_sitemap_posts(blog_url: str, fetcher=None, meta_collector=None) -> list[dict]:
+    """MS-D13 — sitemap 에서 블로그 하위 URL 수집 + page meta 보강.
+
+    fetcher / meta_collector 는 테스트 주입용 (기본: _fetch_rss / _collect_page_meta).
+    반환: posts [{title, published_at, link, summary}] — 최신 lastmod 우선.
+    """
+    fetch = fetcher or _fetch_rss
+    collect_meta = meta_collector or _collect_page_meta
+
+    rest = blog_url.split("//", 1)[-1]
+    host = rest.split("/", 1)[0]
+    base = f"https://{host}"
+    path_prefix = "/" + rest.split("/", 1)[1].split("?")[0].strip("/") if "/" in rest else ""
+
+    sitemap_url = f"{base}/sitemap.xml"
+    if not _robots_allowed(sitemap_url):
+        return []
+    result = fetch(sitemap_url)
+    if not result.get("from_cache"):
+        time.sleep(_RATE_LIMIT_S)
+    if result.get("status") != 200 or not result.get("body"):
+        return []
+
+    entries, children = parse_sitemap(result["body"])
+    # sitemapindex — 블로그 경로 포함 하위 sitemap 우선, 상한 내 추적
+    if children:
+        ranked = sorted(children, key=lambda u: (path_prefix not in u, u))
+        for child in ranked[:_SITEMAP_CHILD_LIMIT]:
+            r = fetch(child)
+            if not r.get("from_cache"):
+                time.sleep(_RATE_LIMIT_S)
+            if r.get("status") == 200 and r.get("body"):
+                sub_entries, _ = parse_sitemap(r["body"])
+                entries.extend(sub_entries)
+
+    # 블로그 경로 하위 + 자기 자신 제외, link 중복 제거, lastmod 내림차순 상위 N
+    norm_blog = blog_url.rstrip("/")
+    seen: set[str] = set()
+    candidates = []
+    for e in entries:
+        link = e["link"]
+        if link in seen or host not in link or link.rstrip("/") == norm_blog:
+            continue
+        if path_prefix and path_prefix not in link:
+            continue
+        seen.add(link)
+        candidates.append(e)
+    candidates.sort(key=lambda e: e.get("lastmod") or "", reverse=True)
+    top = candidates[:_SITEMAP_POSTS]
+    if not top:
+        return []
+
+    meta_by_url = collect_meta({e["link"] for e in top}) or {}
+    posts: list[dict] = []
+    for e in top:
+        m = meta_by_url.get(e["link"]) or {}
+        posts.append({
+            "title":        (m.get("page_title") or _slug_title(e["link"]))[:150],
+            # 게시일 우선순위: 페이지 published_at > sitemap lastmod (수정일 근사)
+            "published_at": m.get("published_at") or e.get("lastmod", ""),
+            "link":         e["link"],
+            "summary":      (m.get("meta_description") or m.get("body_excerpt") or "")[:_SUMMARY_CHARS],
+        })
+    return [p for p in posts if p["title"]]
+
+
 def select_blog_urls(state: dict) -> list[dict]:
     """수집 대상 [{candidate_id, platform, url, handle}] (게이트 — MS-D1)."""
     if REPORT_TYPE not in (state.get("selected_purposes") or []):
@@ -187,6 +304,7 @@ def blog_rss_collection_node(
     for t in targets:
         posts: list[dict] = []
         status = "rss_unavailable"
+        method = "rss"
         for feed_url in rss_candidate_urls(t["url"], t["platform"], t["handle"]):
             if not _robots_allowed(feed_url):
                 status = "robots_disallowed"
@@ -199,6 +317,11 @@ def blog_rss_collection_node(
                 if posts:
                     status = "ok"
                     break
+        # MS-D13 — self_hosted 한정 sitemap 폴백 (RSS 부재 콘텐츠 허브, 예: 토스피드)
+        if status != "ok" and t["platform"] == "blog_self_hosted":
+            posts = fetch_sitemap_posts(t["url"])
+            if posts:
+                status, method = "ok", "sitemap"
         # v1.0.1 — 강등은 errors 에 적재하지 않는다 (설계된 presence-only 경로).
         # 정보는 fetch_status(state) + step.error_message + PESO 매트릭스 3곳에 이미
         # 기록되며, errors 적재 시 UI 가 "오류 발생" 배너로 오표출 (2026-06-07 E2E).
@@ -206,11 +329,12 @@ def blog_rss_collection_node(
             logger.info("blog_rss_collection: presence-only 강등 (%s, %s) %s",
                         t["candidate_id"], t["platform"], status)
         blog_rss_posts.append({
-            "candidate_id": t["candidate_id"],
-            "platform":     t["platform"],
-            "blog_url":     t["url"],
-            "posts":        posts,
-            "fetch_status": status,
+            "candidate_id":      t["candidate_id"],
+            "platform":          t["platform"],
+            "blog_url":          t["url"],
+            "posts":             posts,
+            "fetch_status":      status,
+            "collection_method": method,   # MS-D13 — rss | sitemap (lastmod 근사 명기용)
         })
 
     ok_n = sum(1 for b in blog_rss_posts if b["fetch_status"] == "ok")

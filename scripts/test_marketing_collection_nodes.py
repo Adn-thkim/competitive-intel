@@ -174,6 +174,72 @@ def test_blog_node_collects(monkeypatch):
     assert "errors" not in out
 
 
+# ─────────────────────────── 수집 ② sitemap 폴백 (MS-D13) ───────────────────
+
+_SITEMAP_INDEX = """<?xml version="1.0"?>
+<sitemapindex xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<sitemap><loc>https://toss.im/sitemap-tossfeed.xml</loc></sitemap>
+<sitemap><loc>https://toss.im/sitemap-pages.xml</loc></sitemap>
+</sitemapindex>"""
+
+_SITEMAP_URLSET = """<?xml version="1.0"?>
+<urlset xmlns="http://www.sitemaps.org/schemas/sitemap/0.9">
+<url><loc>https://toss.im/tossfeed/article/old</loc><lastmod>2026-01-01</lastmod></url>
+<url><loc>https://toss.im/tossfeed/article/new</loc><lastmod>2026-06-01</lastmod></url>
+<url><loc>https://toss.im/tossfeed</loc><lastmod>2026-06-02</lastmod></url>
+<url><loc>https://toss.im/career/jobs</loc><lastmod>2026-06-03</lastmod></url>
+</urlset>"""
+
+
+def test_parse_sitemap_urlset_and_index():
+    from server.graph.nodes.blog_rss_collection_node import parse_sitemap
+    entries, children = parse_sitemap(_SITEMAP_INDEX)
+    assert entries == [] and len(children) == 2
+    entries, children = parse_sitemap(_SITEMAP_URLSET)
+    assert children == [] and len(entries) == 4
+    assert parse_sitemap("not xml") == ([], [])
+
+
+def test_fetch_sitemap_posts_filters_and_enriches():
+    """블로그 경로 하위만 채택 · lastmod 내림차순 · page meta 보강 (MS-D13)."""
+    from server.graph.nodes.blog_rss_collection_node import fetch_sitemap_posts
+
+    def fake_fetch(url):
+        body = _SITEMAP_INDEX if url.endswith("/sitemap.xml") else _SITEMAP_URLSET
+        return {"status": 200, "body": body, "from_cache": True}
+
+    def fake_meta(urls):
+        return {"https://toss.im/tossfeed/article/new": {
+            "page_title": "새 글 제목", "meta_description": "트래블카드 안내",
+            "published_at": "2026-06-01T09:00:00"}}
+
+    posts = fetch_sitemap_posts("https://toss.im/tossfeed",
+                                fetcher=fake_fetch, meta_collector=fake_meta)
+    # /career/jobs(경로 밖)·/tossfeed(자기 자신) 제외 → 2건, 최신 우선
+    assert [p["link"] for p in posts] == [
+        "https://toss.im/tossfeed/article/new", "https://toss.im/tossfeed/article/old"]
+    assert posts[0]["title"] == "새 글 제목"               # page meta 우선
+    assert posts[0]["published_at"] == "2026-06-01T09:00:00"
+    assert posts[0]["summary"] == "트래블카드 안내"
+    assert posts[1]["title"] == "old"                       # slug 폴백
+    assert posts[1]["published_at"] == "2026-01-01"         # lastmod 폴백
+
+
+def test_blog_node_sitemap_fallback(monkeypatch):
+    """self_hosted RSS 실패 → sitemap 폴백 성공 → fetch_status=ok·method=sitemap."""
+    monkeypatch.setattr(brc, "_robots_allowed", lambda url: True)
+    monkeypatch.setattr(brc, "_fetch_rss",
+                        lambda url: {"status": 404, "body": "", "from_cache": True})
+    monkeypatch.setattr(brc, "fetch_sitemap_posts", lambda url: [
+        {"title": "글", "published_at": "2026-06-01", "link": "https://x/1", "summary": ""}])
+    out = blog_rss_collection_node(dict(_STATE))  # type: ignore[arg-type]
+    by_platform = {b["platform"]: b for b in out["blog_rss_posts"]}
+    assert by_platform["blog_self_hosted"]["fetch_status"] == "ok"
+    assert by_platform["blog_self_hosted"]["collection_method"] == "sitemap"
+    # naver·tistory 는 sitemap 폴백 비대상 — 강등 유지
+    assert by_platform["blog_naver"]["fetch_status"] == "rss_unavailable"
+
+
 # ─────────────────────────── 수집 ③ 보도자료 ────────────────────────────────
 
 def test_extract_releases_patterns():

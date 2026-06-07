@@ -82,15 +82,15 @@ Instagram Basic Display API 는 2024-12-04 종료되었고, 현재 공식 경로
 
 **수집 활성화에 필요한 절차 체크리스트**:
 
-| # | 절차 | 비고 |
-|---|---|---|
-| 1 | Meta 개발자 계정 + 앱 생성 | developers.facebook.com |
-| 2 | 자사 Instagram 을 **비즈니스/크리에이터 계정**으로 전환 | 개인 계정은 Graph API 접속 불가 |
-| 3 | 자사 계정을 **Facebook 페이지와 연결** | 권한이 페이지를 경유해 부여됨 |
-| 4 | OAuth 토큰 발급 + `instagram_basic` (+insights) 권한 | 장기 토큰 60일 주기 갱신 운영 필요 |
-| 5 | **Meta App Review 승인** | 통상 4–6주 소요 — 본 시리즈 1차 범위에서 보류하는 직접 사유 |
-| 6 | Business Discovery 로 경쟁사 username 조회 검증 | 경쟁사도 비즈니스/크리에이터 계정이어야 조회 가능 |
-| 7 | rate limit 운영 설계 | 200 calls/hour/user token |
+| #   | 절차                                             | 비고                                    |
+| --- | ---------------------------------------------- | ------------------------------------- |
+| 1   | Meta 개발자 계정 + 앱 생성                             | developers.facebook.com               |
+| 2   | 자사 Instagram 을 **비즈니스/크리에이터 계정**으로 전환          | 개인 계정은 Graph API 접속 불가                |
+| 3   | 자사 계정을 **Facebook 페이지와 연결**                    | 권한이 페이지를 경유해 부여됨                      |
+| 4   | OAuth 토큰 발급 + `instagram_basic` (+insights) 권한 | 장기 토큰 60일 주기 갱신 운영 필요                 |
+| 5   | **Meta App Review 승인**                         | 통상 4–6주 소요 — 본 시리즈 1차 범위에서 보류하는 직접 사유 |
+| 6   | Business Discovery 로 경쟁사 username 조회 검증        | 경쟁사도 비즈니스/크리에이터 계정이어야 조회 가능           |
+| 7   | rate limit 운영 설계                               | 200 calls/hour/user token             |
 
 1차 구현: instagram platform URL 은 **presence(채널 운영 여부) + URL 만 기록**하고
 PESO 매트릭스에 "측정 보류(API 절차 미충족)"로 표기. 절차 1~7 완료 시
@@ -238,3 +238,4 @@ measurement_window, presence_only_channels}. `report_outputs["marketing_social"]
 | MS-D10 | 게시 빈도 2계열(전체 + 상품 관련) — 수집은 제목 + 무비용 발췌(YouTube description·RSS summary, 300자)로 보강하고, 관련성 판정은 **하이브리드**(상품명 직접 포함 = 코드 선판정·고정, 애매 건만 LLM, 뒤집기 기각 가드) | **확정** (2026-06-07, 사용자) |
 | MS-D11 | 블로그 채널 dedup — 같은 candidate 의 ok 피드 제목 중복도 ≥ 50% 쌍 병합, `merged_platforms` 기록. 실측 근거: shinhancard-blog.tistory.com ↔ www.shinhancardblog.com 동일 블로그(커스텀 도메인) — 미병합 시 빈도 2배 왜곡 | **확정** (2026-06-07, 실측) |
 | MS-D12 | press_release 1차 측정 제외 — 실측 추출 성공률 33%(1/3) + URL 수집 단계의 의도 불일치(토스: 단일 아티클, 트래블월렛: 홈페이지). pr_release_collection 노드는 구현 존치·**미배선**, 리포트는 presence-only 표기. 개선(목록 URL 정밀 탐지)은 후속 | **확정** (2026-06-07, 사용자) |
+| MS-D13 | RSS 미제공 self_hosted 콘텐츠 허브(토스피드 류)는 **sitemap 폴백** — 블로그 경로 하위 URL+lastmod 수집 → 최신 15건 page meta(제목·설명·게시일) 보강(MS-D10 판정 소스). 게시일 우선순위 페이지 published_at > lastmod(수정일 근사 — 한계 명기, collection_method="sitemap" 표기). HTML 목록 파싱은 게시일 부재로 비채택. 부수: owned_channels 캐시 키에 count 추가 — count 5→20 상향이 캐시 히트에 가려 미실행되던 결함 수정 | **확정** (2026-06-07, 사용자) |
