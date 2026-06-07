@@ -290,8 +290,12 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
           <thead>
             <tr className="text-gray-500">
               <th className="text-left py-1.5 pr-3 font-medium">candidate</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">조회수 분모 (주)</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">구독자 분모 (보조)</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">구독자</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">조회수 (합)</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">좋아요 (합)</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">댓글 (합)</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">반응률·조회 기준 (주)</th>
+              <th className="px-2 py-1.5 font-medium whitespace-nowrap">반응률·구독 기준 (보조)</th>
               <th className="px-2 py-1.5 font-medium">표본</th>
             </tr>
           </thead>
@@ -299,9 +303,14 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
             {Object.keys(engage).sort(cidOrder).map(cid => {
               const e = engage[cid] ?? {};
               const top = e.per_view_median != null && e.per_view_median === maxPerView;
+              const n = v => (v != null ? v.toLocaleString() : '—');
               return (
                 <tr key={cid} className="border-t border-gray-100">
                   <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">{nameOf(cid)}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-700">{n(e.subscriber_count)}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-700">{n(e.total_views)}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-700">{n(e.total_likes)}</td>
+                  <td className="px-2 py-1.5 text-center text-gray-700">{n(e.total_comments)}</td>
                   <td className={`px-2 py-1.5 text-center ${top ? 'font-bold text-green-700' : 'text-gray-700'}`}>
                     {e.per_view_median != null ? `${(e.per_view_median * 100).toFixed(2)}%` : '—'}
                     {top && ' ▲'}

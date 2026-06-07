@@ -217,13 +217,18 @@ def build_frequency(channels: dict, related_ids: set[str],
 
 
 def build_engagement(meta: dict) -> dict[str, dict]:
-    """YouTube 한정 engagement — 분모 2종 병기 (MS-D4)."""
+    """YouTube 한정 engagement — 분모 2종 병기 (MS-D4).
+
+    v1.0.5 — 비율만으로는 해석이 단편적이라는 지적(2026-06-07)에 따라 원수치
+    (조회·좋아요·댓글 합계, 구독자)를 함께 산출. 합계 모집단 = 수집된 최근 영상 전체.
+    """
     out: dict[str, dict] = {}
     for cid in sorted(meta):
         rec = meta[cid]
         subs = rec.get("subscriber_count", 0)
+        videos = rec.get("recent_videos", [])
         per_view, per_sub = [], []
-        for v in rec.get("recent_videos", []):
+        for v in videos:
             inter = v.get("like_count", 0) + v.get("comment_count", 0)
             if v.get("view_count", 0) > 0:
                 per_view.append(inter / v["view_count"])
@@ -232,7 +237,11 @@ def build_engagement(meta: dict) -> dict[str, dict]:
         out[cid] = {
             "per_view_median":       round(statistics.median(per_view), 5) if per_view else None,
             "per_subscriber_median": round(statistics.median(per_sub), 6) if per_sub else None,
-            "sample_size":           len(rec.get("recent_videos", [])),
+            "total_views":           sum(v.get("view_count", 0) for v in videos),
+            "total_likes":           sum(v.get("like_count", 0) for v in videos),
+            "total_comments":        sum(v.get("comment_count", 0) for v in videos),
+            "subscriber_count":      subs,
+            "sample_size":           len(videos),
             "denominators":          ["view_count", "subscriber_count"],
         }
     return out
