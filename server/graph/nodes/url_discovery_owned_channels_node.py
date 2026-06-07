@@ -387,6 +387,25 @@ def url_discovery_owned_channels_node(
             for h in handles:
                 results_by_candidate.setdefault(cid, []).append(h)
 
+    # ── v1.0.2 (MS-D14) — YouTube 핸들 프로브 폴백 ──────────────────────────
+    # Brave 가 채널을 노출하지 않는 케이스(실측: @travelwallet — 두 쿼리 40건 전부
+    # 무관)는 검색으로 풀 수 없다. 발견 완료된 타 platform 핸들·도메인 slug 에서
+    # 영문 핸들 후보를 유도해 channels.list?forHandle= 로 실존+신원(채널명 토큰)을
+    # 검증한다. 후보당 1 unit, candidate당 최대 4 후보.
+    if YOUTUBE_API_KEY:
+        for cid, cname, cbrand in targets:
+            found = results_by_candidate.get(cid, [])
+            if any(h.get("platform") == "youtube_official" for h in found):
+                continue
+            probed = _probe_youtube_handles(
+                _youtube_handle_candidates(found), cname, cbrand)
+            if probed:
+                logger.info(
+                    "url_discovery_owned_channels: 핸들 프로브 적중 (%s → @%s, 채널명 %s)",
+                    cid, probed["handle"], probed.get("channel_title", ""),
+                )
+                results_by_candidate.setdefault(cid, []).append(probed)
+
     total = sum(len(v) for v in results_by_candidate.values())
     logger.info(
         "url_discovery_owned_channels_node: 완료 (candidates=%d, 핸들 %d개, errors=%d)",
@@ -502,6 +521,93 @@ def _extract_handle_from_url(url: str, platform: str) -> str:
     return raw.split("/")[0]
 
 
+_PROBE_MAX_CANDIDATES = 4   # MS-D14 — candidate당 프로브 상한 (1 unit/후보)
+_PROBE_SUFFIXES = (".official", "_official", "official")
+_GENERIC_NAME_TOKENS = {"카드", "체크카드", "신용카드"}
+
+
+def _youtube_handle_candidates(found_handles: list[dict]) -> list[str]:
+    """MS-D14 — 발견된 타 platform 핸들·URL host 에서 YouTube 핸들 후보 유도 (순수 함수).
+
+    유도 규칙 (우선순위순, 중복 제거, 상한 _PROBE_MAX_CANDIDATES):
+    - instagram·blog 핸들: 원형 + official 접미사 제거형
+      (예: "travelwallet.official" → "travelwallet.official", "travelwallet")
+    - press_release·blog_self_hosted URL host 의 SLD:
+      (예: "travel-wallet.com" → "travel-wallet", "travelwallet")
+    """
+    out: list[str] = []
+
+    def _add(h: str) -> None:
+        h = h.strip().lower()
+        if h and len(h) >= 3 and h not in out:
+            out.append(h)
+
+    for rec in found_handles:
+        h = (rec.get("handle") or "").lower()
+        if h:
+            _add(h)
+            for suf in _PROBE_SUFFIXES:
+                if h.endswith(suf):
+                    _add(h[: -len(suf)].rstrip("._-"))
+        url = rec.get("url") or ""
+        if rec.get("platform") in ("press_release", "blog_self_hosted") and url:
+            host = url.split("//", 1)[-1].split("/", 1)[0].lower()
+            if host.startswith("www."):
+                host = host[4:]
+            sld = host.split(".")[0]
+            _add(sld)
+            _add(sld.replace("-", ""))
+    return out[:_PROBE_MAX_CANDIDATES]
+
+
+def _channel_title_matches(title: str, cname: str, cbrand: str) -> bool:
+    """프로브 신원 검증 — 채널명에 브랜드 또는 상품명 토큰이 포함되는지 (순수 함수)."""
+    norm = (title or "").lower().replace(" ", "")
+    if not norm:
+        return False
+    if cbrand and cbrand.lower().replace(" ", "") in norm:
+        return True
+    return any(
+        t.lower() in norm
+        for t in (cname or "").split()
+        if len(t) >= 2 and t.lower() not in _GENERIC_NAME_TOKENS
+    )
+
+
+def _probe_youtube_handles(
+    candidates: list[str], cname: str, cbrand: str, fetch_meta=None,
+) -> dict | None:
+    """MS-D14 — 핸들 후보를 channels.list?forHandle= 로 실존+신원 검증 (1 unit/후보).
+
+    핸들은 전역 고유이므로 실존 시 채널명이 정확히 반환된다. 채널명에 브랜드/상품
+    토큰이 없으면 동명 무관 채널로 보고 기각 (오탐 가드). fetch_meta 는 테스트 주입용.
+    """
+    fetch = fetch_meta or _fetch_youtube_channel_meta
+    for h in candidates:
+        url = f"https://www.youtube.com/@{h}"
+        meta = fetch(url, h)
+        if not meta:
+            continue
+        if not _channel_title_matches(meta.get("title", ""), cname, cbrand):
+            logger.debug("핸들 프로브 기각 — @%s 채널명 불일치: %s", h, meta.get("title", ""))
+            continue
+        return {
+            "url":            url,
+            "platform":       "youtube_official",
+            "handle":         h,
+            "channel_title":  meta.get("title", ""),
+            "account_scope":  "parent_company",   # 보수 분류 (D14 패턴) — UI 배지용
+            "is_verified":    bool(meta.get("verified")),
+            "follower_count": meta.get("subscriber_count"),
+            "channel_id":     meta.get("channel_id"),
+            "last_post_at":   None,
+            "confidence":     0.75,
+            "origin":         "youtube_handle_probe",
+            "matched_report_types": ["marketing_social"],
+        }
+    return None
+
+
 def _fetch_youtube_channel_meta(url: str, handle: str) -> dict | None:
     """YouTube channels.list 호출로 channel_id + subscriber_count + verified 수집.
 
@@ -546,6 +652,7 @@ def _fetch_youtube_channel_meta(url: str, handle: str) -> dict | None:
     stats = it.get("statistics") or {}
     return {
         "channel_id":       it.get("id", ""),
+        "title":            (it.get("snippet") or {}).get("title", ""),   # v1.0.2 프로브 신원 검증용
         "subscriber_count": int(stats.get("subscriberCount", 0) or 0),
         "verified":         (it.get("status") or {}).get("isLinked", False),
     }
