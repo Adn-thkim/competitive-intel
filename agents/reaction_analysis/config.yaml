@@ -1,0 +1,25 @@
+agent_id: reaction_analysis
+agent_name: ReactionAnalysisAgent
+version: "1.0.0"
+description: >
+  사용자 반응 원문(YouTube 댓글 + 커뮤니티/블로그 게시글)을 aspect_codebook 기반
+  ABSA 7-tuple 로 분해한다. 분류·발췌형 작업 — quote 원문 보존 강제.
+  reaction_insight 리포트 노드의 집계 입력. 설계: docs/design/reaction_insight_node_design.md §5.
+
+# 실행 백엔드 — RI-D5 (사용자 확정: 댓글 대량 입력은 구독 경로가 비용 적합)
+backend: claude_cli            # ClaudeCodeCliAnalyzer
+
+# 출력 형식 — call_with_schema() 사용
+output_format: json
+
+# 호출 단위 — candidate당 1회 (입력: 댓글 ≤150 + 게시글 ≤8 발췌 ≈ 10~30k자)
+call_unit: per_candidate
+
+# 캐시 — agent_cache (키: candidate + 입력 items 해시 + 컨텍스트 해시)
+cache:
+  enabled: true
+  ttl_hours: null
+
+files:
+  system_prompt: ./agents/reaction_analysis/system_prompt_kr.md
+  output_schema: ./agents/reaction_analysis/output.schema.json
