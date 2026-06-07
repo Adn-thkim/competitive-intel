@@ -14,6 +14,7 @@
 
 import { useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
+import ReactionInsightReport from './ReactionInsightReport';
 
 /* ── 리포트 탭 정의 (v0.12.4 점진 렌더링) ──────────────────────────────────
  * 각 리포트는 report_outputs[key] 가 생기는 순간 탭이 활성화된다.
@@ -22,9 +23,11 @@ import ComparisonMatrixReport from './ComparisonMatrixReport';
  * - 준비 중: 분석 종료 후에도 미완성 (해당 노드 미구현 단계)
  */
 const REPORT_TABS = [
-  { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스' },
-  { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트' },
-  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜' },
+  // implemented: 해당 리포트 노드가 파이프라인에 배선되어 있는지.
+  // false 면 분석 실행 중에도 '생성 중'이 아니라 '준비 중'으로 표시한다 (v0.13.1 수정).
+  { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스',      implemented: true },
+  { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트', implemented: true },
+  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜',        implemented: false },
 ];
 
 /* 전용 뷰가 없는 리포트의 임시 뷰어 — envelope 표준 필드만 표시 */
@@ -54,7 +57,10 @@ function ReportTabs({ reportOutputs, reportsRunning, activeTab, onSelect }) {
       {REPORT_TABS.map(tab => {
         const ready = Boolean(reportOutputs[tab.key]);
         const isActive = activeTab === tab.key;
-        const statusLabel = ready ? null : (reportsRunning ? '생성 중…' : '준비 중');
+        // 미구현(implemented=false) 리포트는 실행 중에도 '준비 중' 고정 (v0.13.1)
+        const statusLabel = ready ? null
+          : (reportsRunning && tab.implemented ? '생성 중…' : '준비 중');
+        const pulsing = !ready && reportsRunning && tab.implemented;
         return (
           <button
             key={tab.key}
@@ -72,7 +78,7 @@ function ReportTabs({ reportOutputs, reportsRunning, activeTab, onSelect }) {
           >
             {tab.icon} {tab.label}
             {statusLabel && (
-              <span className={`ml-1.5 text-[10px] font-normal ${reportsRunning ? 'text-indigo-500 animate-pulse' : 'text-gray-400'}`}>
+              <span className={`ml-1.5 text-[10px] font-normal ${pulsing ? 'text-indigo-500 animate-pulse' : 'text-gray-400'}`}>
                 {statusLabel}
               </span>
             )}
@@ -281,6 +287,12 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
   const hasAnyReport     = Object.keys(reportOutputs).length > 0;
   const activeReport     = reportOutputs[activeTab];
   const activeTabMeta    = REPORT_TABS.find(t => t.key === activeTab);
+  // candidate_id → 상품명 (리포트 컴포넌트 공용)
+  const candidateNameMap = Object.fromEntries(
+    (state.product_profiles ?? []).map(p => [p.candidate_id, p.product_name]));
+  if (ownProduct.product_id && ownProduct.name) {
+    candidateNameMap[ownProduct.product_id] = `${ownProduct.name} (자사)`;
+  }
 
   return (
     <div className="min-h-screen bg-gray-50 py-10 px-4">
@@ -332,7 +344,14 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
             {activeTab === 'comparison_matrix' && comparisonMatrix && (
               <ComparisonMatrixReport report={comparisonMatrix} />
             )}
-            {activeTab !== 'comparison_matrix' && activeReport && (
+            {activeTab === 'reaction_insight' && reportOutputs.reaction_insight && (
+              <ReactionInsightReport
+                report={reportOutputs.reaction_insight}
+                candidateNames={candidateNameMap}
+                ownProductId={ownProduct.product_id}
+              />
+            )}
+            {!['comparison_matrix', 'reaction_insight'].includes(activeTab) && activeReport && (
               <GenericReportView tab={activeTabMeta} report={activeReport} />
             )}
           </>
