@@ -129,7 +129,8 @@ def test_youtube_meta_lookup_params(monkeypatch, url, handle, expected_key, expe
     )
     meta = _fetch_youtube_channel_meta(url, handle)
     assert captured.get(expected_key) == expected_value
-    assert meta == {"channel_id": "UCfake", "subscriber_count": 1234, "verified": True}
+    assert meta == {"channel_id": "UCfake", "title": "",
+                    "subscriber_count": 1234, "verified": True}
 
 
 def test_youtube_meta_skip_without_handle_or_id(monkeypatch):
@@ -138,3 +139,45 @@ def test_youtube_meta_skip_without_handle_or_id(monkeypatch):
         "server.graph.nodes.url_discovery_owned_channels_node.YOUTUBE_API_KEY", "test-key",
     )
     assert _fetch_youtube_channel_meta("https://www.youtube.com/", "") is None
+
+
+# ─────────────────── YouTube 핸들 프로브 (MS-D14, v1.0.2) ─────────────────────
+
+def test_youtube_handle_candidates_derivation():
+    from server.graph.nodes.url_discovery_owned_channels_node import (
+        _youtube_handle_candidates,
+    )
+    found = [
+        {"platform": "instagram", "handle": "travelwallet.official",
+         "url": "https://www.instagram.com/travelwallet.official/"},
+        {"platform": "press_release", "handle": "",
+         "url": "https://www.travel-wallet.com/en"},
+    ]
+    cands = _youtube_handle_candidates(found)
+    assert cands[0] == "travelwallet.official"
+    assert "travelwallet" in cands                  # .official 제거형 + 도메인 slug 합류
+    assert "travel-wallet" in cands                 # SLD 원형
+    assert len(cands) <= 4
+
+
+def test_probe_accepts_on_title_match_and_rejects_mismatch():
+    from server.graph.nodes.url_discovery_owned_channels_node import (
+        _probe_youtube_handles,
+    )
+    metas = {
+        "wrongname":    {"channel_id": "UC0", "title": "여행꿀팁TV", "subscriber_count": 9, "verified": False},
+        "travelwallet": {"channel_id": "UC1", "title": "트래블월렛", "subscriber_count": 1000, "verified": True},
+    }
+    probed = _probe_youtube_handles(
+        ["missing", "wrongname", "travelwallet"], "트래블월렛 카드", "트래블월렛",
+        fetch_meta=lambda url, h: metas.get(h))
+    assert probed is not None
+    assert probed["handle"] == "travelwallet"       # 실존+채널명 일치만 채택
+    assert probed["url"] == "https://www.youtube.com/@travelwallet"
+    assert probed["origin"] == "youtube_handle_probe"
+    assert probed["channel_id"] == "UC1" and probed["confidence"] == 0.75
+
+    none = _probe_youtube_handles(
+        ["wrongname"], "트래블월렛 카드", "트래블월렛",
+        fetch_meta=lambda url, h: metas.get(h))
+    assert none is None                              # 채널명 불일치 → 기각
