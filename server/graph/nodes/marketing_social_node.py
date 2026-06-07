@@ -388,10 +388,13 @@ def marketing_social_node(
     peso       = build_peso_matrix(owned_urls, meta, ok_feeds)
     gaps       = build_coverage_gaps(peso, own_id)
 
-    # ── LLM 파트: 키워드·카피·협업·관련성 판정·서술 (캐시 + degrade) ────────
-    system_prompt = _load_text(AGENTS_DIR / REPORT_TYPE / "system_prompt_kr.md")
-    output_schema = _load_json(AGENTS_DIR / REPORT_TYPE / "output.schema.json")
-    if system_prompt is None or output_schema is None:
+    # ── LLM 파트 (MS-D7 보정, v1.0.3): candidate별 N회 + 종합 1회 ────────────
+    # 2026-06-07 실측: 5채널 ~210건 단일 호출이 CLI 300s timeout 초과 → ABSA 전례
+    # (reaction_analysis candidate별 순차)대로 분할. candidate 단위 부분 degrade 지원.
+    system_prompt    = _load_text(AGENTS_DIR / REPORT_TYPE / "system_prompt_kr.md")
+    output_schema    = _load_json(AGENTS_DIR / REPORT_TYPE / "output.schema.json")
+    synthesis_schema = _load_json(AGENTS_DIR / REPORT_TYPE / "synthesis.schema.json")
+    if system_prompt is None or output_schema is None or synthesis_schema is None:
         return make_error_result(
             REPORT_TYPE, started_at, f"agents/{REPORT_TYPE}/ prompt·schema 로드 실패.")
 
@@ -400,65 +403,112 @@ def marketing_social_node(
     context = make_cache_context(
         agent_id=REPORT_TYPE, model=getattr(analyzer, "model", "claude_cli"),
         system_prompt=system_prompt, output_schema=output_schema)
-    payload = {
-        "own_candidate_id":      own_id,
-        "product_tokens_by_cid": tokens_by_cid,
-        "prejudged_related_ids": sorted(prejudged),
-        "channels": [
-            {
-                "channel_key":  key,
-                "candidate_id": ch["candidate_id"],
-                "platforms":    ch["platforms"],
-                "items": [
-                    {"id": it["id"], "title": it["title"], "excerpt": it["excerpt"]}
-                    for it in ch["items"]
-                ],
-            }
-            for key, ch in sorted(channels.items())
-        ],
-    }
-    cache_input = {
-        "report_type": REPORT_TYPE,
-        "payload_sha256": hashlib.sha256(
-            json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
-    }
-
-    degraded_error = ""
-    llm_out = load_agent_output(
-        agent_id=REPORT_TYPE, cache_input=cache_input, context=context,
-        output_schema=output_schema, logger=logger)
-    if llm_out is None:
-        prompt = ("다음 운영 채널 게시물 목록에 대해 system_prompt 의 산출 규칙을 "
-                  "적용하라 (수치 재계산 금지).\n\n```json\n"
-                  + json.dumps(payload, ensure_ascii=False) + "\n```")
-        try:
-            llm_out = analyzer.call_with_schema(prompt, output_schema)
-            store_agent_output(agent_id=REPORT_TYPE, cache_input=cache_input,
-                               context=context, output=llm_out, logger=logger)
-        except Exception as exc:  # noqa: BLE001 — CM-D5 degrade
-            degraded_error = (f"LLM 판정·서술 실패 — 집계 전용 degrade: "
-                              f"{type(exc).__name__}: {str(exc)[:200]}")
-            logger.error("marketing_social_node: %s", degraded_error)
-            llm_out = None
 
     warnings: list[str] = []
-    if llm_out is not None:
-        llm_out, dropped = sanitize_llm_output(llm_out, channels)
+    failed_cids: list[str] = []
+    crosstab, copy_tones, influencer, insights = [], [], [], []
+    llm_related: set[str] = set()
+
+    cids = sorted({ch["candidate_id"] for ch in channels.values()})
+    for cid in cids:
+        cid_channels = {k: ch for k, ch in channels.items() if ch["candidate_id"] == cid}
+        cid_item_ids = {it["id"] for ch in cid_channels.values() for it in ch["items"]}
+        payload = {
+            "mode":                  "per_candidate",
+            "own_candidate_id":      own_id,
+            "candidate_id":          cid,
+            "product_tokens":        tokens_by_cid.get(cid, []),
+            "prejudged_related_ids": sorted(prejudged & cid_item_ids),
+            "channels": [
+                {
+                    "channel_key":  key,
+                    "candidate_id": cid,
+                    "platforms":    ch["platforms"],
+                    "items": [
+                        {"id": it["id"], "title": it["title"], "excerpt": it["excerpt"]}
+                        for it in ch["items"]
+                    ],
+                }
+                for key, ch in sorted(cid_channels.items())
+            ],
+        }
+        cache_input = {
+            "report_type": REPORT_TYPE, "candidate_id": cid,
+            "payload_sha256": hashlib.sha256(
+                json.dumps(payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+        }
+        out_c = load_agent_output(
+            agent_id=REPORT_TYPE, cache_input=cache_input, context=context,
+            output_schema=output_schema, logger=logger)
+        if out_c is None:
+            prompt = ("다음 단일 candidate 의 운영 채널 게시물 목록에 대해 system_prompt 의 "
+                      "per_candidate 산출 규칙을 적용하라 (수치 재계산 금지).\n\n```json\n"
+                      + json.dumps(payload, ensure_ascii=False) + "\n```")
+            try:
+                out_c = analyzer.call_with_schema(prompt, output_schema)
+                store_agent_output(agent_id=REPORT_TYPE, cache_input=cache_input,
+                                   context=context, output=out_c, logger=logger)
+            except Exception as exc:  # noqa: BLE001 — candidate 단위 부분 degrade
+                failed_cids.append(cid)
+                warnings.append(f"LLM 판정 실패 ({cid}) — 해당 candidate 집계 전용: "
+                                f"{type(exc).__name__}: {str(exc)[:120]}")
+                logger.error("marketing_social_node: LLM 실패 (%s): %s", cid, exc)
+                continue
+        out_c, dropped = sanitize_llm_output(out_c, cid_channels)
         if dropped:
-            warnings.append(f"환각 가드 — LLM 출력 {dropped}건 제거")
-        related_ids = prejudged | set(llm_out["product_related_ids"])
-        crosstab    = llm_out["channel_keywords"]
-        copy_tones  = llm_out["copy_tones"]
-        influencer  = llm_out["influencer_signals"]
-        insights    = llm_out["channel_insights"]
-        overall     = llm_out["overall_summary"]
-        warnings.extend(llm_out.get("warnings", []))
-    else:
-        related_ids = prejudged   # 선판정만 — 관련 빈도는 하한치
-        crosstab, copy_tones, influencer, insights = [], [], [], []
-        overall = "(degraded — LLM 판정·서술 생략, 코드 집계만 제공)"
-        warnings.append(degraded_error)
+            warnings.append(f"환각 가드 ({cid}) — LLM 출력 {dropped}건 제거")
+        llm_related |= set(out_c["product_related_ids"])
+        crosstab    += out_c["channel_keywords"]
+        copy_tones  += out_c["copy_tones"]
+        influencer  += out_c["influencer_signals"]
+        insights    += out_c["channel_insights"]
+        warnings    += out_c.get("warnings", [])
+
+    related_ids = prejudged | llm_related
+    degraded_error = ""
+    if failed_cids and len(failed_cids) == len(cids):
+        degraded_error = "LLM 판정·서술 전체 실패 — 집계 전용 degrade"
         warnings.append("상품 관련 빈도는 코드 선판정 하한치 (LLM 문맥 판정 누락)")
+
+    # 종합 단계 — 후보별 산출 + 코드 집계로 overall_summary 1회 (작은 payload)
+    overall = "(degraded — LLM 판정·서술 생략, 코드 집계만 제공)"
+    if not degraded_error:
+        frequency_pre = build_frequency(channels, related_ids, window)
+        syn_payload = {
+            "mode":             "synthesis",
+            "own_candidate_id": own_id,
+            "copy_tones":       copy_tones,
+            "channel_insights": insights,
+            "coverage_gaps":    gaps,
+            "engagement_table": engagement,
+            "frequency_summary": {
+                k: {"window_total": v["window_total"], "related_total": v["related_total"]}
+                for k, v in frequency_pre.items()
+            },
+        }
+        syn_cache = {
+            "report_type": REPORT_TYPE, "phase": "synthesis",
+            "payload_sha256": hashlib.sha256(
+                json.dumps(syn_payload, ensure_ascii=False, sort_keys=True).encode()).hexdigest(),
+        }
+        syn_out = load_agent_output(
+            agent_id=REPORT_TYPE, cache_input=syn_cache, context=context,
+            output_schema=synthesis_schema, logger=logger)
+        if syn_out is None:
+            prompt = ("다음 후보별 산출과 코드 집계를 바탕으로 system_prompt 의 synthesis "
+                      "산출 규칙을 적용해 자사 관점 종합 서술을 작성하라.\n\n```json\n"
+                      + json.dumps(syn_payload, ensure_ascii=False) + "\n```")
+            try:
+                syn_out = analyzer.call_with_schema(prompt, synthesis_schema)
+                store_agent_output(agent_id=REPORT_TYPE, cache_input=syn_cache,
+                                   context=context, output=syn_out, logger=logger)
+            except Exception as exc:  # noqa: BLE001
+                warnings.append(f"종합 서술 실패 — overall_summary 생략: "
+                                f"{type(exc).__name__}: {str(exc)[:120]}")
+                syn_out = None
+        if syn_out is not None:
+            overall = syn_out["overall_summary"]
+            warnings += syn_out.get("warnings", [])
 
     frequency = build_frequency(channels, related_ids, window)
     score, score_rationale = compute_rubric(channels, bool(crosstab), gaps)

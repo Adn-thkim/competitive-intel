@@ -232,7 +232,7 @@ measurement_window, presence_only_channels}. `report_outputs["marketing_social"]
 | MS-D4 | 지표 — 게시 빈도(월간)·engagement(YouTube 한정, 분모 2종 병기)·audience_size(구독자) | 제안 |
 | MS-D5 | 측정 기간 — 전 채널·전 candidate **최근 6개월 동일 윈도우** (AP-4) | 제안 |
 | MS-D6 | 루브릭 코드 채점 — §5-1 규칙 (측정 채널 2종 보정 + degrade 3점 상한) | 제안 |
-| MS-D7 | 중간 분석 노드 없음 — LLM 판정·서술은 marketing_social 노드 내 1회 통합 | 제안 |
+| MS-D7 | 중간 분석 노드 없음 — LLM 은 marketing_social 노드 내에서 호출하되, **v1.0.3 보정: candidate별 N회(per_candidate) + 종합 1회(synthesis)로 분할** (2026-06-07 실측 — 5채널 ~210건 단일 호출이 CLI 300s timeout 초과, ABSA 전례 채택. candidate 단위 부분 degrade·캐시 지원) | **확정** (2026-06-07, 실측 보정) |
 | MS-D8 | RSS 파싱 stdlib `xml.etree` (신규 의존성 없음) | 제안 |
 | MS-D9 | platform 분류에 `blog_self_hosted` 추가 (blog.hanabank.com 류) — 탐지 입력은 url_discovery_owned_channels 의 브랜드 site: 보조 쿼리(v0.13.4)와 함께 도입, 수집은 blog_rss_collection 이 담당 | **확정** (2026-06-07, 사용자) |
 | MS-D10 | 게시 빈도 2계열(전체 + 상품 관련) — 수집은 제목 + 무비용 발췌(YouTube description·RSS summary, 300자)로 보강하고, 관련성 판정은 **하이브리드**(상품명 직접 포함 = 코드 선판정·고정, 애매 건만 LLM, 뒤집기 기각 가드) | **확정** (2026-06-07, 사용자) |

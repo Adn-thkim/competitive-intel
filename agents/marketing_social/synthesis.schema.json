@@ -1,0 +1,20 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/marketing-social/synthesis.schema.json",
+  "title": "MarketingSocialSynthesisOutput",
+  "description": "synthesis 모드 (v1.0.3 분할 호출 2단계) — 후보별 산출(copy_tones·channel_insights)과 코드 집계(coverage_gaps·engagement·빈도 요약)를 입력받아 자사 관점 종합 서술만 산출. 수치 재계산 금지.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["overall_summary", "warnings"],
+  "properties": {
+    "overall_summary": {
+      "type": "string",
+      "maxLength": 800,
+      "description": "자사 관점 종합 3~5문장 — 경쟁사 대비 채널 운영·메시지 차이, 자사 공백 시사점. 입력에 없는 수치·사실 생성 금지"
+    },
+    "warnings": {
+      "type": "array",
+      "items": { "type": "string" }
+    }
+  }
+}

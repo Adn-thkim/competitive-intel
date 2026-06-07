@@ -2,10 +2,10 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/marketing-social/output.schema.json",
   "title": "MarketingSocialAgentOutput",
-  "description": "코드가 수집·집계한 운영 채널 게시물 목록에 대해 LLM 이 산출하는 판정·서술 부분 (CM-D1 분리). 수치 재계산 금지. 설계: docs/design/marketing_social_node_design.md §5-2.",
+  "description": "단일 candidate 의 운영 채널 게시물 목록에 대한 LLM 판정·서술 (per_candidate 모드 — v1.0.3 분할 호출, CM-D1 분리). 수치 재계산 금지. overall_summary 는 synthesis.schema.json 의 별도 종합 호출. 설계: docs/design/marketing_social_node_design.md §5-2.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["channel_keywords", "product_related_ids", "copy_tones", "influencer_signals", "channel_insights", "overall_summary", "warnings"],
+  "required": ["channel_keywords", "product_related_ids", "copy_tones", "influencer_signals", "channel_insights", "warnings"],
   "properties": {
     "channel_keywords": {
       "type": "array",
@@ -74,11 +74,6 @@
           "insight":     { "type": "string", "maxLength": 300 }
         }
       }
-    },
-    "overall_summary": {
-      "type": "string",
-      "maxLength": 800,
-      "description": "자사 관점 종합 3~5문장 — 입력에 없는 수치·사실 생성 금지"
     },
     "warnings": {
       "type": "array",
