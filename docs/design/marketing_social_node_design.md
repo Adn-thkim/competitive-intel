@@ -198,6 +198,18 @@ measurement_window, presence_only_channels}. `report_outputs["marketing_social"]
 
 ---
 
+## 5-4. 실측 baseline (2026-06-07, profile_marketing_collection.py)
+
+- YouTube 3-call 체인: 3/3 성공, quota 9 units (견적 일치). 구독자 — 신한 72.3만 ·
+  하나TV 48.6만 · 토스 15.2만.
+- RSS 발견율: tistory 1/1 · self_hosted 1/3 (toss tossfeed tag URL·travel-wallet
+  홈페이지는 RSS 부재 → presence-only 강등 — 탐지 오판의 안전망 동작 확인).
+- PR 추출: 1/3 (33%) → MS-D12 제외 결정.
+- 발췌 가용률: 98~100% (MS-D10 판정 입력 확보).
+- 상품명 직접 포함률(코드 선판정): 하나 26% · 신한 2% · 토스 0% — LLM 문맥 판정이
+  핵심임을 확인. 토스 YouTube 최근 6개월 게시 0건은 사실 (빈도 0 = 운영 인사이트).
+- 신한 블로그 중복(tistory ↔ self_hosted 동일 분포) → MS-D11 결정.
+
 ## 6. 검증·실측 계획
 
 1. 단위 — platform 라우팅(6종 분기·instagram/x presence 처리)·channel_id 추출 패턴.
@@ -224,3 +236,5 @@ measurement_window, presence_only_channels}. `report_outputs["marketing_social"]
 | MS-D8 | RSS 파싱 stdlib `xml.etree` (신규 의존성 없음) | 제안 |
 | MS-D9 | platform 분류에 `blog_self_hosted` 추가 (blog.hanabank.com 류) — 탐지 입력은 url_discovery_owned_channels 의 브랜드 site: 보조 쿼리(v0.13.4)와 함께 도입, 수집은 blog_rss_collection 이 담당 | **확정** (2026-06-07, 사용자) |
 | MS-D10 | 게시 빈도 2계열(전체 + 상품 관련) — 수집은 제목 + 무비용 발췌(YouTube description·RSS summary, 300자)로 보강하고, 관련성 판정은 **하이브리드**(상품명 직접 포함 = 코드 선판정·고정, 애매 건만 LLM, 뒤집기 기각 가드) | **확정** (2026-06-07, 사용자) |
+| MS-D11 | 블로그 채널 dedup — 같은 candidate 의 ok 피드 제목 중복도 ≥ 50% 쌍 병합, `merged_platforms` 기록. 실측 근거: shinhancard-blog.tistory.com ↔ www.shinhancardblog.com 동일 블로그(커스텀 도메인) — 미병합 시 빈도 2배 왜곡 | **확정** (2026-06-07, 실측) |
+| MS-D12 | press_release 1차 측정 제외 — 실측 추출 성공률 33%(1/3) + URL 수집 단계의 의도 불일치(토스: 단일 아티클, 트래블월렛: 홈페이지). pr_release_collection 노드는 구현 존치·**미배선**, 리포트는 presence-only 표기. 개선(목록 URL 정밀 탐지)은 후속 | **확정** (2026-06-07, 사용자) |

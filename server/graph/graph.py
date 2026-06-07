@@ -113,6 +113,11 @@ from server.graph.nodes.youtube_reaction_collection_node import youtube_reaction
 from server.graph.nodes.community_collection_node import community_collection_node
 from server.graph.nodes.reaction_analysis_node import reaction_analysis_node
 from server.graph.nodes.reaction_insight_node import reaction_insight_node
+from server.graph.nodes.youtube_channel_metadata_collection_node import (
+    youtube_channel_metadata_collection_node,
+)
+from server.graph.nodes.blog_rss_collection_node import blog_rss_collection_node
+from server.graph.nodes.marketing_social_node import marketing_social_node
 from server.graph.nodes.human_review_node import human_review_node
 from server.graph.nodes.normalize_competitor_ids_node import normalize_competitor_ids_node
 from server.graph.nodes.official_source_resolver_node import official_source_resolver_node
@@ -216,6 +221,12 @@ def build_graph() -> object:
     builder.add_node("community_collection",         community_collection_node)
     builder.add_node("reaction_absa",                reaction_analysis_node)
     builder.add_node("reaction_insight",             reaction_insight_node)
+
+    # v1.0 §6-6a — marketing_social 시리즈 (수집 2종 + 리포트, MS-D2·MS-D12)
+    builder.add_node("youtube_channel_metadata_collection",
+                     youtube_channel_metadata_collection_node)
+    builder.add_node("blog_rss_collection",          blog_rss_collection_node)
+    builder.add_node("marketing_social",             marketing_social_node)
     # TODO (v0.10 + §6-6a): 아래 노드는 구현 후 주석 해제
     # ── 신규 수집 노드 (나머지 4계열) ────────────────────────────────────
     # builder.add_node("community_collection",               community_collection_node)
@@ -330,6 +341,14 @@ def build_graph() -> object:
                      "reaction_absa")               # list-fan-in barrier (2채널)
     builder.add_edge("reaction_absa",               "reaction_insight")
     builder.add_edge("reaction_insight",            END)
+    # ── 경로 3: 운영 채널 수집 2종 → marketing_social (v1.0 §6-6a, MS-D2·MS-D12) ──
+    #    pr_release_collection 은 구현돼 있으나 1차 미배선 — MS-D12 (2026-06-07 사용자:
+    #    PR URL 이 수집 의도와 불일치, 리포트는 presence-only 표기만).
+    builder.add_edge("feature_selection",           "youtube_channel_metadata_collection")
+    builder.add_edge("feature_selection",           "blog_rss_collection")
+    builder.add_edge(["youtube_channel_metadata_collection", "blog_rss_collection"],
+                     "marketing_social")            # list-fan-in barrier (2채널)
+    builder.add_edge("marketing_social",            END)
 
     # TODO (§6-7 v0.6 v0.10 D11 반영) — 노드 구현 후 아래 엣지 활성화
     # ── 1) feature_selection 이후: feature_extraction + 신규 수집 노드 fan-out ──
@@ -454,13 +473,21 @@ try:
         ("community_collection",         "reaction_absa"),
         ("reaction_absa",                "reaction_insight"),
     ])
+    # v1.0 §6-6a — marketing_social 경로 (수집 2종 fan-out + list-fan-in → 리포트)
+    _e8 = all(p in _edge_pairs for p in [
+        ("feature_selection",                    "youtube_channel_metadata_collection"),
+        ("feature_selection",                    "blog_rss_collection"),
+        ("youtube_channel_metadata_collection",  "marketing_social"),
+        ("blog_rss_collection",                  "marketing_social"),
+    ])
     if all([_has_branch_b, _has_list_a, _has_list_b,
             _has_fanout_5_1, _has_fanin_5_1, _has_fanout_5_2, _has_fanin_5_2,
-            _e5, _e6, _e7]):
+            _e5, _e6, _e7, _e8]):
         print(
-            "[graph.py] ✅ v0.13 토폴로지 확인 — "
+            "[graph.py] ✅ v1.0 토폴로지 확인 — "
             "… feature_selection → {official→comparison_matrix ∥ "
-            "(youtube·community)→reaction_analysis→reaction_insight}",
+            "(youtube·community)→reaction_analysis→reaction_insight ∥ "
+            "(channel_meta·blog_rss)→marketing_social}",
             flush=True,
         )
     else:
@@ -475,6 +502,7 @@ try:
         if not _e5:             _missing.append("additional_urls_validation → feature_selection")
         if not _e6:             _missing.append("feature_selection → official_content_collection → comparison_matrix")
         if not _e7:             _missing.append("reaction 경로 (수집 2종 → reaction_analysis → reaction_insight)")
-        print(f"[graph.py] ❌ v0.13 토폴로지 엣지 누락: {_missing}", flush=True)
+        if not _e8:             _missing.append("marketing_social 경로 (수집 2종 → marketing_social)")
+        print(f"[graph.py] ❌ v1.0 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)

@@ -27,7 +27,7 @@ const REPORT_TABS = [
   // false 면 분석 실행 중에도 '생성 중'이 아니라 '준비 중'으로 표시한다 (v0.13.1 수정).
   { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스',      implemented: true },
   { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트', implemented: true },
-  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜',        implemented: false },
+  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜',        implemented: true },
 ];
 
 /* 전용 뷰가 없는 리포트의 임시 뷰어 — envelope 표준 필드만 표시 */
