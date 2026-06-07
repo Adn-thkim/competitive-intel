@@ -24,7 +24,8 @@ robots.txt 준수 + 실제 네트워크 호출 간 1초 대기. 24h TTL agent �
 write keys
 ----------
 - blog_rss_posts : [{candidate_id, platform, blog_url, posts:
-                     [{title, published_at, link}], fetch_status}]
+                     [{title, published_at, link, summary}], fetch_status}]
+  (summary = RSS 동봉 요약 300자 발췌 — MS-D10 상품 관련성 판정용, 추가 fetch 없음)
 - agent_steps / errors (누적 reducer)
 """
 
@@ -49,6 +50,7 @@ logger = logging.getLogger(__name__)
 REPORT_TYPE    = "marketing_social"
 _PLATFORMS     = ("blog_naver", "blog_tistory", "blog_self_hosted")
 _MAX_POSTS     = 50
+_SUMMARY_CHARS = 300   # MS-D10 — RSS 동봉 요약 발췌 상한
 _RATE_LIMIT_S  = 1.0
 _HTTP_TIMEOUT  = (3, 10)
 _CACHE_TTL_H   = 24
@@ -103,6 +105,8 @@ def parse_feed(xml_text: str) -> list[dict]:
             "title":        (item.findtext("title") or "").strip(),
             "published_at": _to_iso(item.findtext("pubDate") or ""),
             "link":         (item.findtext("link") or "").strip(),
+            # MS-D10 — RSS 동봉 요약 발췌 (상품 관련성 판정용, 추가 fetch 없음)
+            "summary":      (item.findtext("description") or "").strip()[:_SUMMARY_CHARS],
         })
     # Atom — <feed><entry>
     if not posts and root.tag == f"{_ATOM_NS}feed":
@@ -114,6 +118,8 @@ def parse_feed(xml_text: str) -> list[dict]:
                     entry.findtext(f"{_ATOM_NS}published")
                     or entry.findtext(f"{_ATOM_NS}updated") or ""),
                 "link": (link_el.get("href", "") if link_el is not None else ""),
+                "summary": (entry.findtext(f"{_ATOM_NS}summary")
+                            or entry.findtext(f"{_ATOM_NS}content") or "").strip()[:_SUMMARY_CHARS],
             })
     return [p for p in posts if p["title"]][:_MAX_POSTS]
 

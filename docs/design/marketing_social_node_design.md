@@ -117,7 +117,8 @@ X API 의 무료 read 권한 폐지로 게시물 수집은 유료 tier 가 필�
   - `videos.list(statistics)` — 최근 영상의 조회·좋아요·댓글 (engagement 산출)
 - **산출** → state `youtube_channel_metadata`:
   `{candidate_id: {channel_url, subscriber_count, video_total, recent_videos:
-  [{video_id, title, published_at, view, like, comment}]}}`
+  [{video_id, title, published_at, description(300자), view, like, comment}]}}`
+  — description 은 playlistItems 응답에 동봉 (MS-D10, quota 추가 없음)
 - **quota 견적**: candidate당 3 units × 4 ≈ 12 units.
 - ※ reaction 시리즈의 `youtube_reaction_collection`(제3자 리뷰 영상 댓글)과 단위가
   다름 — 본 노드는 **자사·경쟁사 공식 채널의 운영 지표**.
@@ -131,9 +132,10 @@ X API 의 무료 read 권한 폐지로 게시물 수집은 유료 tier 가 필�
   presence-only 강등. 게시일·제목 최근 50건.
 - **정책**: robots.txt·rate limit 1초 (community_collection 의 D11 헬퍼 재사용).
 - **산출** → state `blog_rss_posts`: `[{candidate_id, platform, blog_url,
-  posts: [{title, published_at, link}], fetch_status}]`
-- ※ 본문은 수집하지 않음 — 게시 빈도·키워드(제목)만. 참여 지표는 블로그에서 공식
-  산출 불가(분모 부재 — §1-3 나쁜 예 회피).
+  posts: [{title, published_at, link, summary(300자)}], fetch_status}]`
+  — summary 는 RSS 동봉 description 발췌 (MS-D10, 추가 fetch 없음)
+- ※ 본문 전문은 수집하지 않음 — 게시 빈도·키워드(제목+요약)만. 참여 지표는
+  블로그에서 공식 산출 불가(분모 부재 — §1-3 나쁜 예 회피).
 
 ### 4-3. `pr_release_collection`
 
@@ -153,8 +155,11 @@ X API 의 무료 read 권한 폐지로 게시물 수집은 유료 tier 가 필�
 - **PESO·채널 커버리지 매트릭스**: candidate × platform — `measured`(수집 완료) /
   `presence_only`(instagram·x·강등분) / `none`. Owned 4분면 중심 + 자사 공백
   식별(경쟁사 운영·자사 미운영 채널 — 루브릭 5점 요건).
-- **게시 빈도**: 채널별 월간 게시 수 — **동일 기간 윈도우 최근 6개월** (MS-D5,
-  AP-4 시즌성 보정: 전 candidate·전 채널 같은 구간으로 정렬, 측정 기간 명기).
+- **게시 빈도 (2계열 — MS-D10)**: 채널별 월간 게시 수를 **전체 / 분석 대상 상품
+  관련**으로 분리 산출하고 "상품 관련 비중(%)"을 병기 — **동일 기간 윈도우 최근
+  6개월** (MS-D5, AP-4 시즌성 보정: 전 candidate·전 채널 같은 구간으로 정렬,
+  측정 기간 명기). 법인 채널(하나카드·신한카드)은 다수 상품을 다루므로 전체
+  빈도만으로는 해당 상품의 마케팅 강도를 측정할 수 없다 (2026-06-07 사용자 지적).
 - **engagement** (YouTube 한정): `(좋아요+댓글) ÷ 조회수` per 최근 영상 → 채널 중앙값.
   §1-3 표준 분모(followers) 대신 조회수 분모를 쓰는 사유 명기: 구독자 분모는 영상별
   도달 변동을 왜곡 — 두 값 모두 산출해 표기 (subscriber 분모·view 분모).
@@ -170,11 +175,17 @@ X API 의 무료 read 권한 폐지로 게시물 수집은 유료 tier 가 필�
 
 ### 5-2. LLM 파트 (CLI 1회 — CM-D1 분리)
 
-- 입력(읽기 전용): 채널별 최근 게시물 **제목 목록** + 코드 집계 표.
+- 입력(읽기 전용): 채널별 최근 게시물 **제목 + 발췌(YouTube description ·
+  RSS summary, 각 300자)** 목록 + 코드 집계 표.
 - 산출: ① 채널별 top_keywords(키워드 빈도 + 예시 제목 — §1-5), ② 캠페인 메시지
   카피 톤 분석, ③ 인플루언서 협업 흔적(제목의 협찬·광고 표기) 판정, ④ 서술
-  (channel_insights·overall_summary·자사 공백 해설).
-- 가드: 키워드 예시 제목이 입력 목록에 실존하는지 검증(quote 가드 패턴), 채널 ID 검증.
+  (channel_insights·overall_summary·자사 공백 해설), ⑤ **게시물별
+  `is_product_related` 판정 (MS-D10 — 코드 선판정 제외분만)**.
+- **MS-D10 하이브리드 판정**: 상품명·정규화 별칭이 제목/발췌에 직접 포함된
+  게시물은 코드가 선판정·고정(결정론). 나머지 애매 건만 LLM 이 문맥 판정.
+  코드 선판정을 LLM 이 뒤집으면 가드가 기각.
+- 가드: 키워드 예시 제목·판정 대상 게시물 ID 가 입력에 실존하는지 검증
+  (quote 가드 패턴), 채널 ID 검증.
 - degrade(CM-D5): LLM 실패 시 코드 집계만 제공, 점수는 코드 채점이라 불변
   (단 4점 요건인 keyword cross-tab 이 LLM 산출이므로 degrade 시 3점 상한 — 규칙에 반영).
 
@@ -212,3 +223,4 @@ measurement_window, presence_only_channels}. `report_outputs["marketing_social"]
 | MS-D7 | 중간 분석 노드 없음 — LLM 판정·서술은 marketing_social 노드 내 1회 통합 | 제안 |
 | MS-D8 | RSS 파싱 stdlib `xml.etree` (신규 의존성 없음) | 제안 |
 | MS-D9 | platform 분류에 `blog_self_hosted` 추가 (blog.hanabank.com 류) — 탐지 입력은 url_discovery_owned_channels 의 브랜드 site: 보조 쿼리(v0.13.4)와 함께 도입, 수집은 blog_rss_collection 이 담당 | **확정** (2026-06-07, 사용자) |
+| MS-D10 | 게시 빈도 2계열(전체 + 상품 관련) — 수집은 제목 + 무비용 발췌(YouTube description·RSS summary, 300자)로 보강하고, 관련성 판정은 **하이브리드**(상품명 직접 포함 = 코드 선판정·고정, 애매 건만 LLM, 뒤집기 기각 가드) | **확정** (2026-06-07, 사용자) |

@@ -86,11 +86,13 @@ def test_build_channel_record_joins_stats():
         {"url": "https://www.youtube.com/@x"},
         {"channel_id": "UC1", "title": "토스", "subscriber_count": 100, "video_count": 7,
          "uploads_playlist_id": "UU1"},
-        [{"video_id": "v1", "title": "t1", "published_at": "2026-05-01T00:00:00Z"}],
+        [{"video_id": "v1", "title": "t1", "published_at": "2026-05-01T00:00:00Z",
+          "description": "트래블카드 출시 영상"}],
         {"v1": {"view_count": 10, "like_count": 2, "comment_count": 1}},
     )
     assert rec["subscriber_count"] == 100 and rec["video_total"] == 7
     assert rec["recent_videos"][0]["view_count"] == 10
+    assert rec["recent_videos"][0]["description"] == "트래블카드 출시 영상"   # MS-D10
 
 
 def test_channel_node_partial_failure(monkeypatch):
@@ -122,6 +124,7 @@ def test_rss_candidate_urls(url, platform, handle, expected):
 _RSS_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
 <rss version="2.0"><channel><title>공식 블로그</title>
 <item><title>5월 이벤트 안내</title><link>https://b/1</link>
+<description>트래블카드 환전 이벤트 상세 내용입니다.</description>
 <pubDate>Thu, 01 May 2026 09:00:00 +0900</pubDate></item>
 <item><title>신규 카드 출시</title><link>https://b/2</link>
 <pubDate>Mon, 21 Apr 2026 10:00:00 +0900</pubDate></item>
@@ -131,6 +134,7 @@ _RSS_FIXTURE = """<?xml version="1.0" encoding="UTF-8"?>
 _ATOM_FIXTURE = """<?xml version="1.0"?>
 <feed xmlns="http://www.w3.org/2005/Atom"><title>blog</title>
 <entry><title>아톰 글</title><link href="https://a/1"/>
+<summary>아톰 요약</summary>
 <published>2026-05-02T00:00:00Z</published></entry></feed>"""
 
 
@@ -138,9 +142,12 @@ def test_parse_feed_rss_and_atom():
     posts = parse_feed(_RSS_FIXTURE)
     assert [p["title"] for p in posts] == ["5월 이벤트 안내", "신규 카드 출시"]
     assert posts[0]["published_at"].startswith("2026-05-01")
+    # MS-D10 — RSS 동봉 요약 발췌 (없으면 빈 문자열)
+    assert posts[0]["summary"] == "트래블카드 환전 이벤트 상세 내용입니다."
+    assert posts[1]["summary"] == ""
     atom = parse_feed(_ATOM_FIXTURE)
     assert atom == [{"title": "아톰 글", "published_at": "2026-05-02T00:00:00+00:00",
-                     "link": "https://a/1"}]
+                     "link": "https://a/1", "summary": "아톰 요약"}]
     assert parse_feed("not xml") == []
 
 
