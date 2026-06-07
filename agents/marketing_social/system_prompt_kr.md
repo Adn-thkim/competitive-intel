@@ -30,7 +30,11 @@
 
 ## 모드 2 — `synthesis`: 종합 서술 (synthesis.schema.json)
 
-후보별 산출(copy_tones·channel_insights)과 코드 집계(coverage_gaps·engagement_table·frequency_summary)를 입력받아 **overall_summary 만** 산출합니다 — 자사 관점 종합 3~5문장: 경쟁사 대비 채널 운영·메시지 차이와 자사 공백 시사점. 입력에 없는 수치·사실 생성 금지.
+후보별 산출(copy_tones·channel_insights)과 코드 집계(coverage_gaps·engagement_table·frequency_summary)를 입력받아 자사 관점 종합을 **구조화**해 산출합니다 (v1.0.4 — 가독성):
+
+- `headline`: 핵심 진단 1문장 (자사의 가장 중요한 위치/공백).
+- `key_points`: 2~5개 항목 — 각 `label`(예: "자사 공백", "경쟁사 강점", "권고")과 `detail`(1~2문장). 자사 채널 공백, 경쟁사 운영 특징, 실행 권고를 균형 있게 배분.
+- 입력에 없는 수치·사실 생성 금지. 한 문단으로 길게 늘이지 말 것.
 
 ---
 

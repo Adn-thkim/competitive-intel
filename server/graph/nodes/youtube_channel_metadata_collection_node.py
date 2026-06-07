@@ -49,7 +49,7 @@ logger = logging.getLogger(__name__)
 
 REPORT_TYPE     = "marketing_social"
 _PLATFORM       = "youtube_official"
-_RECENT_VIDEOS  = 50   # MS-D4 — 최근 업로드 수집 상한 (게시 빈도·engagement 산출 표본)
+_RECENT_VIDEOS  = 100  # MS-D4 — 최근 업로드 수집 상한 (v1.0.4: 50→100, 12개월 윈도우 커버)
 
 
 def select_channel_urls(state: dict) -> dict[str, dict]:

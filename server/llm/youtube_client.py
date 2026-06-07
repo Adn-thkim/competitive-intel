@@ -599,13 +599,15 @@ def youtube_channel_info(channel_url: str) -> dict | None:
 
 
 def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[dict]:
-    """업로드 playlist 의 최근 영상 목록 (playlistItems.list, 50건까지 1 unit). 24h TTL 캐시.
+    """업로드 playlist 의 최근 영상 목록 (playlistItems.list). 24h TTL 캐시.
+
+    v1.0.4 — max_results > 50 시 nextPageToken 페이징 (페이지당 1 unit, 50건 단위).
 
     Returns
     -------
     list[dict]
         [{"video_id", "title", "published_at", "description"}] — 최신순 (API 기본 정렬)
-        description 은 300자 발췌 (MS-D10 상품 관련성 판정용 — quota 추가 없음)
+        description 은 300자 발췌 (MS-D10 상품 관련성 판정용)
     """
     if not playlist_id:
         return []
@@ -613,7 +615,7 @@ def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[d
         raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
 
     cache_input = {"playlist_id": playlist_id, "max_results": max_results}
-    cache_context = {"agent_id": "youtube_playlist_items", "v": 2}   # v2: +description
+    cache_context = {"agent_id": "youtube_playlist_items", "v": 3}   # v3: 페이징
     cached = load_agent_output(
         agent_id="youtube_playlist_items", cache_input=cache_input,
         context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
@@ -621,44 +623,50 @@ def youtube_playlist_items(playlist_id: str, *, max_results: int = 50) -> list[d
     if cached is not None:
         return cached.get("items", []) or []
 
-    _check_and_consume_quota(_PLAYLIST_ITEMS_COST)
-    params = {
-        "part":       "snippet,contentDetails",
-        "playlistId": playlist_id,
-        "maxResults": min(max_results, 50),
-        "key":        YOUTUBE_API_KEY,
-    }
-    try:
-        resp = requests.get(_PLAYLIST_ITEMS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
-    except requests.RequestException as exc:
-        raise YouTubeApiUnavailable(f"playlistItems.list 네트워크 오류: {exc}") from exc
-    if resp.status_code == 404:
-        # playlist 부재 (영상 0건 채널) — 빈 목록 캐시
-        store_agent_output(agent_id="youtube_playlist_items", cache_input=cache_input,
-                           context=cache_context, output={"items": []}, logger=logger)
-        return []
-    if resp.status_code in (401, 403):
-        err_msg = _extract_error_message(resp)
-        if "quota" in err_msg.lower():
-            raise YouTubeQuotaExceeded(f"playlistItems.list quota exceeded: {err_msg}")
-        raise YouTubeApiUnavailable(f"playlistItems.list 인증 오류: {err_msg}")
-    if not resp.ok:
-        raise YouTubeApiUnavailable(
-            f"playlistItems.list 오류 {resp.status_code}: {_extract_error_message(resp)}")
-
     items: list[dict] = []
-    for it in resp.json().get("items") or []:
-        snippet = it.get("snippet") or {}
-        vid = ((it.get("contentDetails") or {}).get("videoId")
-               or ((snippet.get("resourceId") or {}).get("videoId")))
-        if vid:
-            items.append({
-                "video_id":     vid,
-                "title":        snippet.get("title", ""),
-                "published_at": ((it.get("contentDetails") or {}).get("videoPublishedAt")
-                                 or snippet.get("publishedAt", "")),
-                "description":  (snippet.get("description") or "")[:300],
-            })
+    page_token = ""
+    while len(items) < max_results:
+        _check_and_consume_quota(_PLAYLIST_ITEMS_COST)
+        params = {
+            "part":       "snippet,contentDetails",
+            "playlistId": playlist_id,
+            "maxResults": min(max_results - len(items), 50),
+            "key":        YOUTUBE_API_KEY,
+        }
+        if page_token:
+            params["pageToken"] = page_token
+        try:
+            resp = requests.get(_PLAYLIST_ITEMS_ENDPOINT, params=params, timeout=_HTTP_TIMEOUT)
+        except requests.RequestException as exc:
+            raise YouTubeApiUnavailable(f"playlistItems.list 네트워크 오류: {exc}") from exc
+        if resp.status_code == 404:
+            break   # playlist 부재 (영상 0건 채널)
+        if resp.status_code in (401, 403):
+            err_msg = _extract_error_message(resp)
+            if "quota" in err_msg.lower():
+                raise YouTubeQuotaExceeded(f"playlistItems.list quota exceeded: {err_msg}")
+            raise YouTubeApiUnavailable(f"playlistItems.list 인증 오류: {err_msg}")
+        if not resp.ok:
+            raise YouTubeApiUnavailable(
+                f"playlistItems.list 오류 {resp.status_code}: {_extract_error_message(resp)}")
+
+        data = resp.json()
+        for it in data.get("items") or []:
+            snippet = it.get("snippet") or {}
+            vid = ((it.get("contentDetails") or {}).get("videoId")
+                   or ((snippet.get("resourceId") or {}).get("videoId")))
+            if vid:
+                items.append({
+                    "video_id":     vid,
+                    "title":        snippet.get("title", ""),
+                    "published_at": ((it.get("contentDetails") or {}).get("videoPublishedAt")
+                                     or snippet.get("publishedAt", "")),
+                    "description":  (snippet.get("description") or "")[:300],
+                })
+        page_token = data.get("nextPageToken", "")
+        if not page_token:
+            break
+
     store_agent_output(agent_id="youtube_playlist_items", cache_input=cache_input,
                        context=cache_context, output={"items": items}, logger=logger)
     return items
