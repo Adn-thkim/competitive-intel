@@ -32,11 +32,17 @@ v0.10.9 토폴로지 (pipeline_topology_redesign.md §6-2 v0.10.9 확정)
                   additional_urls_validation (v0.10.27 임시 호환 — 5종 *_raw_features union)
                                        ↓
                                   feature_selection (#4)
-                                       ↓
-                  official_content_collection (v0.12 — official 계열 수집·feature_pool)
-                                       ↓
-                  comparison_matrix (v0.12 — 비교 매트릭스 리포트)
-                                   → END  ← 임시 (후속 시리즈에서 positioning_map 등으로 교체)
+                          ┌────────────┼───────────────────────┐
+                          ↓            ↓                       ↓
+        official_content_collection  youtube_reaction_    community_collection
+              (v0.12)                collection (v0.13)      (v0.13)
+                          ↓            └──── list-fan-in ──────┘
+                  comparison_matrix                ↓
+                     (v0.12)             reaction_absa (ABSA 분석)
+                          ↓                        ↓
+                          ↓              reaction_insight (v0.13)
+                          └──────→ END ←──────────┘
+                            ↑ 임시 — 후속 시리즈에서 battlecard A-Only fan-in 등으로 교체
 
 핵심 변경 의도 (v0.10.7 vs v0.10.5 / v0.10.6)
 ---------------------------------------------
@@ -102,6 +108,11 @@ from server.graph.nodes.additional_urls_validation_node import additional_urls_v
 # report generation 시리즈 (v0.12) — official → comparison_matrix 경로
 from server.graph.nodes.official_content_collection_node import official_content_collection_node
 from server.graph.nodes.comparison_matrix_node import comparison_matrix_node
+# report generation 시리즈 (v0.13) — reaction 경로 (RI-D1: youtube_query_planner 폐기)
+from server.graph.nodes.youtube_reaction_collection_node import youtube_reaction_collection_node
+from server.graph.nodes.community_collection_node import community_collection_node
+from server.graph.nodes.reaction_analysis_node import reaction_analysis_node
+from server.graph.nodes.reaction_insight_node import reaction_insight_node
 from server.graph.nodes.human_review_node import human_review_node
 from server.graph.nodes.normalize_competitor_ids_node import normalize_competitor_ids_node
 from server.graph.nodes.official_source_resolver_node import official_source_resolver_node
@@ -198,6 +209,13 @@ def build_graph() -> object:
     # report generation 시리즈 (v0.12) — official 계열 수집 + comparison_matrix
     builder.add_node("official_content_collection",  official_content_collection_node)
     builder.add_node("comparison_matrix",            comparison_matrix_node)
+    # report generation 시리즈 (v0.13) — reaction 계열 수집 2종 + ABSA + 리포트
+    # ※ 노드명 reaction_absa: LangGraph 는 노드명이 state 키와 같으면 거부하는데
+    #   'reaction_analysis' 는 state 키(ABSA 산출)로 선점되어 있다 (구설계 §6-7 충돌).
+    builder.add_node("youtube_reaction_collection",  youtube_reaction_collection_node)
+    builder.add_node("community_collection",         community_collection_node)
+    builder.add_node("reaction_absa",                reaction_analysis_node)
+    builder.add_node("reaction_insight",             reaction_insight_node)
     # TODO (v0.10 + §6-6a): 아래 노드는 구현 후 주석 해제
     # ── 신규 수집 노드 (나머지 4계열) ────────────────────────────────────
     # builder.add_node("community_collection",               community_collection_node)
@@ -296,13 +314,22 @@ def build_graph() -> object:
     #    feature_mapping_llm · urls_merge 3 노드 폐기)
     builder.add_edge("additional_urls_validation",    "feature_selection")
 
-    # 6) report generation 시리즈 (v0.12) — comparison_matrix 경로 활성화
-    #    (설계: docs/design/comparison_matrix_node_design.md §6.
-    #     comparison_matrix → END 는 임시 — 후속 시리즈에서 positioning_map·
-    #     battlecard list-fan-in 등으로 교체. §6-7 7중 fan-out 의 1번째 분기)
+    # 6) report generation 시리즈 — comparison_matrix(v0.12) + reaction_insight(v0.13)
+    #    두 리포트 경로는 feature_selection 에서 fan-out 하여 병렬 진행 (merge reducer
+    #    가 report_outputs 동시 write 를 병합 — CM-D3). → END 는 임시: 후속 시리즈에서
+    #    battlecard 의 A-Only 3종 list-fan-in 등으로 교체 (§2-2).
+    # ── 경로 1: official → comparison_matrix (v0.12) ──
     builder.add_edge("feature_selection",           "official_content_collection")
     builder.add_edge("official_content_collection", "comparison_matrix")
     builder.add_edge("comparison_matrix",           END)
+    # ── 경로 2: reaction 수집 2종 → ABSA → reaction_insight (v0.13, RI-D1) ──
+    #    youtube_query_planner 는 폐기 — 검색·선별이 상류(url_discovery 체인)에 흡수됨.
+    builder.add_edge("feature_selection",           "youtube_reaction_collection")
+    builder.add_edge("feature_selection",           "community_collection")
+    builder.add_edge(["youtube_reaction_collection", "community_collection"],
+                     "reaction_absa")               # list-fan-in barrier (2채널)
+    builder.add_edge("reaction_absa",               "reaction_insight")
+    builder.add_edge("reaction_insight",            END)
 
     # TODO (§6-7 v0.6 v0.10 D11 반영) — 노드 구현 후 아래 엣지 활성화
     # ── 1) feature_selection 이후: feature_extraction + 신규 수집 노드 fan-out ──
@@ -419,14 +446,21 @@ try:
         ("feature_selection",           "official_content_collection"),
         ("official_content_collection", "comparison_matrix"),
     ])
+    # v0.13 — reaction 경로 (수집 2종 fan-out + list-fan-in → ABSA → 리포트)
+    _e7 = all(p in _edge_pairs for p in [
+        ("feature_selection",            "youtube_reaction_collection"),
+        ("feature_selection",            "community_collection"),
+        ("youtube_reaction_collection",  "reaction_absa"),
+        ("community_collection",         "reaction_absa"),
+        ("reaction_absa",                "reaction_insight"),
+    ])
     if all([_has_branch_b, _has_list_a, _has_list_b,
             _has_fanout_5_1, _has_fanin_5_1, _has_fanout_5_2, _has_fanin_5_2,
-            _e5, _e6]):
+            _e5, _e6, _e7]):
         print(
-            "[graph.py] ✅ v0.12 토폴로지 확인 — "
-            "ab_join list-fan-in + 5중 URL 탐색 fan-out 1차 + cross_reference + "
-            "5중 feature_mapping fan-out 2차 + additional_urls_validation → "
-            "feature_selection → official_content_collection → comparison_matrix",
+            "[graph.py] ✅ v0.13 토폴로지 확인 — "
+            "… feature_selection → {official→comparison_matrix ∥ "
+            "(youtube·community)→reaction_analysis→reaction_insight}",
             flush=True,
         )
     else:
@@ -440,6 +474,7 @@ try:
         if not _has_fanin_5_2:  _missing.append("5 feature_mapping_* → additional_urls_validation")
         if not _e5:             _missing.append("additional_urls_validation → feature_selection")
         if not _e6:             _missing.append("feature_selection → official_content_collection → comparison_matrix")
-        print(f"[graph.py] ❌ v0.12 토폴로지 엣지 누락: {_missing}", flush=True)
+        if not _e7:             _missing.append("reaction 경로 (수집 2종 → reaction_analysis → reaction_insight)")
+        print(f"[graph.py] ❌ v0.13 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)
