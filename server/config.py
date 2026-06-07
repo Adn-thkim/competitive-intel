@@ -114,7 +114,15 @@ OFFICIAL_SOURCE_RESOLVER_LLM_BATCH_SIZE = int(
 )
 
 # E-1 Brave 검색 결과 캐시 TTL(시간). 동일 (브랜드, 상품명) 쿼리는 이 기간 동안 재사용.
+# (official_source_resolver 의 인메모리 캐시 전용 — 파일 캐시 전환은 Future_Improvements 5번)
 BRAVE_RESULT_CACHE_TTL_HOURS = int(os.getenv("BRAVE_RESULT_CACHE_TTL_HOURS", "24"))
+
+# E-1b v0.13.5 — _brave_search 파일 캐시(url_discovery_brave) TTL(시간).
+# 2026-06-07 월 크레딧 소진 사고의 구조 원인 = 전체 실행마다 5개 url_discovery 노드의
+# 쿼리 ~150건이 24h 만료로 전량 재호출. URL 탐색 결과는 일 단위로 변하지 않으므로
+# 7일로 연장해 월 소모량을 ~1/7 로 줄인다. page_meta_collect·url_validation 은
+# 대상이 아님 (url_validation 은 죽은 링크 오판 박제 방지를 위해 24h 유지).
+BRAVE_SEARCH_CACHE_TTL_HOURS = int(os.getenv("BRAVE_SEARCH_CACHE_TTL_HOURS", "168"))
 
 # E-2 HTTP 검증 결과 캐시 TTL(분). 동일 URL은 이 기간 동안 재검증을 생략.
 HTTP_VALIDATION_CACHE_TTL_MINUTES = int(os.getenv("HTTP_VALIDATION_CACHE_TTL_MINUTES", "60"))

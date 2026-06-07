@@ -188,6 +188,68 @@ report generation 시리즈(official_content_collection → comparison_matrix) �
 
 ---
 
+## 5. `official_source_resolver` 의 인메모리 Brave 캐시 → 파일 캐시 전환
+
+### 배경 (2026-06-07, Brave 월 크레딧 소진 사고 후속)
+
+Brave Search API 가 2026-02 무료 tier 를 폐지(월 $5 크레딧 ≈ 1,000쿼리)하면서 모든
+Brave 호출이 과금 자원이 됐다. v0.13.5 에서 `_brave_search` 파일 캐시
+(`url_discovery_brave`)의 TTL 을 24h → 168h(7일, config E-1b)로 연장해 1차 fan-out
+5개 노드의 반복 소모를 ~1/7 로 줄였다.
+
+그러나 `official_source_resolver_node` 는 별도 경로인 `server/graph/url_cache.py` 의
+**인메모리** `_TTLCache`(`BRAVE_RESULT_CACHE_TTL_HOURS`, E-1)를 사용한다. 프로세스
+수명에 묶여 있어 **서버(uvicorn) 재시작 때마다 소멸** — 재시작 후 첫 실행은 항상
+실제 Brave 호출이 발생한다. 개발 중 서버 재시작이 잦아 누수가 누적된다.
+
+### 개선안
+
+- `official_source_resolver` 의 Brave 조회를 `_brave_search` 와 동일한
+  `agent_cache`(파일) 경로로 통합하거나, `url_cache.py` 에 파일 영속 백엔드를 추가.
+- 통합 시 전역 rate limiter(`_brave_throttle`)·429 재시도도 자동 공유되는 부수 이점.
+
+### 검토 시점
+
+marketing_social 시리즈 완료 후. 작업량 작음(헬퍼 치환 1곳 + 캐시 키 정합 확인).
+
+---
+
+## 6. owned_channels — 모회사·계열 브랜드 채널 탐지 확장 (하나은행 케이스)
+
+### 배경 (2026-06-07 실사)
+
+candidate `comp_하나트래블로그카드` 의 brand 는 "하나카드"이지만, 실존 운영 채널 중
+X(`x.com/HanaBank_KR`)·자체 블로그(`blog.hanabank.com`)는 **하나은행(계열 모회사)**
+명의다. v0.13.4 브랜드 site: 보조 쿼리(`site:x.com 하나카드`)는 site: 연산자가 정상
+작동함에도(무관 계정 5건 반환) 운영 주체 브랜드가 달라 도달하지 못했다 — 검색어
+자체가 못 미치는 구조적 한계.
+
+### 개선안 (우선순위순)
+
+1. **수동 채널 등록 (HITL)**: feature_selection 공식 채널 카드에 "채널 직접 추가"
+   입력 → 도메인 가드 검증 후 `owned_channel_urls_by_candidate` 병합. 검색 개선으로
+   풀 수 없는 케이스의 확실한 해결책이며 interrupt 패턴과 정합.
+2. **parent_brand 메타 도입**: competitor_discovery 가 모회사/계열 브랜드를
+   candidate 메타로 제공하면 `site:x.com {parent_brand}` 보조 쿼리 확장 가능.
+   상위 노드 스키마 변경 필요 — 단독 진행 불가.
+3. **도메인 기반 추정 프로브** (트래블월렛 네이버 블로그 케이스와 공용):
+   primary_url 도메인 slug(예: travel-wallet.com → travelwallet)로
+   `blog.naver.com/{slug}` 등 패턴 URL 을 직접 HTTP 검증. Brave 비용 0,
+   단 오탐 방지 검증 로직 필요.
+
+### 참고 — Brave vs Google 랭킹 격차 (2026-06-07 확정)
+
+`site:blog.naver.com 트래블월렛 공식`: Google 은 공식 블로그
+(`blog.naver.com/travelwallet`)를 1위로 반환하나, Brave 상위 5건은 전부 개인 리뷰
+글이며 공식 블로그 홈이 부재. Brave 인덱스/랭킹 품질 한계로, count 상향(5→10)
+시도 또는 3번 프로브 방식이 대안.
+
+### 검토 시점
+
+marketing_social 시리즈 완료 후 수동 등록(1번)부터.
+
+---
+
 ## 변경 이력
 
 | 일자 | 변경 |
@@ -196,3 +258,5 @@ report generation 시리즈(official_content_collection → comparison_matrix) �
 | 2026-06-04 | 2번 항목 (`ClaudeApiAnalyzer` 활용 후보 노드 검토) 신설 — v0.10.21.1 turn-49 결정에 따른 보존 자산 활용 정책 |
 | 2026-06-04 | 3번 항목 (v0.10.28b `marketing_social` 카드 UI 부분 채택 사양) 신설 — turn-62 사용자 이미지 + 명세 |
 | 2026-06-04 | 4번 항목 (ProductIdResolver 상품명 정규화 오염) 신설 — Step 0 실데이터 검증 중 발견, 임시 조치 완료 |
+| 2026-06-07 | 5번 항목 (인메모리 Brave 캐시 파일 전환) 신설 — Brave 월 크레딧 소진 사고 후속 |
+| 2026-06-07 | 6번 항목 (모회사·계열 브랜드 채널 탐지 확장) 신설 — owned_channels 실사 미발견 3건 원인 분석 후속 |

@@ -75,6 +75,8 @@ STAGE_MESSAGES: dict[str, str] = {
     # v0.13 — reaction_insight 시리즈 (수집·ABSA 단계)
     "reaction_collection":     "사용자 반응 수집 중",
     "reaction_analysis":       "반응 ABSA 분석 중",
+    # v1.0 §6-6a — marketing_social 시리즈 (수집 3노드 공통)
+    "marketing_collection":    "운영 채널 데이터 수집 중",
 }
 
 # candidate.stage → UI 라벨 (C-1)

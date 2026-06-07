@@ -47,6 +47,8 @@ v0.10.9: 4개 노드 분리 (옵션 A) + parallel 2→4 + UI 4단계 stage 분�
 
 import json
 import logging
+import threading
+import time
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timedelta, timezone
 from html.parser import HTMLParser
@@ -54,7 +56,7 @@ from pathlib import Path
 
 import requests as req_lib
 
-from server.config import BRAVE_SEARCH_API_KEY
+from server.config import BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_CACHE_TTL_HOURS
 from server.graph.agent_cache import (
     load_agent_output,
     store_agent_output,
@@ -238,6 +240,25 @@ def _extract_hints_for_source(
     return out
 
 
+# v0.13.5 — Brave 전역 rate limiter (2026-06-07 회귀 교훈)
+# Brave free tier 는 1 req/s 강제. 병렬 노드(owned_channels 3 workers 등)가 캐시
+# 만료 직후 수십 건을 burst 하면 429 폭주 → 전 호출 silent 실패 → "미발견" 회귀.
+# 모든 실제 API 호출(캐시 히트 제외)을 전역 lock 으로 직렬화하고 최소 간격을 강제한다.
+_BRAVE_MIN_INTERVAL_S  = 1.05
+_BRAVE_429_MAX_RETRIES = 2
+_brave_throttle_lock   = threading.Lock()
+_brave_last_call_ts    = [0.0]   # mutable holder (lock 보호)
+
+
+def _brave_throttle() -> None:
+    """실제 Brave API 호출 직전 호출 — 직전 호출과 최소 간격을 보장한다."""
+    with _brave_throttle_lock:
+        wait = _brave_last_call_ts[0] + _BRAVE_MIN_INTERVAL_S - time.monotonic()
+        if wait > 0:
+            time.sleep(wait)
+        _brave_last_call_ts[0] = time.monotonic()
+
+
 def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
     """
     Brave Search API 호출 (v0.10.12 B-1 24h TTL 캐시 적용).
@@ -246,7 +267,9 @@ def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
     24시간 이내에는 항상 같은 결과를 반환하여 Brave rate limit 부담을 완화하고
     feature_mapping_llm 의 cache_input(URL list) 안정성을 보장한다.
 
+    v0.13.5: 전역 1 req/s rate limiter + 429 Retry-After 재시도(최대 2회).
     실패 시 빈 리스트를 반환하며, 빈 결과는 캐시하지 않는다(일시적 실패 재시도 가능).
+    실패는 warning 으로 기록한다 (debug 로 묻혀 회귀를 키운 전례 — 실패 가시화).
     """
     if not BRAVE_SEARCH_API_KEY:
         logger.warning("BRAVE_SEARCH_API_KEY 미설정 — Brave 검색 생략")
@@ -260,28 +283,49 @@ def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
         cache_input=cache_input,
         context=cache_context,
         logger=logger,
-        ttl_hours=_NODE_CACHE_TTL_HOURS,
+        # v0.13.5 — Brave 검색 결과만 7일 TTL (config E-1b). page_meta_collect ·
+        # url_validation 은 _NODE_CACHE_TTL_HOURS(24h) 유지.
+        ttl_hours=BRAVE_SEARCH_CACHE_TTL_HOURS,
     )
     if cached is not None:
         return cached.get("results", [])
 
-    # ── 캐시 미스 — 실제 Brave API 호출 ──────────────────────────────────────
+    # ── 캐시 미스 — 실제 Brave API 호출 (rate limit + 429 재시도) ────────────
     headers = {
         "Accept":               "application/json",
         "Accept-Encoding":      "gzip",
         "X-Subscription-Token": BRAVE_SEARCH_API_KEY,
     }
-    try:
-        resp = req_lib.get(
-            _BRAVE_ENDPOINT, headers=headers,
-            params={"q": query, "count": count}, timeout=(3, 8),
-        )
-        resp.raise_for_status()
-        data = resp.json()
-        results = data.get("web", {}).get("results", [])
-    except Exception as exc:  # noqa: BLE001
-        logger.debug("Brave 검색 실패 (%s): %s", query, exc)
-        return []
+    results: list[dict] = []
+    for attempt in range(_BRAVE_429_MAX_RETRIES + 1):
+        _brave_throttle()
+        try:
+            resp = req_lib.get(
+                _BRAVE_ENDPOINT, headers=headers,
+                params={"q": query, "count": count}, timeout=(3, 8),
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Brave 검색 네트워크 실패 (%s): %s", query, exc)
+            return []
+        if resp.status_code == 429 and attempt < _BRAVE_429_MAX_RETRIES:
+            retry_after = 1.0
+            try:
+                retry_after = max(retry_after, float(resp.headers.get("Retry-After", 1)))
+            except (TypeError, ValueError):
+                pass
+            logger.warning(
+                "Brave 429 rate limit (%s) — %.1fs 대기 후 재시도 %d/%d",
+                query, retry_after, attempt + 1, _BRAVE_429_MAX_RETRIES,
+            )
+            time.sleep(min(retry_after, 10.0))
+            continue
+        try:
+            resp.raise_for_status()
+            results = resp.json().get("web", {}).get("results", [])
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("Brave 검색 실패 (%s): %s", query, exc)
+            return []
+        break
 
     # ── 캐시 저장 (빈 결과는 캐시 안 함 — 일시 실패 재시도 보존) ─────────────
     if results:
