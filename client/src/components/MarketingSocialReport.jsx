@@ -48,10 +48,12 @@ const PLATFORM_ORDER = [
 ];
 
 const STATUS_META = {
-  measured:       { label: '측정',     cls: 'bg-green-100 text-green-800 border-green-200' },
-  measured_empty: { label: '측정·0건', cls: 'bg-green-50 text-green-600 border-green-200' },
-  presence_only:  { label: '운영',     cls: 'bg-amber-50 text-amber-700 border-amber-200' },
-  none:           { label: '—',        cls: 'bg-gray-50 text-gray-300 border-gray-100' },
+  // measured_empty(피드 도달·글 0)도 커버리지에선 '측정'으로 동일 표기 —
+  // 게시물 0건 사실은 채널 운영 지표에서 별도 표기 (2026-06-07 사용자)
+  measured:       { label: '측정', cls: 'bg-green-100 text-green-800 border-green-200' },
+  measured_empty: { label: '측정', cls: 'bg-green-100 text-green-800 border-green-200' },
+  presence_only:  { label: '운영', cls: 'bg-amber-50 text-amber-700 border-amber-200' },
+  none:           { label: '—',    cls: 'bg-gray-50 text-gray-300 border-gray-100' },
 };
 
 /* item id → 원문 링크 (youtube video_id 또는 게시물 URL) */
@@ -193,52 +195,66 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
         </table>
       </div>
 
-      {/* 3. 채널 운영 표 (4-tuple) */}
+      {/* 3. 채널 운영 표 (4-tuple) — YouTube / 블로그 구분 */}
       <SectionTitle sub={`모집단: 측정 윈도우(${window_[0] ?? ''}~${window_[window_.length - 1] ?? ''}, 최근 ${window_.length}개월) 내 게시물. 상품 관련 = 분석 대상 상품을 직접 다루는 게시물`}>
         채널 운영 지표
       </SectionTitle>
-      <div className="overflow-x-auto mb-6">
-        <table className="text-xs border-collapse min-w-full">
-          <thead>
-            <tr className="text-gray-500">
-              <th className="text-left py-1.5 pr-3 font-medium whitespace-nowrap">채널</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">게시 (윈도우)</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">상품 관련</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">관련 비중</th>
-              <th className="px-2 py-1.5 font-medium whitespace-nowrap">구독/규모</th>
-            </tr>
-          </thead>
-          <tbody>
-            {sortedMatrix.map(row => {
-              const f = freq[row.channel_key] ?? {};
-              const ratio = f.window_total ? Math.round((f.related_total / f.window_total) * 100) : 0;
-              return (
-                <tr key={row.channel_key} className="border-t border-gray-100">
-                  <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">
-                    {channelLabel(row.channel_key)}
-                    {row.platforms.length > 1 && (
-                      <span className="ml-1 text-[10px] text-gray-400" title={`동일 블로그 병합: ${row.platforms.join(' + ')}`}>
-                        (병합)
-                      </span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-center text-gray-700">
-                    {row.posting_frequency}
-                    {f.window_total === 0 && (
-                      <span className="ml-1 text-[10px] text-gray-400">게시 없음</span>
-                    )}
-                  </td>
-                  <td className="px-2 py-1.5 text-center font-semibold text-indigo-700">{row.product_related}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-500">{f.window_total ? `${ratio}%` : '—'}</td>
-                  <td className="px-2 py-1.5 text-center text-gray-700">
-                    {row.audience_size != null ? row.audience_size.toLocaleString() : '—'}
-                  </td>
-                </tr>
-              );
-            })}
-          </tbody>
-        </table>
-      </div>
+      {[
+        { type: 'youtube', label: 'YouTube 채널', hasAudience: true },
+        { type: 'blog',    label: '블로그',        hasAudience: false },
+      ].map(grp => {
+        const rows = sortedMatrix.filter(r => (r.channel_key.endsWith('/youtube') ? 'youtube' : 'blog') === grp.type);
+        if (rows.length === 0) return null;
+        return (
+          <div key={grp.type} className="mb-5">
+            <p className="text-xs font-semibold text-gray-600 mb-1.5">{grp.label}</p>
+            <div className="overflow-x-auto">
+              <table className="text-xs border-collapse min-w-full">
+                <thead>
+                  <tr className="text-gray-500">
+                    <th className="text-left py-1.5 pr-3 font-medium whitespace-nowrap">채널</th>
+                    <th className="px-2 py-1.5 font-medium whitespace-nowrap">게시 (윈도우)</th>
+                    <th className="px-2 py-1.5 font-medium whitespace-nowrap">상품 관련</th>
+                    <th className="px-2 py-1.5 font-medium whitespace-nowrap">관련 비중</th>
+                    {grp.hasAudience && <th className="px-2 py-1.5 font-medium whitespace-nowrap">구독자</th>}
+                  </tr>
+                </thead>
+                <tbody>
+                  {rows.map(row => {
+                    const f = freq[row.channel_key] ?? {};
+                    const ratio = f.window_total ? Math.round((f.related_total / f.window_total) * 100) : 0;
+                    return (
+                      <tr key={row.channel_key} className="border-t border-gray-100">
+                        <td className="py-1.5 pr-3 font-medium text-gray-800 whitespace-nowrap">
+                          {nameOf(row.candidate_id)}
+                          {row.platforms.length > 1 && (
+                            <span className="ml-1 text-[10px] text-gray-400" title={`동일 블로그 병합: ${row.platforms.join(' + ')}`}>
+                              ({row.platforms.map(p => PLATFORM_LABELS[p] ?? p).join('+')})
+                            </span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-center text-gray-700">
+                          {row.posting_frequency}
+                          {f.window_total === 0 && (
+                            <span className="ml-1 text-[10px] text-gray-400">게시 없음</span>
+                          )}
+                        </td>
+                        <td className="px-2 py-1.5 text-center font-semibold text-indigo-700">{row.product_related}</td>
+                        <td className="px-2 py-1.5 text-center text-gray-500">{f.window_total ? `${ratio}%` : '—'}</td>
+                        {grp.hasAudience && (
+                          <td className="px-2 py-1.5 text-center text-gray-700">
+                            {row.audience_size != null ? row.audience_size.toLocaleString() : '—'}
+                          </td>
+                        )}
+                      </tr>
+                    );
+                  })}
+                </tbody>
+              </table>
+            </div>
+          </div>
+        );
+      })}
 
       {/* 4. 월별 게시 빈도 (2계열) */}
       <div className="flex flex-wrap items-center justify-between gap-2 mb-2">
@@ -279,12 +295,17 @@ export default function MarketingSocialReport({ report, candidateNames = {}, own
       </p>
 
       {/* 5. Engagement */}
-      <div className="rounded-lg bg-rose-50 border border-rose-200 px-3 py-2 mb-1 inline-block">
-        <span className="text-xs font-bold text-rose-700">📺 YouTube 전용 지표</span>
+      <div className="flex items-center gap-2 mb-1">
+        <h4 className="text-base font-bold text-gray-800">Engagement</h4>
+        <span className="text-[10px] font-bold text-rose-700 bg-rose-50 border border-rose-200 rounded px-1.5 py-0.5">
+          📺 YouTube 전용
+        </span>
       </div>
-      <SectionTitle sub="모집단: 수집된 최근 영상 전체(채널당 최대 100개) — 위 '게시 빈도'(6/12개월 윈도우)와 표본이 다름. 주 지표 = (좋아요+댓글)÷조회수 중앙값. 구독자 분모는 영상별 도달 변동을 왜곡하므로 보조. ※ YouTube는 2021년 싫어요 수 API 제공을 중단해 싫어요 기반 지표는 산출 불가">
-        Engagement
-      </SectionTitle>
+      <p className="text-xs text-gray-400 mb-3">
+        모집단: 수집된 최근 영상 전체(채널당 최대 100개) — 위 '게시 빈도'(12개월 윈도우)와 표본이 다름.
+        주 지표 = (좋아요+댓글)÷조회수 중앙값. 구독자 분모는 영상별 도달 변동을 왜곡하므로 보조.
+        ※ YouTube는 2021년 싫어요 수 API 제공을 중단해 싫어요 기반 지표는 산출 불가
+      </p>
       <div className="overflow-x-auto mb-6">
         <table className="text-xs border-collapse min-w-full">
           <thead>
