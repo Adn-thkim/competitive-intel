@@ -222,6 +222,13 @@ def build_graph() -> object:
     builder.add_node("reaction_absa",                reaction_analysis_node)
     builder.add_node("reaction_insight",             reaction_insight_node)
 
+    # 2026-06-11 — blog_collection_node 분리(미배선/휴면). 활성 파이프라인은 커뮤니티만
+    # 수집한다. blog 계열을 별도 채널로 재수집하려면 아래 2줄을 해제한다.
+    #   from server.graph.nodes.blog_collection_node import blog_collection_node
+    #   builder.add_node("blog_collection", blog_collection_node)
+    #   builder.add_edge("feature_selection", "blog_collection")
+    #   builder.add_edge([... , "blog_collection"], "reaction_absa")  # fan-in 확장
+
     # v1.0 §6-6a — marketing_social 시리즈 (수집 2종 + 리포트, MS-D2·MS-D12)
     builder.add_node("youtube_channel_metadata_collection",
                      youtube_channel_metadata_collection_node)
