@@ -106,11 +106,15 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
   const displayFields  = interruptValue?.display_fields ?? [];
   const assumptions    = interruptValue?.assumptions ?? [];
   const uncertainFields = new Set(interruptValue?.uncertain_fields ?? []);
+  // 분석 기준(taxonomy) 캐시 선택 — interrupt#1 payload 의 taxonomy_choice
+  const taxonomyChoice  = interruptValue?.taxonomy_choice ?? { exists: false, latest_date: '' };
 
   const [values, setValues]   = useState(() => buildInitialValues(displayFields));
   const [errors, setErrors]   = useState({});
   const [loading, setLoading] = useState(false);
   const [apiError, setApiError] = useState(null);
+  // 저장된 데이터 있으면 기본=재사용(false), 없으면 신규 생성 강제(true)
+  const [regenerate, setRegenerate] = useState(!taxonomyChoice.exists);
 
   const handleChange = useCallback((path, val) => {
     setValues(prev => ({ ...prev, [path]: val }));
@@ -145,7 +149,7 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
         headers: { 'Content-Type': 'application/json' },
         body:    JSON.stringify({
           thread_id: intakeResult.thread_id,
-          form_data: buildFormData(values),
+          form_data: { ...buildFormData(values), force_taxonomy_refresh: regenerate },
         }),
       });
 
@@ -263,22 +267,50 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
             <span className="text-red-500 font-bold">*</span> 표시 항목은 필수 입력 항목입니다.
           </p>
 
-          {/* 제출 버튼 */}
-          <button
-            type="submit"
-            disabled={loading}
-            className="w-full py-3.5 bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base"
-          >
-            {loading ? (
-              <span className="flex items-center justify-center gap-2">
-                <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
-                  <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
-                  <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
-                </svg>
-                경쟁사 탐색 중…
-              </span>
-            ) : '확인 — 경쟁사 탐색 시작'}
-          </button>
+          {/* 분석 기준(taxonomy) 캐시 선택 + 제출 버튼 (드롭다운을 버튼 왼쪽에 배치) */}
+          <div className="flex items-end gap-3">
+            <div className="flex-none w-40">
+              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+                분석 기준
+              </label>
+              <select
+                value={regenerate ? 'regenerate' : 'reuse'}
+                onChange={e => setRegenerate(e.target.value === 'regenerate')}
+                disabled={!taxonomyChoice.exists || loading}
+                className="w-full px-3 py-3 border border-gray-300 rounded-xl text-sm
+                           bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                           disabled:bg-gray-50 disabled:text-gray-400"
+              >
+                {taxonomyChoice.exists && (
+                  <option value="reuse">{taxonomyChoice.latest_date} 생성본</option>
+                )}
+                <option value="regenerate">신규 생성</option>
+              </select>
+            </div>
+            <button
+              type="submit"
+              disabled={loading}
+              className="flex-1 py-3.5 px-6 whitespace-nowrap bg-blue-600 text-white font-semibold rounded-xl hover:bg-blue-700 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-base"
+            >
+              {loading ? (
+                <span className="flex items-center justify-center gap-2">
+                  <svg className="animate-spin h-5 w-5" viewBox="0 0 24 24" fill="none">
+                    <circle className="opacity-25" cx="12" cy="12" r="10" stroke="currentColor" strokeWidth="4"/>
+                    <path className="opacity-75" fill="currentColor" d="M4 12a8 8 0 018-8v8H4z"/>
+                  </svg>
+                  경쟁사 탐색 중…
+                </span>
+              ) : '확인 — 경쟁사 탐색 시작'}
+            </button>
+          </div>
+          <p className="mt-2 text-xs text-gray-400">
+            {taxonomyChoice.exists ? (
+              <>
+                동일한 검색 입력으로 저장된 분석 기준이 있습니다.<br />
+                재사용하면 더 빠르게 분석 결과를 확인할 수 있습니다.
+              </>
+            ) : '저장된 데이터 없음 — 분석 기준을 새로 생성합니다.'}
+          </p>
         </form>
       </div>
     </div>
