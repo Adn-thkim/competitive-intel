@@ -62,8 +62,8 @@ RUBRIC_VERSION = "report_taxonomy.md §2-2 (2026-05)"
 
 _LLM_TIMEOUT_SEC = 300
 
-# RI-D7 — 채널 가중치 (사용자 확정 2026-06-06)
-CHANNEL_WEIGHTS = {"youtube": 1.0, "community": 0.9}
+# RI-D7 — 채널 가중치 (사용자 확정 2026-06-06; 2026-06-11 blog 분리 — 블로그·커뮤니티 동일 0.9)
+CHANNEL_WEIGHTS = {"youtube": 1.0, "community": 0.9, "blog": 0.9}
 _POL_SIGN = {"positive": 1, "negative": -1, "neutral": 0}
 
 
