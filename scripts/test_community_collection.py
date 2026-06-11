@@ -15,6 +15,7 @@ from server.graph.nodes.community_collection_node import (
     community_collection_node,
     select_community_urls,
 )
+from server.graph.nodes.blog_collection_node import blog_collection_node
 
 
 def _url_entry(url, domain_class="community", published_at=""):
@@ -102,7 +103,8 @@ class TestNode:
         assert out["agent_steps"][0]["status"] == "completed"
         posts = out["community_posts"]
         assert posts and all(p["body_excerpt"] for p in posts)
-        assert all(len(p["body_excerpt"]) <= 2000 for p in posts)
+        # 본문 전체 보존 — 2,000자 절단 없음 (절단되면 trailing "본문 " 가 사라짐)
+        assert all(p["body_excerpt"].endswith("본문 ") for p in posts)
         assert posts[0]["title"] == "게시글 제목"
         assert all(p["candidate_id"] == "own_x" for p in posts)
 
@@ -123,7 +125,8 @@ class TestNode:
         assert all("post1" not in u for u in urls)
         assert "robots 1" in out["agent_steps"][0]["error_message"]
 
-    def test_dynamic_render_partial(self, _no_network, monkeypatch):
+    def test_dynamic_render_empty_skipped(self, _no_network, monkeypatch):
+        """content 가 비면 fetch_status 무관하게 수집 제외 (진짜 실패)."""
         monkeypatch.setattr(
             cc, "_fetch_content",
             lambda url: {"url": url, "fetch_status": "requires_dynamic_render",
@@ -132,3 +135,37 @@ class TestNode:
         assert out["community_posts"] == []
         assert out["agent_steps"][0]["status"] == "completed"   # 부분 실패 허용
         assert out["errors"]
+
+    def test_dynamic_render_with_content_collected(self, _no_network, monkeypatch):
+        """200자 SPA 임계 미적용 — requires_dynamic_render 라도 content 있으면 적재."""
+        monkeypatch.setattr(
+            cc, "_fetch_content",
+            lambda url: {"url": url, "fetch_status": "requires_dynamic_render",
+                         "content": "짧은 본문", "from_cache": False})
+        out = community_collection_node(_base_state())
+        assert out["community_posts"]
+        assert all(p["body_excerpt"] == "짧은 본문" for p in out["community_posts"])
+        assert all(p["fetch_status"] == "requires_dynamic_render"
+                   for p in out["community_posts"])
+
+
+class TestChannelSplit:
+    """2026-06-11 — community/blog 채널 분리 (blog 미배선)."""
+
+    def test_community_node_excludes_blog(self, _no_network):
+        """community 노드는 domain_class='community' 만 적재 (blog 제외)."""
+        out = community_collection_node(_base_state())
+        assert out["community_posts"]
+        assert all(p["domain_class"] == "community" for p in out["community_posts"])
+        assert all("blog.example.com" not in p["url"] for p in out["community_posts"])
+
+    def test_blog_node_collects_blog_only(self, _no_network):
+        """blog 노드는 blog 계열만 blog_posts 로 적재 (community 제외)."""
+        out = blog_collection_node(_base_state())
+        posts = out.get("blog_posts", [])
+        assert posts
+        assert all(p["domain_class"] in {"personal_blog", "review_site", "wiki"}
+                   for p in posts)
+        urls = [p["url"] for p in posts]
+        assert any("blog.example.com" in u for u in urls)
+        assert all("c.example.com" not in u for u in urls)

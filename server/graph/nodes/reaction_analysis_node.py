@@ -13,14 +13,15 @@ server/graph/nodes/reaction_analysis_node.py (v0.13 — reaction_insight 시리�
 read keys
 ---------
 - selected_comments / collected_videos  (youtube_reaction_collection 산출)
-- community_posts                       (community_collection 산출)
+- community_posts                       (community_collection 산출 → channel="community")
+- blog_posts                            (blog_collection 산출 → channel="blog"; 미배선 시 빈 리스트)
 - domain_taxonomy.report_config["reaction_insight"].aspect_codebook
 - selected_purposes (게이트)
 
 write keys
 ----------
 - reaction_analysis : {candidate_id: {"tuples": [7-tuple+is_suggestion],
-                       "channel_counts": {"youtube": n, "community": n},
+                       "channel_counts": {"youtube": n, "community": n, "blog": n},
                        "sample_size": int, "collected_at": ISO8601,
                        "dropped_by_guard": int}}
 - agent_steps / errors (누적 reducer)
@@ -91,22 +92,26 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
             "text":       text,
         })
 
-    for p in state.get("community_posts") or []:
-        cid = p.get("candidate_id", "")
-        body = (p.get("body_excerpt") or "").strip()
-        if not cid or not body:
-            continue
-        text = f"{p.get('title', '')}\n{body}".strip()
-        key = _norm(text)[:200]
-        if key in seen.setdefault(cid, set()):
-            continue
-        seen[cid].add(key)
-        items.setdefault(cid, []).append({
-            "channel":    "community",
-            "source_url": p.get("url", ""),
-            "posted_at":  p.get("published_at", ""),
-            "text":       text,
-        })
+    # community_posts → channel="community", blog_posts → channel="blog".
+    # blog_posts 는 blog_collection_node(미배선/휴면) 산출이라 현재는 빈 리스트.
+    for state_key, channel in (("community_posts", "community"),
+                               ("blog_posts", "blog")):
+        for p in state.get(state_key) or []:
+            cid = p.get("candidate_id", "")
+            body = (p.get("body_excerpt") or "").strip()
+            if not cid or not body:
+                continue
+            text = f"{p.get('title', '')}\n{body}".strip()
+            key = _norm(text)[:200]
+            if key in seen.setdefault(cid, set()):
+                continue
+            seen[cid].add(key)
+            items.setdefault(cid, []).append({
+                "channel":    channel,
+                "source_url": p.get("url", ""),
+                "posted_at":  p.get("published_at", ""),
+                "text":       text,
+            })
 
     return items
 
@@ -232,6 +237,7 @@ def reaction_analysis_node(
                 "channel_counts": {
                     "youtube":   sum(1 for it in items if it["channel"] == "youtube"),
                     "community": sum(1 for it in items if it["channel"] == "community"),
+                    "blog":      sum(1 for it in items if it["channel"] == "blog"),
                 },
                 "sample_size":      len(items),          # AP-3 — 표본 크기 의무
                 "collected_at":     started_at,          # AP-3 — 수집 시점 의무

@@ -332,23 +332,26 @@ def run_source_mapping(
         for rt in source_report_types:
             raw_features.extend(results_by_report.get(rt, []))
 
-        # 캐시 저장 (부분 성공도 저장 — 동일 입력에 재실행 시 캐시 hit)
-        try:
-            store_agent_output(
-                agent_id=f"feature_mapping_{source}",
-                cache_input=cache_input,
-                context=cache_context,
-                output={"features": raw_features},
-                logger=logger,
-            )
-        except Exception as exc:  # noqa: BLE001
-            logger.debug("feature_mapping_%s 캐시 저장 실패: %s", source, exc)
-
+        # 캐시 저장 — LLM 호출 실패(errors_list)가 있으면 저장하지 않는다.
+        # feature_mapping 캐시는 TTL 이 없어, 불완전/빈 결과가 한 번 저장되면
+        # 동일 입력 재실행에도 영구히 hit 되어 회복 불가(cache-poisoning).
+        # 따라서 모든 report 가 성공한 경우에만 캐시한다 (재시도 가능성 보존).
         if errors_list:
             logger.warning(
-                "feature_mapping_%s_node: %d report 부분 실패",
+                "feature_mapping_%s_node: %d report 실패 — 캐시 저장 생략 (재시도 허용)",
                 source, len(errors_list),
             )
+        else:
+            try:
+                store_agent_output(
+                    agent_id=f"feature_mapping_{source}",
+                    cache_input=cache_input,
+                    context=cache_context,
+                    output={"features": raw_features},
+                    logger=logger,
+                )
+            except Exception as exc:  # noqa: BLE001
+                logger.debug("feature_mapping_%s 캐시 저장 실패: %s", source, exc)
 
     finished_at = datetime.now(timezone.utc).isoformat()
     step: AgentStep = {
