@@ -158,6 +158,10 @@ class DomainAnalysisState(TypedDict, total=False):
     usage_context:       list[str]
     business_constraints: list[str]
 
+    # human_review(interrupt#1)에서 설정 가능 — True 면 domain_modeling 이 taxonomy
+    # 캐시를 무시하고 재생성한다(기본 False = 입력 동일 시 캐시 재사용, soft TTL).
+    force_taxonomy_refresh: bool
+
     # ── competitor_discovery_node 출력 ───────────────────────────────────────
     own_product_summary:   dict[str, Any]
     competition_axes:      list[str]
@@ -387,7 +391,8 @@ class DomainAnalysisState(TypedDict, total=False):
     """
 
     # ── 신규 수집 노드 6종 출력 (§6-6a v0.6 신설, D11 비활성 1종 포함) ────────
-    # community_collection_node      → community_posts: list[dict]
+    # community_collection_node      → community_posts: list[dict] (community 전용)
+    # blog_collection_node           → blog_posts: list[dict]      (분리·미배선/휴면)
     # app_store_review_collection    → app_store_reviews: list[dict]  (D11 비활성)
     # youtube_query_planner_node     → query_plan: dict[str, Any]
     # youtube_collection_node        → collected_videos / selected_comments
@@ -401,6 +406,7 @@ class DomainAnalysisState(TypedDict, total=False):
     collected_videos:          list[dict[str, Any]]
     selected_comments:         list[dict[str, Any]]
     community_posts:           list[dict[str, Any]]
+    blog_posts:                list[dict[str, Any]]
     app_store_reviews:         list[dict[str, Any]]
     reaction_analysis:         dict[str, Any]
     youtube_channel_metadata:  dict[str, Any]
