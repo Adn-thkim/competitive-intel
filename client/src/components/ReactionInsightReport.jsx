@@ -40,7 +40,8 @@ const POLARITY_META = {
 };
 const CHANNEL_META = {
   youtube:   { label: 'YouTube',   cls: 'bg-rose-50 text-rose-600 border-rose-200' },
-  community: { label: '블로그·커뮤니티', cls: 'bg-sky-50 text-sky-600 border-sky-200' },
+  community: { label: '커뮤니티',   cls: 'bg-sky-50 text-sky-600 border-sky-200' },
+  blog:      { label: '블로그',     cls: 'bg-teal-50 text-teal-600 border-teal-200' },
 };
 
 /* 가중 sentiment(-1~+1) → 셀 배경색 (빨강 ~ 회색 ~ 초록) */
@@ -128,6 +129,21 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
     ...(rawCids.includes(ownProductId) ? [ownProductId] : []),
     ...rawCids.filter(c => c !== ownProductId).sort(),
   ];
+
+  // 수집된 채널만 가중치에 표시 — 표본 0인 채널(예: 블로그 미수집)은 숨김
+  const DEFAULT_W = { youtube: 1.0, community: 0.9, blog: 0.9 };
+  const channelTotals = candidates.reduce((acc, cid) => {
+    const cc = meta[cid]?.channel_counts ?? {};
+    acc.youtube   += cc.youtube   ?? 0;
+    acc.community += cc.community ?? 0;
+    acc.blog      += cc.blog      ?? 0;
+    return acc;
+  }, { youtube: 0, community: 0, blog: 0 });
+  const weightLabel = [
+    ['YouTube', 'youtube'], ['커뮤니티', 'community'], ['블로그', 'blog'],
+  ].filter(([, k]) => channelTotals[k] > 0)
+   .map(([label, k]) => `${label} ${weights[k] ?? DEFAULT_W[k]}`)
+   .join(' · ');
   const candidateOrder = Object.fromEntries(candidates.map((c, i) => [c, i]));
   const nameOf     = { ...candidateNames };
   const labelOf    = (a) => labels[a] ?? a;
@@ -185,18 +201,35 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       </div>
 
       {/* ── 2. 표본 메타 (AP-3) + 채널 가중치 — 자사 우선 정렬 (item 1) ── */}
-      <div className="flex flex-wrap gap-2 mb-4 text-[11px] text-gray-500">
-        {candidates.filter(cid => meta[cid]).map(cid => (
-          <span key={cid} className="px-2 py-1 rounded-lg bg-gray-50 border border-gray-100">
-            <b className="text-gray-700">{nameOf[cid] ?? cid}</b>
-            {' '}표본 {meta[cid]?.sample_size ?? 0}건
-            (YT {meta[cid]?.channel_counts?.youtube ?? 0} · 블로그 {meta[cid]?.channel_counts?.community ?? 0})
+      <div className="flex flex-wrap gap-2 mb-2 text-[11px] text-gray-500">
+        {candidates.filter(cid => meta[cid]).map(cid => {
+          const counts = meta[cid]?.channel_counts ?? {};
+          // 표본 0인 채널은 표기하지 않음 (예: 블로그 미수집 시 'YT · 커뮤니티'만)
+          const parts = [
+            ['YT', counts.youtube], ['커뮤니티', counts.community], ['블로그', counts.blog],
+          ].filter(([, n]) => (n ?? 0) > 0);
+          return (
+            <span key={cid} className="px-2 py-1 rounded-lg bg-gray-50 border border-gray-100">
+              <b className="text-gray-700">{nameOf[cid] ?? cid}</b>
+              {' '}표본 {meta[cid]?.sample_size ?? 0}건
+              {parts.length > 0 && <> ({parts.map(([l, n]) => `${l} ${n}`).join(' · ')})</>}
+            </span>
+          );
+        })}
+        {weightLabel && (
+          <span className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600">
+            채널 가중치 — {weightLabel}
           </span>
-        ))}
-        <span className="px-2 py-1 rounded-lg bg-indigo-50 border border-indigo-100 text-indigo-600">
-          채널 가중치 — YouTube {weights.youtube ?? 1.0} · 블로그·커뮤니티 {weights.community ?? 0.9}
-        </span>
+        )}
       </div>
+      {/* 채널 가중치 설명 — 전체 표본 카드 하단 */}
+      <p className="mb-4 text-[11px] leading-relaxed text-gray-400">
+        <b className="text-gray-500">채널 가중치란?</b> 채널마다 신뢰도가 달라, 감성 점수에
+        반영하는 비중을 다르게 둔 값입니다. 실명·영상 맥락이 풍부한 YouTube 댓글은 1.0,
+        익명성이 강해 표본 편향 가능성이 있는 커뮤니티·블로그 글은 0.9로 약간 낮춰 적용합니다.
+        아래 히트맵의 감성 점수는 “각 반응의 극성 × 강도 × 채널 가중치”의 가중 평균이며,
+        특정 채널이 결과를 과도하게 좌우하지 않도록 보정하기 위해 사용합니다.
+      </p>
 
       {/* ── 3. aspect × candidate 히트맵 ── */}
       <h4 className="text-sm font-bold text-gray-800 mb-1">반응 히트맵 (aspect × 상품)</h4>
