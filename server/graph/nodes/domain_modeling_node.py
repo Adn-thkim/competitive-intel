@@ -51,6 +51,7 @@ D2 재해석(v0.9): `competitor_discovery` 완료 직후 단일 호출. v0.6~v0.
 """
 
 import copy
+import hashlib
 import json
 import logging
 import re
@@ -59,7 +60,7 @@ from pathlib import Path
 
 import jsonschema
 
-from server.config import AGENTS_DIR, BASE_DIR, CLI_MODEL, CLI_TIMEOUT
+from server.config import AGENTS_DIR, BASE_DIR, API_MODEL
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -67,7 +68,12 @@ from server.graph.agent_cache import (
 )
 from server.graph.progress_store import set_branch_status
 from server.graph.state import DomainAnalysisState, AgentStep
-from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
+from server.llm.claude_api_analyzer import ClaudeApiAnalyzer
+
+# 결정론 경로 — taxonomy 는 비결정 CLI 대신 API(temperature=0)로 생성한다
+# (2026-06-11 사용자 결정). taxonomy ~21KB 수용 위해 max_tokens 상향.
+_TAXONOMY_API_TIMEOUT    = 180
+_TAXONOMY_API_MAX_TOKENS = 16000
 
 logger = logging.getLogger(__name__)
 
@@ -153,15 +159,39 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     competition_axes: list[str] = state.get("competition_axes", [])  # type: ignore[assignment]
     analysis_direction = state.get("analysis_direction") or "mixed"
 
+    # ── LLM 입력 조립 (캐시 지문 비교를 위해 캐시 판정 이전에 구성) ──────────────
+    taxonomy_input: dict = {
+        "project_id":         state.get("project_id", ""),
+        "domain_name":        domain_name,
+        "own_product":        state["own_product"],
+        "problem_statement":  state["problem_statement"],
+        "target_user":        state.get("target_user", []),
+        "core_value_props":   state.get("core_value_props", []),
+        "competition_axes":   competition_axes,
+        "analysis_direction": analysis_direction,
+    }
+    if state.get("own_product_summary"):
+        taxonomy_input["own_product_summary"] = state["own_product_summary"]
+    input_fp = _fingerprint(taxonomy_input)
+    # 강제 재생성 플래그 (human_review 등 UI 에서 설정 가능; 기본 False)
+    force_refresh = bool(state.get("force_taxonomy_refresh"))
+
     # ── 도메인 ID 조회 / 신규 등록 ──────────────────────────────────────────
     domain_id = _get_domain_id(domain_name)
 
-    # ── 캐시 판정 (v0.9 — cache_hit vs fresh 단일 분기) ─────────────────────
+    # ── 캐시 판정 (soft TTL — 2026-06-11) ───────────────────────────────────
+    # 재사용 조건: force 아님 + (신선 OR 만료됐어도 입력 지문 동일).
+    # 7일 TTL 이 지나도 입력(taxonomy_input)이 같으면 재생성하지 않고 재사용한다 →
+    # 비결정 재생성으로 feature ID 가 통째로 바뀌는 회귀를 방지.
     cached = _load_cache(domain_id)
-    if cached is not None and not _is_cache_expired(cached):
+    if cached is not None and not force_refresh and (
+        not _is_cache_expired(cached) or cached.get("input_fingerprint") == input_fp
+    ):
+        reuse_reason = ("신선" if not _is_cache_expired(cached)
+                        else "만료·입력동일(soft TTL)")
         logger.info(
-            "domain_modeling_node: 캐시 히트, LLM 생략 (id=%s, domain='%s')",
-            domain_id, domain_name,
+            "domain_modeling_node: 캐시 재사용(%s), LLM 생략 (id=%s, domain='%s')",
+            reuse_reason, domain_id, domain_name,
         )
         finished_at = datetime.now(timezone.utc).isoformat()
         step: AgentStep = {
@@ -197,20 +227,7 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
             except Exception: pass  # noqa: BLE001
         return _error(started_at, f"출력 스키마를 찾을 수 없음: {agent_dir}")
 
-    # ── LLM 입력 조립 (v0.10) ────────────────────────────────────────────────
-    taxonomy_input: dict = {
-        "project_id":         state.get("project_id", ""),
-        "domain_name":        domain_name,
-        "own_product":        state["own_product"],
-        "problem_statement":  state["problem_statement"],
-        "target_user":        state.get("target_user", []),
-        "core_value_props":   state.get("core_value_props", []),
-        "competition_axes":   competition_axes,
-        "analysis_direction": analysis_direction,
-    }
-    if state.get("own_product_summary"):
-        taxonomy_input["own_product_summary"] = state["own_product_summary"]
-
+    # taxonomy_input 은 캐시 판정 이전(상단)에서 이미 구성됨 (input_fp 산출용).
     user_prompt = (
         "아래 JSON 입력을 읽고, 7종 리포트(`report_config`) 단위의 도메인 "
         "taxonomy를 생성하여 출력 schema를 만족하는 JSON만 반환하라.\n\n"
@@ -220,10 +237,10 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     # ── 캐시 조회 → 미스 시 LLM 호출 ─────────────────────────────────────────
     cache_context = make_cache_context(
         agent_id="domain_modeling",
-        model=CLI_MODEL,
+        model=API_MODEL,
         system_prompt=system_prompt,
         output_schema=output_schema,
-        prompt_version="domain_modeling:v0.10",
+        prompt_version="domain_modeling:v0.11-api",
     )
     cache_input = {
         **taxonomy_input,
@@ -238,14 +255,17 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     )
 
     if raw_output is None:
-        analyzer = ClaudeCodeCliAnalyzer(
-            model=CLI_MODEL,
-            timeout=CLI_TIMEOUT,
+        # 결정론 경로 — API(temperature=0). 동일 입력에 동일 taxonomy 보장 →
+        # feature ID 가 흔들리는 비결정 회귀 방지. taxonomy ~21KB 수용 위해 max_tokens 상향.
+        analyzer = ClaudeApiAnalyzer(
+            model=API_MODEL,
+            timeout=_TAXONOMY_API_TIMEOUT,
             system_prompt=system_prompt,
+            max_tokens=_TAXONOMY_API_MAX_TOKENS,
         )
 
         logger.info(
-            "domain_modeling_node: CLI 호출 시작 (id=%s, domain='%s', direction=%s)",
+            "domain_modeling_node: API 호출 시작 (id=%s, domain='%s', direction=%s)",
             domain_id, domain_name, analysis_direction,
         )
 
@@ -293,13 +313,17 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     raw_output["domain_id"] = domain_id
 
     now_iso = datetime.now(timezone.utc).isoformat()
+    # soft TTL — 다음 실행에서 입력 동일성 비교에 사용할 지문 기록
+    raw_output["input_fingerprint"] = input_fp
+    # human_review(interrupt#1) 드롭다운의 "동일 입력" 매칭용 query 수준 지문
+    raw_output["query_fingerprint"] = query_fingerprint(taxonomy_input)
     if cached is None:
         # 신규 생성
         raw_output["created_at"] = now_iso
         raw_output["updated_at"] = now_iso
         raw_output["version"]    = 1
     else:
-        # TTL 만료로 재호출: created_at 보존, updated_at·version 갱신
+        # 재생성(force 또는 입력 변경): created_at 보존, updated_at·version 갱신
         raw_output["created_at"] = cached.get("created_at", now_iso)
         raw_output["updated_at"] = now_iso
         raw_output["version"]    = cached.get("version", 1) + 1
@@ -404,6 +428,29 @@ def _get_domain_id(domain_name: str) -> str:
 
 
 # ── 캐시 유틸리티 ─────────────────────────────────────────────────────────────
+
+def _fingerprint(taxonomy_input: dict) -> str:
+    """taxonomy_input 의 안정적 SHA-256 해시 — soft TTL 의 입력 동일성 판정용."""
+    blob = json.dumps(taxonomy_input, ensure_ascii=False, sort_keys=True)
+    return hashlib.sha256(blob.encode("utf-8")).hexdigest()
+
+
+def query_fingerprint(fields: dict) -> str:
+    """query_intake 수준 입력의 지문 — human_review(interrupt#1) 의 "동일 입력" 판정용.
+
+    competition_axes 는 competitor_discovery(human_review 이후) 산출이라 interrupt#1
+    시점에 알 수 없다. 따라서 그 시점에 확정된 query_intake 수준 필드만으로 지문을
+    만든다(도메인·문제정의·타깃·핵심가치·자사상품명). full input_fingerprint 와 별개.
+    """
+    payload = {
+        "domain_name":       fields.get("domain_name", ""),
+        "problem_statement": fields.get("problem_statement", ""),
+        "target_user":       fields.get("target_user", []),
+        "core_value_props":  fields.get("core_value_props", []),
+        "own_product_name":  (fields.get("own_product") or {}).get("name", ""),
+    }
+    return _fingerprint(payload)
+
 
 def _load_cache(domain_id: str) -> dict | None:
     """

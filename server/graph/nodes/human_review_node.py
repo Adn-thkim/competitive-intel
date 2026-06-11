@@ -33,6 +33,7 @@ Human-in-the-loop 중단점 노드.
     → flat 필드 반환 → competitor_discovery_node 실행 → ...
 """
 
+import json
 import logging
 from datetime import datetime, timezone
 
@@ -40,9 +41,40 @@ from langgraph.types import interrupt
 
 from server.config import ANTHROPIC_API_KEY, PRODUCT_NAME_CACHE_PATH
 from server.graph.state import DomainAnalysisState, AgentStep
+from server.graph.nodes.domain_modeling_node import query_fingerprint, TAXONOMY_DIR
 from server.utils.slug import ProductIdResolver
 
 logger = logging.getLogger(__name__)
+
+
+def _find_cached_taxonomy(qfp: str) -> dict:
+    """query_fingerprint 가 일치하는 저장된 taxonomy 중 최신 1건을 찾는다.
+
+    "동일 입력"은 query_intake 수준(competition_axes 제외)으로 정의한다 — interrupt#1
+    시점에는 competitor_discovery 가 아직 실행되지 않았기 때문.
+
+    Returns
+    -------
+    dict
+        {"exists": bool, "latest_date": "YYYY-MM-DD" | "", "version": int | None}
+    """
+    best = None
+    try:
+        for path in TAXONOMY_DIR.glob("*_slug.json"):
+            try:
+                tax = json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+            if tax.get("query_fingerprint") != qfp:
+                continue
+            stamp = tax.get("created_at") or tax.get("updated_at") or ""
+            if best is None or stamp > best[0]:
+                best = (stamp, tax.get("version"))
+    except Exception as exc:  # noqa: BLE001 — 캐시 조회 실패는 비치명적
+        logger.debug("taxonomy 캐시 조회 실패: %s", exc)
+    if best is None:
+        return {"exists": False, "latest_date": "", "version": None}
+    return {"exists": True, "latest_date": best[0][:10], "version": best[1]}
 
 
 def human_review_node(state: DomainAnalysisState) -> dict:
@@ -66,13 +98,22 @@ def human_review_node(state: DomainAnalysisState) -> dict:
     if not intake_output:
         return _error(started_at, "query_intake_output이 state에 없습니다.")
 
+    # ── taxonomy_choice 계산 (interrupt#1 드롭다운용) ───────────────────────
+    # query_intake 수준 지문으로 "동일 입력"의 저장된 taxonomy 존재 여부를 조회한다.
+    draft = intake_output.get("draft_competitor_discovery_input", {}) or {}
+    taxonomy_choice = _find_cached_taxonomy(query_fingerprint(draft))
+
     # ── interrupt() ─────────────────────────────────────────────────────────
     # 프런트엔드가 폼을 수정하고 완료를 누를 때까지 여기서 중단한다.
     # interrupt()가 반환한 값 = Express가 Command(resume=...) 로 넘긴 edited_form
     # edited_form 구조: CompetitorDiscoveryAgentInput draft (draft_competitor_discovery_input)
-    logger.info("human_review_node: interrupt() 호출 — 사용자 검토 대기")
+    #   + 드롭다운 선택 결과 force_taxonomy_refresh (bool)
+    # taxonomy_choice 는 intake_output 의 형제 키로 전달 — 폼은 기존 필드만 읽고,
+    # 드롭다운은 taxonomy_choice 를 읽는다(비파괴적).
+    logger.info("human_review_node: interrupt() 호출 — 사용자 검토 대기 (taxonomy_choice=%s)",
+                taxonomy_choice)
 
-    edited_form: dict = interrupt(intake_output)
+    edited_form: dict = interrupt({**intake_output, "taxonomy_choice": taxonomy_choice})
 
     # ── 재개 후 처리 ─────────────────────────────────────────────────────────
     logger.info("human_review_node: 사용자 승인 수신, product_id 생성 시작")
@@ -115,6 +156,10 @@ def human_review_node(state: DomainAnalysisState) -> dict:
         "product_id": product_id,
     }
 
+    # 드롭다운 선택 — "신규 생성" 이면 True(강제 재생성), "생성본 재사용" 이면 False.
+    # 키 부재 시 기본 False(= 캐시 재사용, soft TTL 판정에 위임).
+    force_taxonomy_refresh = bool(edited_form.get("force_taxonomy_refresh", False))
+
     return {
         "project_id":          project_id,
         "domain_name":         edited_form.get("domain_name", ""),
@@ -126,6 +171,7 @@ def human_review_node(state: DomainAnalysisState) -> dict:
         "known_keywords":      edited_form.get("known_keywords", []),
         "usage_context":       edited_form.get("usage_context", []),
         "business_constraints": edited_form.get("business_constraints", []),
+        "force_taxonomy_refresh": force_taxonomy_refresh,
         "agent_steps":         [step],
     }
 
