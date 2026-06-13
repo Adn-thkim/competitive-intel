@@ -128,6 +128,32 @@ BRAVE_SEARCH_CACHE_TTL_HOURS = int(os.getenv("BRAVE_SEARCH_CACHE_TTL_HOURS", "16
 HTTP_VALIDATION_CACHE_TTL_MINUTES = int(os.getenv("HTTP_VALIDATION_CACHE_TTL_MINUTES", "60"))
 
 
+# ── v0.14 커뮤니티 수집 확장 (docs/design/community_collection_expansion_design.md) ──
+# CE-D2 1군 고정 화이트리스트 — {domain: collection_mode}. 실측 근거: CE-D7 표 (2026-06-12).
+#   full        : 본문 + 댓글 (일반 추출로 충분)
+#   body_only   : 본문만 (댓글 동적 로딩 또는 휴리스틱 실패 — ppomppu 는 CE-D6 2단계
+#                 전용 파서 구현 시 full 승격)
+#   snippet_only: robots 차단 — 검색 스니펫만 사용 (CE-D10. 집계 전용, top_quotes 제외)
+COMMUNITY_SITES_FIXED: dict[str, str] = {
+    "clien.net":         "full",
+    "dcinside.com":      "full",          # 모바일 URL 변환 + 모바일 UA 필수 (CE-D7)
+    "ppomppu.co.kr":     "body_only",
+    "theqoo.net":        "body_only",
+    "fmkorea.com":       "snippet_only",
+    "mlbpark.donga.com": "snippet_only",
+}
+# CE-D1·D7 — broad query 페이지네이션 상한 (실측: Brave 깊이 한계 = 6페이지 포화)
+COMMUNITY_BRAVE_MAX_PAGES   = int(os.getenv("COMMUNITY_BRAVE_MAX_PAGES", "6"))
+# §3 선별 상한 — 사이트당/candidate당 (round-robin 사이트 다양성 우선)
+COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "10"))
+COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "40"))
+# §3-4 — 문장 경계 chunking (요약·단순 절단 금지. 게시글 1건 = ABSA item 1~3건)
+COMMUNITY_CHUNK_CHARS = int(os.getenv("COMMUNITY_CHUNK_CHARS", "3000"))
+COMMUNITY_MAX_CHUNKS  = int(os.getenv("COMMUNITY_MAX_CHUNKS", "3"))
+# CE-D2 2군 큐레이션 레지스트리 경로
+COMMUNITY_REGISTRY_PATH = BASE_DIR / "data" / "community_registry.json"
+
+
 # ── Claude API 설정 ──────────────────────────────────────────────────────────
 # ProductIdResolver, InsightReportAgent 등 API 직접 호출 시 사용.
 # .env 또는 시스템 환경변수에 ANTHROPIC_API_KEY를 설정해야 한다.
