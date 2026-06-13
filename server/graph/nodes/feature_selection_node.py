@@ -207,6 +207,18 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
         if is_marketing_social_b_view:
             report_item["owned_channels_card"] = _build_owned_channels_card(state)
 
+        # v0.10.29 — reaction_insight 에 aspect_codebook + url_preview 부착.
+        # aspect_codebook: ABSA 축 정보 (UI에서 features 카드 대신 표시).
+        # url_preview: YouTube·커뮤니티 수집 건수 요약.
+        if rt == "reaction_insight":
+            report_item["aspect_codebook"] = entry.get("aspect_codebook") or []
+            youtube_by_cand   = state.get("youtube_reactions_urls_by_candidate") or {}
+            community_by_cand = state.get("blog_community_urls_by_candidate") or {}
+            report_item["url_preview"] = {
+                "youtube_count":   sum(len(v) for v in youtube_by_cand.values()),
+                "community_count": sum(len(v) for v in community_by_cand.values()),
+            }
+
         reports_payload.append(report_item)
 
     total_feature_count = sum(len(r["features"]) for r in reports_payload)

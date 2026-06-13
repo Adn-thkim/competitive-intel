@@ -209,6 +209,60 @@ function CoverageDetails({ details }) {
   );
 }
 
+/* ── URL 프리뷰 카드 (v0.10.29 — reaction_insight 전용) ─────────────────────── */
+
+function UrlPreviewCard({ urlPreview }) {
+  if (!urlPreview) return null;
+  const { youtube_count = 0, community_count = 0 } = urlPreview;
+  return (
+    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 mb-3">
+      <p className="text-[11px] font-medium text-gray-400 mb-2 uppercase tracking-wide">수집 현황</p>
+      <div className="flex gap-5">
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-700">
+            YouTube
+          </span>
+          <span className="text-sm font-semibold text-gray-800">
+            수집 완료 {youtube_count}건
+          </span>
+        </div>
+        <div className="flex items-center gap-2">
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-50 text-teal-700">
+            커뮤니티
+          </span>
+          <span className="text-sm font-semibold text-gray-800">
+            발견 {community_count}건
+          </span>
+        </div>
+      </div>
+    </div>
+  );
+}
+
+/* ── ABSA Aspect 카드 (v0.10.29 — B-only 스타일 준용) ───────────────────────── */
+
+function AbsaAspectCard({ aspect }) {
+  return (
+    <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 px-3.5 py-3">
+      <div className="flex flex-wrap items-center gap-2 mb-1">
+        <span className="font-mono text-[11px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+          {aspect.aspect_id}
+        </span>
+        <span className="text-sm font-semibold text-gray-900">{aspect.label}</span>
+        {aspect.domain_specific && (
+          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+            도메인 특화
+          </span>
+        )}
+        <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
+          자동 포함
+        </span>
+      </div>
+      <p className="text-xs text-gray-500 leading-relaxed">{aspect.definition}</p>
+    </div>
+  );
+}
+
 /* ── 개별 Feature 카드 (v0.10.18a — source_flow 별 URL 영역 조건부 렌더) ──── */
 
 function FeatureCard({
@@ -312,6 +366,10 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
   // v0.10.28b D45 a — marketing_social 카드는 B-only 형식 + 별도 owned_channels_card 렌더링
   const isMarketingSocial    = report.report_type === 'marketing_social';
   const ownedChannelsCard    = report.owned_channels_card;
+  // v0.10.29 — reaction_insight: features 카드 대신 ABSA codebook 표시
+  const isReactionInsight    = report.report_type === 'reaction_insight';
+  const aspectCodebook       = report.aspect_codebook ?? [];
+  const urlPreview           = report.url_preview;
   // v0.12.1 — 모든 리포트 카드의 feature 를 사용자가 선택/해제 가능하게 함.
   // (이전: B-only·marketing_social 은 자동 포함·체크박스 비활성. URL 영역 숨김은
   //  urlCoverageVisible 로 별도 제어되므로 선택 가능 여부와 무관하게 유지됨.)
@@ -344,12 +402,12 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             {report.report_label}
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {checkboxDisabled
+            {checkboxDisabled || isReactionInsight
               ? `${featureIds.length}개 자동 포함`
               : `${selectedCount} / ${featureIds.length}개 선택됨`}
           </p>
         </div>
-        {!checkboxDisabled && (
+        {!checkboxDisabled && !isReactionInsight && (
           <button
             type="button"
             onClick={handleToggleAll}
@@ -375,19 +433,38 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
         <OwnedChannelCard card={ownedChannelsCard} />
       ) : null}
 
-      {/* Feature 카드 목록 */}
-      <div className="space-y-2">
-        {report.features.map(feature => (
-          <FeatureCard
-            key={feature.feature_id}
-            feature={feature}
-            isSelected={selectedIds.has(feature.feature_id)}
-            onToggle={() => onToggleFeature(feature.feature_id)}
-            urlCoverageVisible={urlCoverageVisible}
-            checkboxDisabled={checkboxDisabled}
-          />
-        ))}
-      </div>
+      {/* v0.10.29 — reaction_insight: URL 프리뷰 + ABSA codebook 표시 */}
+      {isReactionInsight ? (
+        <>
+          <UrlPreviewCard urlPreview={urlPreview} />
+          <div className="space-y-2">
+            {aspectCodebook.length > 0
+              ? aspectCodebook.map(aspect => (
+                  <AbsaAspectCard key={aspect.aspect_id} aspect={aspect} />
+                ))
+              : (
+                <p className="text-xs text-gray-400 italic">
+                  ABSA codebook이 없습니다. domain_modeling을 재실행하세요.
+                </p>
+              )
+            }
+          </div>
+        </>
+      ) : (
+        /* Feature 카드 목록 */
+        <div className="space-y-2">
+          {report.features.map(feature => (
+            <FeatureCard
+              key={feature.feature_id}
+              feature={feature}
+              isSelected={selectedIds.has(feature.feature_id)}
+              onToggle={() => onToggleFeature(feature.feature_id)}
+              urlCoverageVisible={urlCoverageVisible}
+              checkboxDisabled={checkboxDisabled}
+            />
+          ))}
+        </div>
+      )}
     </div>
   );
 }
