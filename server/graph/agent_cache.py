@@ -205,6 +205,18 @@ def _read_cache(path: Path, agent_id: str) -> dict:
                     return data
             except (json.JSONDecodeError, OSError):
                 pass
+            except UnicodeDecodeError as exc:
+                # truncated write (프로세스 중단) 로 파일이 손상된 경우.
+                # 크래시 대신 cache miss 로 처리하고 빈 캐시로 초기화한다.
+                import logging as _logging
+                _logging.getLogger(__name__).warning(
+                    "_read_cache: %s 파일 손상(UnicodeDecodeError) — "
+                    "cache miss 처리 후 초기화. (%s)", path.name, exc
+                )
+                try:
+                    path.write_bytes(b"{}")
+                except OSError:
+                    pass
         now = _now_iso()
         return {
             "_meta": {
