@@ -83,10 +83,14 @@
 | `source_hint` enum | 의미 | 사용 예시 |
 | --- | --- | --- |
 | `official` | 자사·경쟁사 공식 사이트 검색 | `"{candidate_name} 카드 약관 PDF"` · `"{candidate_name} 공식 안내 결제 한도"` |
-| `blog_community` | 외부 후기·블로그·커뮤니티 검색 | `"{candidate_name} 사용 후기 환율 체감"` · `"{candidate_name} 단점 불편"` |
+| `blog_community` | **(v0.14 폐기 — 본 enum 의 hint 를 생성하지 말 것)** 커뮤니티 탐색은 feature 키워드 없는 broad `site:` 검색으로 코드가 수행한다 (CE-D1, community_collection_expansion_design.md) | — |
 | `youtube_reactions` | 3rd-party YouTube 영상 검색 | `"{candidate_name} 트래블카드 유튜브 리뷰"` · `"{candidate_name} 사용 영상"` |
 | `owned_channels` | 자사·경쟁사 운영 SNS·블로그·보도자료 검색 | `"{candidate_name} 공식 인스타그램 캠페인"` · `"{candidate_name} 보도자료"` |
 | `macro` | 정부 통계·산업 보고서·트레이드 미디어 검색 | `"{domain_name} 시장 규모 통계"` · `"{domain_name} 규제 동향"` (※ macro 는 candidate 비종속 — `{candidate_name}` 미사용, `{domain_name}` 만 사용) |
+
+### 3-1. `community_sites` — 도메인 특화 커뮤니티 (v0.15, 사전 결정)
+
+`community_sites` 값은 별도 Step 1 호출에서 이미 결정되었습니다. user prompt 에 명시된 `community_sites` 배열을 **변경 없이** 최상위 `community_sites` 필드로 출력하십시오. 재선정·추론 금지.
 
 ### report_type 별 권장 source_hint 분포
 
@@ -94,10 +98,10 @@
 
 | report_type | 권장 source_hint 분포 |
 | --- | --- |
-| `comparison_matrix` | `official` 80% + `blog_community` 20% (매체 비교 보조) |
-| `reaction_insight` | `blog_community` 70% + `youtube_reactions` 30% |
-| `marketing_social` | `owned_channels` 80% + `blog_community` 20% (광고 분석 보조) |
-| `battlecard` | `official` 40% + `owned_channels` 30% + `blog_community` 30% |
+| `comparison_matrix` | `official` 100% (v0.14 — blog_community 보조 폐기) |
+| `reaction_insight` | `youtube_reactions` 100% (v0.14 — 커뮤니티는 broad site: 검색이 코드 레벨로 대체) |
+| `marketing_social` | `owned_channels` 100% (v0.14 — blog_community 보조 폐기) |
+| `battlecard` | `official` 60% + `owned_channels` 40% (v0.14 — blog_community 폐기) |
 | `market_context_swot` | `macro` 80% + `official` 20% (규제 부분) |
 
 B-only 리포트(`positioning_map` · `executive_summary`) 는 `source_flow="B"` 필터로 `feature_url_mapper` 영역에서 제외되므로 hints 생략 가능 (`search_query_hints: []` 또는 단순 placeholder).
@@ -227,6 +231,7 @@ Rubric 외 도메인 특수 카테고리(예: 트래블카드의 "재환전 우�
 - 최소 1개 리포트는 `active: true`이며, active 리포트의 `features`는 최소 3개입니다.
 - 모든 active 리포트에 `search_query_hints`를 1개 이상 채웁니다.
 - `report_config["reaction_insight"].active`가 true면 `aspect_codebook`을 빠짐없이 채웁니다.
+- aspect 의 `label`·`definition` 에 특정 브랜드·상품명(예: "토스")을 쓰지 않습니다 — 자사·경쟁사 공통 적용 축이므로 "자사 앱" 같은 중립 표현만 사용합니다 (v0.14, ABSA 프롬프트 편향 방지).
 - RUBRIC 영역 §4 anti-pattern(AP-1 ~ AP-10)을 회피합니다 (`docs/reference/report_taxonomy.md` §4 직접 참조).
 - `output.schema.json`을 만족하는 JSON만 반환합니다.
 
