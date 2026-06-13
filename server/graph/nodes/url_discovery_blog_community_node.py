@@ -1,182 +1,191 @@
 """
-server/graph/nodes/url_discovery_blog_community_node.py (v0.10.22b 실 구현)
----------------------------------------------------------------------------
-5중 fan-out 중 source-type 2번 — 외부 후기·블로그·커뮤니티 URL 탐색.
+server/graph/nodes/url_discovery_blog_community_node.py (v0.14 — CE-D1 broad query 전면 대체)
+--------------------------------------------------------------------------------------------
+reaction_insight 의 커뮤니티 게시글 URL 탐색 노드.
+설계: docs/design/community_collection_expansion_design.md (CE-D1·D2·D4·D5·D7·D8)
 
-v0.10.19 까지의 스켈레톤(`_discover_via_brave_with_hints` 그대로 재사용) 을 폐기하고
-본 PR(v0.10.22b) 에서 §5-2 의 3가지 정밀화 책임을 도입합니다.
+v0.14 전면 개정 (2026-06-12 실측 확정)
+--------------------------------------
+v0.10.22b 의 hint 기반 검색(feature 키워드 포함)을 폐기하고 broad query 로 대체:
 
-핵심 변경 (turn-54)
--------------------
-1. **공식 도메인 제외 (D36 옵션 b)** — `official_sources` 의 `primary_url` host 를
-   추출하여 Brave 결과에서 공식 도메인 일치 URL 제외. reaction_insight 가 자사·
-   경쟁사 입장 인용으로 오염되는 것을 차단.
-2. **외부 도메인 화이트리스트 우선 정렬 (D35 옵션 a)** — 한국 4 분류 17건 정적
-   리스트 + tistory subdomain 패턴. 매칭 URL 을 상단, 나머지를 후순위로 정렬.
-3. **`domain_class` 부착** — 4 분류 (`review_site`·`personal_blog`·`community`·
-   `wiki`) + 미매칭 `other` 부착. LLM 매핑 단계의 reaction 가중치 적용 단서.
-4. **`origin="blog_community"` 부착** — 기존 일률 `"brave_search"` → 명시.
-   `_filter_candidates_for_report` 의 v0.10.20.1 일관 처리로 자동 통과.
+1. **CE-D1 broad query** — `site:{community_domain} {candidate_name}`.
+   feature·aspect 키워드를 넣지 않는다. 근거: ① 리콜 실측 (Google: "site:clien.net
+   토스 트래블카드" 67건 vs +"후기" 9건), ② ABSA 가 aspect 단위로 분석 시점에
+   주제를 늦게 할당하므로 검색 단계 주제 분류가 불필요.
+2. **CE-D2 2단 화이트리스트** — config.COMMUNITY_SITES_FIXED(1군 6개, collection_mode
+   포함) + taxonomy `community_sites`(2군 0~2개, registry 한정).
+3. **CE-D1·D7 페이지네이션** — 쿼리당 최대 COMMUNITY_BRAVE_MAX_PAGES(6) 페이지.
+   실측: Brave 깊이 한계 = 6페이지(120건) 포화. 직전 페이지 만석(20건)일 때만 다음
+   페이지 호출. 페이지 간 동일 URL 반복이 실측 확인됨 → dedup 필수 (CE-D8).
+4. **CE-D4 관련성 필터 (완화 모드)** — aspect_codebook label+definition 명사 토큰
+   (범용어 제거) + 도메인 토큰이 title+스니펫에 **하나도 없을 때만** 제외.
+   경계 사례는 통과 — 최종 거름망은 ABSA (RI-D10 사상).
+5. **CE-D5 잠정 귀속** — 동일 URL 이 복수 candidate 쿼리에서 발견되면 1회만 수집,
+   `matched_candidates` 병합. 최종 귀속은 ABSA target 재귀속(별도 PR)의 책임.
+6. **CE-D8 dedup** — 스킴·www·추적 파라미터 제거. 모바일 호스트(m.*) 무차별 치환
+   금지 (실측: m.ppomppu 경로는 PC 도메인에 부재 → 404).
 
-위임 책임 (v0.10.22b 범위 외)
-----------------------------
-- **발행일 ≤ 36개월 검증 (D37 옵션 c)** — `_fetch_meta` 가 본문 미수집 + Brave
-  결과 발행일 없음 → v0.10.24 (`_fetch_meta` body 보강) 시점에 도입.
-- **본문 길이 ≥ 200자 검증 (D38 옵션 b)** — `page_meta_collect_node` 의 책임 (현재)
-  또는 v0.10.27 통합 노드의 page_meta 단계 책임으로 위임.
+폐기된 책임 (v0.10.22b → v0.14)
+--------------------------------
+- hint 기반 검색·blog 계열(personal_blog·review_site·wiki) 분류 — blog 수집 비활성
+  확정(CE-D3)으로 소비 노드 부재. domain_modeling 프롬프트도 blog_community hint
+  생성을 중단했다.
+- 공식 도메인 제외(D36) — `site:` 한정 검색 + `_host_matches_site` 가드로 공식
+  도메인이 결과에 진입할 수 없어 별도 제외가 불필요.
 
-위치 (v0.10.19 토폴로지 1차 fan-out)
-------------------------------------
-ab_join
-  ├─→ url_discovery_official_node
-  ├─→ [url_discovery_blog_community_node]   ← 이 노드 (v0.10.22b 실 구현)
-  ├─→ url_discovery_youtube_reactions_node
-  ├─→ url_discovery_owned_channels_node
-  └─→ url_discovery_macro_node
+위치 (v0.14 CE-D9 — cross_reference 우회)
+------------------------------------------
+ab_join ─→ [url_discovery_blog_community] ─→ feature_mapping_blog_community (직결)
+(다른 4개 discovery 노드는 기존대로 cross_reference 4-in barrier 로 fan-in)
 
-입력 state 키
--------------
-- domain_taxonomy           : `source_hint="blog_community"` hints 추출
-- official_sources          : 공식 도메인 제외용 (D36 옵션 b)
-- own_product / competitor_candidates / selected_competitor_ids
-- domain_name
-
-출력 state 키
--------------
-- blog_community_urls_by_candidate : dict[candidate_id, list[dict]]
-- agent_steps                      : 누적 reducer
+write keys
+----------
+- blog_community_urls_by_candidate : {잠정 candidate_id: [entry, ...]}
+  entry = {url, page_title, meta_description, published_at, site, collection_mode,
+           domain_class="community", origin="blog_community", matched_candidates,
+           feature_ids=[], matched_report_types=["reaction_insight"]}
+- agent_steps / errors (누적 reducer)
 
 graceful 종료
 -------------
-- BRAVE_SEARCH_API_KEY 미설정: _discover_via_brave_with_hints 빈 결과
-- source_hint="blog_community" hint 부재: 빈 결과 + status="completed"
-- 일부 쿼리 실패: status="completed" + errors 누적
+- BRAVE_SEARCH_API_KEY 미설정: _brave_search 가 빈 결과 → 빈 dict + completed
+- reaction_insight 비활성: 탐색 생략 + completed
 """
 
+import json
 import logging
+import re
 from datetime import datetime, timezone
-from urllib.parse import urlparse
+from pathlib import Path
+from urllib.parse import parse_qsl, urlencode, urlparse
 
+from server.config import (
+    COMMUNITY_BRAVE_MAX_PAGES,
+    COMMUNITY_REGISTRY_PATH,
+    COMMUNITY_SITES_FIXED,
+)
 from server.graph.progress_store import set_progress
-from server.graph.state import DomainAnalysisState, AgentStep
+from server.graph.state import DomainAnalysisState
 from server.graph.nodes.feature_url_mapper_node import (
-    _discover_via_brave_with_hints,
+    _brave_search,
+    _candidate_name_map,
     _extract_active_reports,
-    _extract_hints_for_source,
     _error,
 )
 
 logger = logging.getLogger(__name__)
 
+REPORT_TYPE  = "reaction_insight"
 _SOURCE_TYPE = "blog_community"
-
-# ─── 정적 화이트리스트 (D35 옵션 a — 한국 외부 도메인 4 분류) ──────────────────
-
-# review_site (금융·카드·핀테크 비교 매체)
-_BLOG_COMMUNITY_REVIEW_SITES: tuple[str, ...] = (
-    "card-gorilla.com",      # 카드고릴라
-    "banksalad.com",         # 뱅크샐러드
-    "finda.co.kr",           # 핀다
-    "thefirstmedia.net",     # 더퍼스트미디어
-)
-
-# personal_blog (개인 블로그 플랫폼)
-_BLOG_COMMUNITY_PERSONAL_BLOGS: tuple[str, ...] = (
-    "brunch.co.kr",          # 브런치
-    "blog.naver.com",        # 네이버 블로그
-    "velog.io",              # velog
-    "medium.com",            # Medium
-)
-
-# community (사용자 토론 커뮤니티)
-_BLOG_COMMUNITY_COMMUNITIES: tuple[str, ...] = (
-    "clien.net",             # 클리앙
-    "ppomppu.co.kr",         # 뽐뿌
-    "mlbpark.donga.com",     # MLB파크
-    "fmkorea.com",           # 에펨코리아
-    "theqoo.net",            # 더쿠
-    "dcinside.com",          # 디시인사이드
-)
-
-# wiki (위키 매체)
-_BLOG_COMMUNITY_WIKIS: tuple[str, ...] = (
-    "namu.wiki",             # 나무위키
-    "ko.wikipedia.org",      # 한국어 위키백과
-)
-
-# tistory subdomain 패턴 (예: hanamoney.tistory.com)
-_TISTORY_SUFFIX = "tistory.com"
+_BRAVE_PAGE_SIZE = 20   # Brave count 상한 — 페이지 만석 판정 기준
 
 
-# ─── 헬퍼 ────────────────────────────────────────────────────────────────────
+# ─── CE-D4 — 관련성 필터 토큰 ────────────────────────────────────────────────
 
-def _extract_host(url: str) -> str:
-    """URL 에서 host (스킴·path 없이, lowercase, www. strip) 추출."""
-    if not url:
-        return ""
+# 범용어 — 거의 모든 후기 글에 등장해 변별력이 없는 수식·추상 명사
+_GENERIC_TOKENS = frozenset({
+    "앱", "비용", "혜택", "품질", "경험", "편의", "편의성", "인식", "체감", "가치",
+    "지원", "기능", "서비스", "사용", "사용자", "사용성", "과정", "상황", "능력",
+    "속도", "수준", "제공", "이용", "대비", "처리", "확인", "관련", "대한", "대해",
+    "위해", "통해", "경우", "정도", "이상", "이하", "시장", "고객",
+})
+_TOKEN_RE = re.compile(r"[가-힣A-Za-z0-9]{2,}")
+# utm_* 는 접두 일치, 나머지는 전체 일치 (re.match 는 시작 앵커만 가짐)
+_TRACKING_PARAM_RE = re.compile(r"^(utm_|fbclid$|gclid$|igshid$|ref$)")
+
+
+def _build_filter_tokens(domain_taxonomy: dict, domain_name: str) -> frozenset[str]:
+    """CE-D4 — aspect_codebook label+definition + feature_labels + domain_name 토큰화.
+
+    범용어(_GENERIC_TOKENS)·순수 숫자를 제거한 명사 토큰 집합. 파일럿 실측 예:
+    해외결제·환율·환전·충전·외화·ATM·출금·수수료·한도·분실·도난·잠금·보험·라운지 등.
+    """
+    entry = ((domain_taxonomy.get("report_config") or {}).get(REPORT_TYPE) or {})
+    texts: list[str] = [domain_name]
+    for a in entry.get("aspect_codebook") or []:
+        if isinstance(a, dict):
+            texts.append(a.get("label", ""))
+            texts.append(a.get("definition", ""))
+        elif isinstance(a, str):
+            texts.append(a)
+    for label in (entry.get("feature_labels") or {}).values():
+        texts.append(str(label))
+
+    tokens = {
+        t for text in texts for t in _TOKEN_RE.findall(text)
+        if not t.isdigit()
+    }
+    return frozenset(tokens - _GENERIC_TOKENS)
+
+
+def _passes_relevance(title: str, snippet: str, tokens: frozenset[str]) -> bool:
+    """CE-D4 완화 모드 — 토큰이 하나도 없을 때만 제외. 토큰 집합이 비면 전부 통과."""
+    if not tokens:
+        return True
+    text = f"{title} {snippet}"
+    return any(t in text for t in tokens)
+
+
+# ─── CE-D8 — URL 정규화 dedup ────────────────────────────────────────────────
+
+def _normalize_for_dedup(url: str) -> str:
+    """dedup 키 — 스킴·www·추적 파라미터 제거. 모바일 호스트 무차별 치환 금지.
+
+    (실측 2026-06-12: m.ppomppu.co.kr/new/* 경로는 PC 도메인에 존재하지 않아
+    'm.' 제거 시 404 URL 이 된다. 사이트별 모바일↔PC 매핑은 수집 노드의 책임.)
+    """
     try:
-        host = (urlparse(url).hostname or "").lower()
+        p = urlparse(url)
     except Exception:  # noqa: BLE001
-        return ""
-    if not host:
-        return ""
-    return host[4:] if host.startswith("www.") else host
+        return url
+    host = (p.hostname or "").lower().removeprefix("www.")
+    query = urlencode([
+        (k, v) for k, v in parse_qsl(p.query)
+        if not _TRACKING_PARAM_RE.match(k)
+    ])
+    key = f"{host}{p.path.rstrip('/')}"
+    return f"{key}?{query}" if query else key
 
 
-def _classify_domain(url: str) -> str:
-    """URL 의 host 를 4 분류 enum 으로 매핑. 미매칭 시 'other'.
+def _host_matches_site(url: str, site: str) -> bool:
+    """결과 URL 이 실제로 해당 커뮤니티 도메인인지 검증 (site: 연산자 누수 방어).
 
-    Returns
-    -------
-    str
-        'review_site' | 'personal_blog' | 'community' | 'wiki' | 'other'
+    서브도메인(m.* · gall.* 등) 은 일치로 간주한다.
     """
-    host = _extract_host(url)
-    if not host:
-        return "other"
-
-    def _match(host: str, whitelist: tuple[str, ...]) -> bool:
-        return any(host == d or host.endswith("." + d) for d in whitelist)
-
-    if _match(host, _BLOG_COMMUNITY_REVIEW_SITES):
-        return "review_site"
-    if _match(host, _BLOG_COMMUNITY_PERSONAL_BLOGS):
-        return "personal_blog"
-    # tistory subdomain (host 가 *.tistory.com 또는 tistory.com 인 경우)
-    if host == _TISTORY_SUFFIX or host.endswith("." + _TISTORY_SUFFIX):
-        return "personal_blog"
-    if _match(host, _BLOG_COMMUNITY_COMMUNITIES):
-        return "community"
-    if _match(host, _BLOG_COMMUNITY_WIKIS):
-        return "wiki"
-    return "other"
-
-
-def _extract_official_hosts(official_sources: list[dict]) -> set[str]:
-    """official_sources 에서 공식 도메인 host 집합 추출 (D36 공식 도메인 제외 키).
-
-    validated=True 인 official 항목의 primary_url 만 채택. reference 는 외부
-    출처라 본 함수에서 제외하지 않음 (다른 source-type 노드의 책임).
-    """
-    hosts: set[str] = set()
-    for src in official_sources:
-        if src.get("source_type") != "official":
-            continue
-        if not src.get("validated"):
-            continue
-        primary = src.get("primary_url") or ""
-        host = _extract_host(primary)
-        if host:
-            hosts.add(host)
-    return hosts
-
-
-def _host_in_official(url: str, official_hosts: set[str]) -> bool:
-    """URL 의 host 가 공식 도메인 집합에 속하거나 그 sub-domain 인지."""
-    host = _extract_host(url)
-    if not host or not official_hosts:
+    try:
+        host = (urlparse(url).hostname or "").lower().removeprefix("www.")
+    except Exception:  # noqa: BLE001
         return False
-    return any(host == d or host.endswith("." + d) for d in official_hosts)
+    return host == site or host.endswith("." + site)
+
+
+# ─── CE-D2 — 사이트 목록 (1군 고정 + 2군 taxonomy 선정) ──────────────────────
+
+def _registry_modes() -> dict[str, str]:
+    """registry {domain: collection_mode}. 부재 시 빈 dict (2군 미선정 graceful)."""
+    try:
+        data = json.loads(Path(COMMUNITY_REGISTRY_PATH).read_text(encoding="utf-8"))
+        return {
+            s["domain"]: s.get("collection_mode", "snippet_only")
+            for s in data.get("sites", []) if s.get("domain")
+        }
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("community_registry 로드 실패: %s", exc)
+        return {}
+
+
+def _resolve_sites(domain_taxonomy: dict) -> dict[str, str]:
+    """1군 고정 + taxonomy community_sites(registry 검증) → {domain: collection_mode}."""
+    sites = dict(COMMUNITY_SITES_FIXED)
+    registry = _registry_modes()
+    for domain in domain_taxonomy.get("community_sites") or []:
+        if domain in COMMUNITY_SITES_FIXED:
+            continue
+        if domain in registry:
+            sites[domain] = registry[domain]
+        else:
+            logger.warning("community_sites registry 외 도메인 무시: %s", domain)
+    return sites
 
 
 # ─── 메인 노드 ───────────────────────────────────────────────────────────────
@@ -184,12 +193,13 @@ def _host_in_official(url: str, official_hosts: set[str]) -> bool:
 def url_discovery_blog_community_node(
     state: DomainAnalysisState, config: dict | None = None,
 ) -> dict:
-    """v0.10.22b 실 구현 — 공식 도메인 제외 + 화이트리스트 정렬 + domain_class 부착."""
+    """v0.14 — broad query 커뮤니티 URL 탐색 (CE-D1·D2·D4·D5·D8)."""
     started_at = datetime.now(timezone.utc).isoformat()
     thread_id  = (config or {}).get("configurable", {}).get("thread_id", "")
 
     print(
-        f"📝 [url_discovery_blog_community_node] ENTRY at {started_at} thread_id={thread_id!r}",
+        f"📝 [url_discovery_blog_community_node] ENTRY at {started_at} "
+        f"thread_id={thread_id!r} (v0.14 broad)",
         flush=True,
     )
 
@@ -197,7 +207,7 @@ def url_discovery_blog_community_node(
         try:
             set_progress(
                 thread_id, "feature_mapping_brave",
-                detail="블로그·커뮤니티 후기 URL 탐색 (공식 제외 + 화이트리스트 정렬)",
+                detail="커뮤니티 게시글 URL 탐색 (broad site: 검색)",
             )
         except Exception as exc:  # noqa: BLE001
             logger.debug("set_progress(blog_community) 실패: %s", exc)
@@ -208,96 +218,104 @@ def url_discovery_blog_community_node(
     own_product: dict           = state.get("own_product") or {}
     competitor_candidates: list = state.get("competitor_candidates") or []
     selected_ids: list[str]     = state.get("selected_competitor_ids") or []
-    official_sources: list      = state.get("official_sources") or []
 
     if not domain_taxonomy:
         return _error(started_at, "domain_taxonomy 가 state 에 없습니다.")
     if not domain_name:
         return _error(started_at, "domain_name 이 state 에 없습니다.")
 
-    # ── Step 1: source_hint="blog_community" hints 추출 ─────────────────────
-    all_active = _extract_active_reports(domain_taxonomy)
-    hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
-
-    if not hints_with_meta:
-        logger.info(
-            "url_discovery_blog_community_node: source_hint='blog_community' hint 부재 — 빈 결과",
-        )
-        finished_at = datetime.now(timezone.utc).isoformat()
+    def _done(urls_by_candidate: dict) -> dict:
         return {
-            "blog_community_urls_by_candidate": {},
+            "blog_community_urls_by_candidate": urls_by_candidate,
             "agent_steps": [{
                 "step_name":   "UrlDiscoveryBlogCommunity",
                 "status":      "completed",
                 "started_at":  started_at,
-                "finished_at": finished_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
             }],
         }
 
-    # ── Step 2: 공식 도메인 host 집합 추출 (D36 제외 키) ────────────────────
-    official_hosts = _extract_official_hosts(official_sources)
+    # reaction_insight 비활성 시 탐색 생략 (본 source 의 유일 소비 리포트 — CE-D3)
+    if REPORT_TYPE not in _extract_active_reports(domain_taxonomy):
+        logger.info("url_discovery_blog_community_node: %s 비활성 — 탐색 생략", REPORT_TYPE)
+        return _done({})
+
+    # ── 쿼리 구성 — 사이트 × candidate ──────────────────────────────────────
+    sites = _resolve_sites(domain_taxonomy)
+    name_map = _candidate_name_map(own_product, competitor_candidates, selected_ids)
+    name_map.pop("own", None)   # fallback 키 중복 회피 (youtube_reactions 노드와 동일)
+    tokens = _build_filter_tokens(domain_taxonomy, domain_name)
+
+    if not name_map:
+        logger.info("url_discovery_blog_community_node: candidate 0건 — 탐색 생략")
+        return _done({})
+
     logger.info(
-        "url_discovery_blog_community_node: 공식 도메인 %d개 제외 대상 (%s)",
-        len(official_hosts), sorted(official_hosts),
+        "url_discovery_blog_community_node: broad 탐색 시작 — 사이트 %d × candidate %d "
+        "(최대 %d페이지/쿼리, 필터 토큰 %d개)",
+        len(sites), len(name_map), COMMUNITY_BRAVE_MAX_PAGES, len(tokens),
     )
 
-    # ── Step 3: Brave 검색 (기존 헬퍼 그대로) ───────────────────────────────
-    raw_urls = _discover_via_brave_with_hints(
-        hints_with_meta=hints_with_meta,
-        own_product=own_product,
-        competitor_candidates=competitor_candidates,
-        selected_ids=selected_ids,
-        domain_name=domain_name,
+    # ── 검색 + dedup + matched_candidates 병합 (CE-D5·D8) ───────────────────
+    # posts[dedup_key] = entry. 잠정 귀속 = 최초 발견 candidate (결정론 순회 순서).
+    posts: dict[str, dict] = {}
+    stats = {"calls": 0, "raw": 0, "off_site": 0, "filtered": 0}
+
+    for site in sorted(sites):
+        mode = sites[site]
+        for cid in sorted(name_map):
+            query = f"site:{site} {name_map[cid]}"
+            for page in range(COMMUNITY_BRAVE_MAX_PAGES):
+                results = _brave_search(query, count=_BRAVE_PAGE_SIZE, offset=page)
+                stats["calls"] += 1
+                stats["raw"]   += len(results)
+                for r in results:
+                    url = r.get("url") or ""
+                    if not url or not _host_matches_site(url, site):
+                        stats["off_site"] += 1
+                        continue
+                    title   = r.get("title", "") or r.get("page_title", "")
+                    snippet = r.get("description", "") or r.get("meta_description", "")
+                    if not _passes_relevance(title, snippet, tokens):
+                        stats["filtered"] += 1
+                        continue
+                    key = _normalize_for_dedup(url)
+                    entry = posts.setdefault(key, {
+                        "url":              url,
+                        "page_title":       title,
+                        "meta_description": snippet,
+                        "published_at":     r.get("page_age", ""),
+                        "site":             site,
+                        "collection_mode":  mode,
+                        "domain_class":     "community",
+                        "origin":           _SOURCE_TYPE,
+                        "feature_ids":      [],
+                        "matched_report_types": [REPORT_TYPE],
+                        "_primary_cid":     cid,
+                        "_matched":         set(),
+                    })
+                    entry["_matched"].add(cid)
+                if len(results) < _BRAVE_PAGE_SIZE:
+                    break   # 페이지 미만석 — 다음 페이지 없음 (조건부 페이지네이션)
+
+    # ── 잠정 candidate 별 그룹화 (CE-D5) ────────────────────────────────────
+    urls_by_candidate: dict[str, list[dict]] = {}
+    for entry in posts.values():
+        cid = entry.pop("_primary_cid")
+        entry["matched_candidates"] = sorted(entry.pop("_matched"))
+        urls_by_candidate.setdefault(cid, []).append(entry)
+    for cid in urls_by_candidate:
+        urls_by_candidate[cid].sort(key=lambda e: e["url"])   # 결정론 순서
+
+    total = sum(len(v) for v in urls_by_candidate.values())
+    multi = sum(
+        1 for v in urls_by_candidate.values() for e in v
+        if len(e["matched_candidates"]) >= 2
     )
-
-    # ── Step 4: 공식 도메인 제외 + domain_class 부착 + origin 변경 ──────────
-    filtered_by_candidate: dict[str, list[dict]] = {}
-    excluded_count = 0
-    domain_class_dist: dict[str, int] = {}
-
-    for cid, urls in raw_urls.items():
-        kept: list[dict] = []
-        for u in urls:
-            url = u.get("url") or ""
-            if _host_in_official(url, official_hosts):
-                excluded_count += 1
-                continue
-            domain_class = _classify_domain(url)
-            domain_class_dist[domain_class] = domain_class_dist.get(domain_class, 0) + 1
-            kept.append({
-                "url":              url,
-                "page_title":       u.get("page_title", ""),
-                "meta_description": u.get("meta_description", ""),
-                "origin":           "blog_community",   # 기존 'brave_search' → 명시
-                "domain_class":     domain_class,
-                "feature_ids":      u.get("feature_ids", []),
-                "matched_report_types": u.get("matched_report_types") or ["reaction_insight"],
-            })
-        if kept:
-            filtered_by_candidate[cid] = kept
-
-    # ── Step 5: 화이트리스트 매칭 URL 우선 정렬 (candidate 별) ──────────────
-    # 정렬 key: domain_class 가 화이트리스트(other 외)면 0, other 면 1
-    for cid in filtered_by_candidate:
-        filtered_by_candidate[cid].sort(
-            key=lambda u: 0 if u["domain_class"] != "other" else 1,
-        )
-
-    total = sum(len(v) for v in filtered_by_candidate.values())
     logger.info(
-        "url_discovery_blog_community_node: 완료 — %d candidate · %d URL "
-        "(공식 제외 %d건, domain_class 분포 %s)",
-        len(filtered_by_candidate), total, excluded_count, domain_class_dist,
+        "url_discovery_blog_community_node: 완료 — %d candidate · 고유 %d URL "
+        "(Brave %d호출, raw %d, off_site %d, 필터 제외 %d, 다중 발견 %d)",
+        len(urls_by_candidate), total, stats["calls"], stats["raw"],
+        stats["off_site"], stats["filtered"], multi,
     )
-
-    finished_at = datetime.now(timezone.utc).isoformat()
-    step: AgentStep = {
-        "step_name":   "UrlDiscoveryBlogCommunity",
-        "status":      "completed",
-        "started_at":  started_at,
-        "finished_at": finished_at,
-    }
-    return {
-        "blog_community_urls_by_candidate": filtered_by_candidate,
-        "agent_steps":                      [step],
-    }
+    return _done(urls_by_candidate)
