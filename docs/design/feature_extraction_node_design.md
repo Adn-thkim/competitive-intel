@@ -52,7 +52,7 @@ official_content_collection은 5종
 
 | url_discovery (1차 fan-out)        | 수집 노드 (feature_selection 이후)                                                            | 산출 리포트 (A-Only)                |
 | --------------------------------- | --------------------------------------------------------------------------------------- | ------------------------------ |
-| `url_discovery_official`          | **`official_content_collection`** ← 본 문서                                               | `comparison_matrix`            |
+| `url_discovery_official`          | **`official_content_collection`** ← 본 문서                                                | `comparison_matrix`            |
 | `url_discovery_blog_community`    | `community_collection`                                                                  | `reaction_insight` (채널 1)      |
 | `url_discovery_youtube_reactions` | `youtube_query_planner` → `youtube_collection`                                          | `reaction_insight` (채널 2)      |
 | `url_discovery_owned_channels`    | `youtube_channel_metadata_collection` · `blog_rss_collection` · `pr_release_collection` | `marketing_social`             |
