@@ -293,25 +293,26 @@ def build_graph() -> object:
     builder.add_edge("ab_join", "url_discovery_owned_channels")
     builder.add_edge("ab_join", "url_discovery_macro")
 
-    # 4) 5중 list-fan-in barrier → cross_reference_node (v0.10.26 신설)
+    # 4) 4중 list-fan-in barrier → cross_reference_node (v0.10.26 신설)
     #    cross_reference_node 가 youtube_reactions × owned_channels(youtube_official)
     #    결정론적 후처리 필터링 수행. owned channels 가 직접 운영하는 reactions 영상 제외.
+    #    v0.14 CE-D9 — blog_community 는 cross_reference 에 실질 역할이 없어 barrier 에서
+    #    제외하고 feature_mapping_blog_community(carry-through)로 직결한다.
     builder.add_edge(
         [
             "url_discovery_official",
-            "url_discovery_blog_community",
             "url_discovery_youtube_reactions",
             "url_discovery_owned_channels",
             "url_discovery_macro",
         ],
         "cross_reference",
     )
+    builder.add_edge("url_discovery_blog_community", "feature_mapping_blog_community")
 
-    # 4-1) cross_reference → 5중 fan-out (2차) (v0.10.27 — urls_merge 폐기)
-    #      cross_reference 가 5종 *_urls_by_candidate 키를 모두 carry 한 뒤
+    # 4-1) cross_reference → 4중 fan-out (2차) (v0.10.27 — urls_merge 폐기)
+    #      cross_reference 가 *_urls_by_candidate 키를 carry 한 뒤
     #      각 통합 노드가 자기 source 키만 직접 read.
     builder.add_edge("cross_reference", "feature_mapping_official")
-    builder.add_edge("cross_reference", "feature_mapping_blog_community")
     builder.add_edge("cross_reference", "feature_mapping_youtube_reactions")
     builder.add_edge("cross_reference", "feature_mapping_owned_channels")
     builder.add_edge("cross_reference", "feature_mapping_macro")
@@ -440,16 +441,16 @@ try:
         ("ab_join", "url_discovery_owned_channels"),
         ("ab_join", "url_discovery_macro"),
     ]
+    # v0.14 CE-D9 — blog_community 는 cross_reference 우회 (discovery → mapping 직결)
     _fanin_5_1 = [
         ("url_discovery_official",          "cross_reference"),
-        ("url_discovery_blog_community",    "cross_reference"),
         ("url_discovery_youtube_reactions", "cross_reference"),
         ("url_discovery_owned_channels",    "cross_reference"),
         ("url_discovery_macro",             "cross_reference"),
+        ("url_discovery_blog_community",    "feature_mapping_blog_community"),
     ]
     _fanout_5_2 = [
         ("cross_reference", "feature_mapping_official"),
-        ("cross_reference", "feature_mapping_blog_community"),
         ("cross_reference", "feature_mapping_youtube_reactions"),
         ("cross_reference", "feature_mapping_owned_channels"),
         ("cross_reference", "feature_mapping_macro"),
