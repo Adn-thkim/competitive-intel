@@ -17,6 +17,12 @@
       "pattern": "^[a-z][a-z0-9_]*$",
       "minLength": 3
     },
+    "community_sites": {
+      "type": "array",
+      "description": "v0.14 CE-D2 — 도메인 특화 커뮤니티 0~2개. 반드시 입력의 community_site_candidates 목록에 있는 domain 만 선정 (목록 외 생성 금지). 도메인과 무관하면 빈 배열.",
+      "maxItems": 2,
+      "items": { "type": "string" }
+    },
     "domain_type": {
       "type": "string",
       "description": "도메인 시장 유형. 영문 snake_case. 예: consumer_remittance, b2b_saas_hr",

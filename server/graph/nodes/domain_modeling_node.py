@@ -60,7 +60,7 @@ from pathlib import Path
 
 import jsonschema
 
-from server.config import AGENTS_DIR, BASE_DIR, API_MODEL
+from server.config import AGENTS_DIR, BASE_DIR
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -68,12 +68,50 @@ from server.graph.agent_cache import (
 )
 from server.graph.progress_store import set_branch_status
 from server.graph.state import DomainAnalysisState, AgentStep
-from server.llm.claude_api_analyzer import ClaudeApiAnalyzer
 
-# 결정론 경로 — taxonomy 는 비결정 CLI 대신 API(temperature=0)로 생성한다
-# (2026-06-11 사용자 결정). taxonomy ~21KB 수용 위해 max_tokens 상향.
-_TAXONOMY_API_TIMEOUT    = 180
-_TAXONOMY_API_MAX_TOKENS = 16000
+# soft TTL 캐시가 동일 입력에 대해 무기한 재사용하므로 CLI로 충분.
+# (2026-06-13 사용자 결정 — API(temperature=0) 결정론은 soft TTL이 이미 보장)
+_TAXONOMY_CLI_TIMEOUT  = 300
+_METADATA_CLI_TIMEOUT  = 60    # Step1 소형 호출 — slug/type/community_sites 만
+
+# Step1 전용 인라인 시스템 프롬프트 (파일 불필요 — 작고 안정적인 단일 임무)
+_METADATA_SYSTEM_PROMPT = """\
+당신은 DomainTaxonomyAgent의 Step 1 메타데이터 추출기입니다.
+입력 JSON을 읽고 다음 세 가지만 결정하여 JSON 객체로만 반환하십시오.
+
+1. domain_slug : 도메인 식별 슬러그 (lowercase snake_case). 예: consumer_travel_card
+2. domain_type : 시장 유형 (lowercase snake_case). 예: consumer_remittance
+3. community_sites : community_site_candidates 목록에서 분석 도메인과 주제가 직접
+   관련된 커뮤니티 0~2개의 domain 값 선정.
+   - 목록에 없는 도메인을 절대 생성하지 마십시오.
+   - 클리앙·뽐뿌·디시인사이드 등 범용 커뮤니티는 코드가 기본 수집하므로 제외합니다.
+   - 적합한 항목이 없으면 빈 배열 []을 반환합니다.
+
+설명문·마크다운 없이 JSON 객체만 반환하십시오.\
+"""
+
+_METADATA_SCHEMA: dict = {
+    "type": "object",
+    "required": ["domain_slug", "domain_type", "community_sites"],
+    "additionalProperties": False,
+    "properties": {
+        "domain_slug": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "minLength": 3,
+        },
+        "domain_type": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]*$",
+            "minLength": 3,
+        },
+        "community_sites": {
+            "type": "array",
+            "items": {"type": "string"},
+            "maxItems": 2,
+        },
+    },
+}
 
 logger = logging.getLogger(__name__)
 
@@ -92,6 +130,104 @@ REPORT_TYPES = (
     "market_context_swot",
     "executive_summary",
 )
+
+
+# ── v0.14 CE-D2 — 2군 커뮤니티 큐레이션 레지스트리 ────────────────────────────
+
+def _load_registry_candidates() -> list[dict]:
+    """data/community_registry.json → LLM 입력용 후보 목록 [{domain, label, topics}].
+
+    레지스트리 부재·파싱 실패 시 빈 목록 (community_sites 미선정으로 graceful).
+    """
+    from server.config import COMMUNITY_REGISTRY_PATH  # 지연 import (순환 방지)
+    try:
+        data = json.loads(Path(COMMUNITY_REGISTRY_PATH).read_text(encoding="utf-8"))
+        return [
+            {"domain": s["domain"], "label": s.get("label", ""),
+             "topics": s.get("topics", [])}
+            for s in data.get("sites", []) if s.get("domain")
+        ]
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("community_registry 로드 실패 — community_sites 후보 없음: %s", exc)
+        return []
+
+
+def _validate_community_sites(out: dict) -> dict:
+    """LLM 출력의 community_sites 를 registry 도메인으로 제한 + 최대 2개 (CE-D2).
+
+    v0.15 이후 메인 노드 경로에서는 호출되지 않음.
+    Step1(_call_metadata_step)이 동일 검증을 수행하여 main node에 결과를 전달한다.
+    """
+    sites = out.get("community_sites")
+    if not isinstance(sites, list):
+        out["community_sites"] = []
+        return out
+    valid = {c["domain"] for c in _load_registry_candidates()}
+    kept = [s for s in sites if isinstance(s, str) and s in valid]
+    dropped = [s for s in sites if s not in kept]
+    if dropped:
+        logger.warning("community_sites registry 외 도메인 제거: %s", dropped)
+    out["community_sites"] = kept[:2]
+    return out
+
+
+def _call_metadata_step(
+    taxonomy_input_base: dict,
+    community_candidates: list[dict],
+) -> dict:
+    """Step 1 — domain_slug·domain_type·community_sites 사전 결정 (v0.15).
+
+    taxonomy_input_base: community_site_candidates 미포함 기본 입력.
+    community_candidates: _load_registry_candidates() 결과.
+
+    역할 분리 이유:
+    - community_sites 선정 지시를 main system_prompt에서 분리 →
+      Step2(report_config 생성)가 B-only 리포트 feature 설계에 온전히 집중.
+    - community_site_candidates가 Step1 전용이 됨 →
+      registry 변경이 taxonomy fingerprint(= feature/codebook cache)에 영향 없음.
+
+    실패 시 fallback 반환 (Step2 중단 방지). fallback domain_slug는 domain_name 변환값.
+    """
+    from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer  # 지연 import
+
+    meta_input = {
+        **taxonomy_input_base,
+        "community_site_candidates": community_candidates,
+    }
+    prompt = (
+        "아래 JSON을 읽고 domain_slug, domain_type, community_sites 만 결정하라.\n\n"
+        f"```json\n{json.dumps(meta_input, ensure_ascii=False, indent=2)}\n```"
+    )
+    try:
+        analyzer = ClaudeCodeCliAnalyzer(
+            system_prompt=_METADATA_SYSTEM_PROMPT,
+            timeout=_METADATA_CLI_TIMEOUT,
+        )
+        result: dict = analyzer.call_with_schema(prompt, _METADATA_SCHEMA)
+        # registry 외 도메인 제거 + 최대 2개
+        valid = {c["domain"] for c in community_candidates}
+        result["community_sites"] = [
+            s for s in result.get("community_sites", [])
+            if isinstance(s, str) and s in valid
+        ][:2]
+        # snake_case 정규화
+        result["domain_slug"] = _to_snake_id(result.get("domain_slug") or "")
+        result["domain_type"] = _to_snake_id(result.get("domain_type") or "")
+        logger.info(
+            "_call_metadata_step 완료: slug=%s, type=%s, community_sites=%s",
+            result["domain_slug"], result["domain_type"], result["community_sites"],
+        )
+        return result
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("_call_metadata_step 실패, fallback 사용: %s", exc)
+        fallback_slug = _to_snake_id(
+            taxonomy_input_base.get("domain_name", "unknown_domain")
+        ) or "unknown_domain"
+        return {
+            "domain_slug":     fallback_slug,
+            "domain_type":     "unknown_domain_type",
+            "community_sites": [],
+        }
 
 
 # ── 노드 진입점 ───────────────────────────────────────────────────────────────
@@ -160,6 +296,8 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     analysis_direction = state.get("analysis_direction") or "mixed"
 
     # ── LLM 입력 조립 (캐시 지문 비교를 위해 캐시 판정 이전에 구성) ──────────────
+    # v0.15: community_site_candidates 제거 → fingerprint 안정화.
+    # registry 변경이 feature/codebook taxonomy를 재생성하지 않도록 Step1로 분리.
     taxonomy_input: dict = {
         "project_id":         state.get("project_id", ""),
         "domain_name":        domain_name,
@@ -227,20 +365,13 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
             except Exception: pass  # noqa: BLE001
         return _error(started_at, f"출력 스키마를 찾을 수 없음: {agent_dir}")
 
-    # taxonomy_input 은 캐시 판정 이전(상단)에서 이미 구성됨 (input_fp 산출용).
-    user_prompt = (
-        "아래 JSON 입력을 읽고, 7종 리포트(`report_config`) 단위의 도메인 "
-        "taxonomy를 생성하여 출력 schema를 만족하는 JSON만 반환하라.\n\n"
-        f"입력:\n{json.dumps(taxonomy_input, ensure_ascii=False, indent=2)}"
-    )
-
     # ── 캐시 조회 → 미스 시 LLM 호출 ─────────────────────────────────────────
     cache_context = make_cache_context(
         agent_id="domain_modeling",
-        model=API_MODEL,
+        model="claude_cli",
         system_prompt=system_prompt,
         output_schema=output_schema,
-        prompt_version="domain_modeling:v0.11-api",
+        prompt_version="domain_modeling:v0.12-cli",
     )
     cache_input = {
         **taxonomy_input,
@@ -255,17 +386,32 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
     )
 
     if raw_output is None:
-        # 결정론 경로 — API(temperature=0). 동일 입력에 동일 taxonomy 보장 →
-        # feature ID 가 흔들리는 비결정 회귀 방지. taxonomy ~21KB 수용 위해 max_tokens 상향.
-        analyzer = ClaudeApiAnalyzer(
-            model=API_MODEL,
-            timeout=_TAXONOMY_API_TIMEOUT,
+        # ── Step 1: domain_slug · domain_type · community_sites (소형 호출) ──
+        # community_site_candidates 는 fingerprint 제외 → Step1 전용 입력.
+        community_candidates = _load_registry_candidates()
+        step1 = _call_metadata_step(taxonomy_input, community_candidates)
+
+        # ── Step 2: report_config 7종 (메인 호출) ─────────────────────────────
+        # Step1 결과를 user_prompt에 명시 → system_prompt의 §3-1 선정 지시가
+        # report_config feature 생성 집중을 방해하지 않도록 한다.
+        from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer  # 지연 import
+        analyzer = ClaudeCodeCliAnalyzer(
             system_prompt=system_prompt,
-            max_tokens=_TAXONOMY_API_MAX_TOKENS,
+            timeout=_TAXONOMY_CLI_TIMEOUT,
+        )
+        user_prompt = (
+            "아래 JSON 입력을 읽고, 7종 리포트(`report_config`) 단위의 도메인 "
+            "taxonomy를 생성하여 출력 schema를 만족하는 JSON만 반환하라.\n\n"
+            "※ 다음 값은 Step 1에서 사전 결정됨 — 그대로 출력할 것 (재추론·변경 금지):\n"
+            f"  domain_slug: \"{step1['domain_slug']}\"\n"
+            f"  domain_type: \"{step1['domain_type']}\"\n"
+            f"  community_sites: "
+            f"{json.dumps(step1['community_sites'], ensure_ascii=False)}\n\n"
+            f"입력:\n{json.dumps(taxonomy_input, ensure_ascii=False, indent=2)}"
         )
 
         logger.info(
-            "domain_modeling_node: API 호출 시작 (id=%s, domain='%s', direction=%s)",
+            "domain_modeling_node: CLI Step2 호출 시작 (id=%s, domain='%s', direction=%s)",
             domain_id, domain_name, analysis_direction,
         )
 
@@ -288,8 +434,9 @@ def domain_modeling_node(state: DomainAnalysisState, config: dict | None = None)
                 except Exception: pass  # noqa: BLE001
             return _error(started_at, str(exc))
 
-        # ── snake_case 정규화 + 엄격 스키마 재검증 ──────────────────────────
+        # ── snake_case 정규화 + community_sites Step1 값 강제 적용 ──────────
         raw_output = _normalize_taxonomy_output(raw_output)
+        raw_output["community_sites"] = step1["community_sites"]  # v0.15 Step1 확정값
         try:
             jsonschema.validate(raw_output, output_schema)
         except jsonschema.ValidationError as exc:
