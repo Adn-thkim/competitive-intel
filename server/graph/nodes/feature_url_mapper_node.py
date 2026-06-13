@@ -259,7 +259,7 @@ def _brave_throttle() -> None:
         _brave_last_call_ts[0] = time.monotonic()
 
 
-def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
+def _brave_search(query: str, count: int = _BRAVE_COUNT, offset: int = 0) -> list[dict]:
     """
     Brave Search API 호출 (v0.10.12 B-1 24h TTL 캐시 적용).
 
@@ -270,6 +270,10 @@ def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
     v0.13.5: 전역 1 req/s rate limiter + 429 Retry-After 재시도(최대 2회).
     실패 시 빈 리스트를 반환하며, 빈 결과는 캐시하지 않는다(일시적 실패 재시도 가능).
     실패는 warning 으로 기록한다 (debug 로 묻혀 회귀를 키운 전례 — 실패 가시화).
+
+    v0.14 CE-D1 — `offset` 파라미터 추가 (broad query 페이지네이션, 0~9).
+    offset>0 은 cache_input 에 포함되어 페이지별로 독립 캐시된다. 기본값 0 은
+    기존 캐시 키(query+count)와 동일하게 유지된다 (기존 캐시 무효화 없음).
     """
     if not BRAVE_SEARCH_API_KEY:
         logger.warning("BRAVE_SEARCH_API_KEY 미설정 — Brave 검색 생략")
@@ -277,6 +281,8 @@ def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
 
     # ── 캐시 조회 (v0.10.12) ────────────────────────────────────────────────
     cache_input   = {"query": query, "count": count}
+    if offset:
+        cache_input["offset"] = offset   # 기본 0 은 키 미포함 — 기존 캐시 보존
     cache_context = {"agent_id": "url_discovery_brave", "v": 1}
     cached = load_agent_output(
         agent_id="url_discovery_brave",
@@ -300,9 +306,12 @@ def _brave_search(query: str, count: int = _BRAVE_COUNT) -> list[dict]:
     for attempt in range(_BRAVE_429_MAX_RETRIES + 1):
         _brave_throttle()
         try:
+            params: dict = {"q": query, "count": count}
+            if offset:
+                params["offset"] = offset
             resp = req_lib.get(
                 _BRAVE_ENDPOINT, headers=headers,
-                params={"q": query, "count": count}, timeout=(3, 8),
+                params=params, timeout=(3, 8),
             )
         except Exception as exc:  # noqa: BLE001
             logger.warning("Brave 검색 네트워크 실패 (%s): %s", query, exc)

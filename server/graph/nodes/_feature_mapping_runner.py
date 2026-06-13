@@ -116,6 +116,15 @@ def run_source_mapping(
     if source == "owned_channels":
         return _carry_owned_channels(state, started_at, _STEP_NAME[source], thread_id)
 
+    # ── blog_community 분기 (v0.14 CE-D3 — LLM 경로 전면 제거) ───────────────
+    # 커뮤니티 URL 은 feature 단위 LLM 매핑을 하지 않는다: ① discovery 가 broad
+    # query 로 feature 축 없이 수집하고, ② reaction_insight 리포트는 aspect 축만
+    # 사용하므로 feature 매핑 산출물이 리포트에 기여하지 않으며, ③ blog 계열 수집
+    # 비활성 확정으로 본 source 의 활성 소비자는 community_collection 뿐이다.
+    # D45a(owned_channels) 와 동일한 carry-through 패턴으로 placeholder 1건 산출.
+    if source == "blog_community":
+        return _carry_community_pool(state, started_at, _STEP_NAME[source], thread_id)
+
     # ── 에이전트 파일 로드 ───────────────────────────────────────────────────
     agent_dir     = AGENTS_DIR / f"feature_mapping_{source}"
     system_prompt = _load_text(agent_dir / "system_prompt_kr.md")
@@ -366,6 +375,88 @@ def run_source_mapping(
     return {
         output_key:    raw_features,
         "agent_steps": [step],
+    }
+
+
+# ─── v0.14 CE-D3 — blog_community placeholder carry-through ──────────────────
+
+# 커뮤니티 반응 풀 placeholder feature ID (collection·selection 이 본 ID 로 식별)
+COMMUNITY_POOL_FEATURE_ID = "feat_community_reactions_pool"
+
+
+def _carry_community_pool(
+    state: DomainAnalysisState,
+    started_at: str,
+    step_name: str,
+    thread_id: str,
+) -> dict:
+    """v0.14 CE-D3 — blog_community LLM 매핑 제거 + placeholder carry-through.
+
+    `blog_community_urls_by_candidate`(broad discovery 산출)를 단일 placeholder
+    feature 로 재성형한다. LLM 0회 · page meta 수집 0회.
+
+    coverage 규칙 (결정론, CE-D3): candidate별 URL ≥ 10 → sufficient,
+    ≥ 3 → partial, 그 외 not_found.
+
+    하류 계약:
+    - additional_urls 는 항상 [] (validation 의 검증 분기 스킵)
+    - feature_selection 은 본 placeholder 를 일반 feature 카드로 표시
+      ("커뮤니티 수집 예정 N건" 전용 카드는 클라이언트 후속 작업)
+    - community_collection 은 본 placeholder 의 existing_urls 를 수집 풀로 사용하며,
+      selected_feature_ids 게이트 대신 report 게이트만 적용 (CE-D3)
+    """
+    if thread_id:
+        try:
+            set_progress(
+                thread_id, "feature_mapping_blog_community",
+                detail="커뮤니티 URL carry-through (CE-D3 — LLM 호출 생략)",
+            )
+        except Exception as exc:  # noqa: BLE001
+            logger.debug("set_progress(blog_community carry) 실패: %s", exc)
+
+    urls_by_candidate: dict = state.get("blog_community_urls_by_candidate") or {}
+
+    candidate_coverage: list[dict] = []
+    for cid in sorted(urls_by_candidate):
+        urls = urls_by_candidate[cid] or []
+        if not urls:
+            continue
+        n = len(urls)
+        coverage = "sufficient" if n >= 10 else ("partial" if n >= 3 else "not_found")
+        candidate_coverage.append({
+            "candidate_id":    cid,
+            "coverage":        coverage,
+            "existing_urls":   list(urls),   # discovery 산출 그대로 (collection_mode 포함)
+            "additional_urls": [],
+        })
+
+    raw_features: list[dict] = []
+    if candidate_coverage:
+        raw_features.append({
+            "report_type":  "reaction_insight",
+            "feature_id":   COMMUNITY_POOL_FEATURE_ID,
+            "feature_name": "커뮤니티 반응 풀",
+            "description":  ("broad site: 검색으로 수집한 커뮤니티 게시글 풀 "
+                             "(feature 축 없음 — aspect 할당은 ABSA 책임. CE-D3)"),
+            "priority":     "high",
+            "candidate_coverage": candidate_coverage,
+        })
+
+    total_urls = sum(len(c["existing_urls"]) for c in candidate_coverage)
+    logger.info(
+        "feature_mapping_blog_community_node (CE-D3 carry): %d candidate · %d URL "
+        "(LLM 호출 생략)", len(candidate_coverage), total_urls,
+    )
+
+    finished_at = datetime.now(timezone.utc).isoformat()
+    return {
+        "blog_community_raw_features": raw_features,
+        "agent_steps": [{
+            "step_name":   step_name,
+            "status":      "completed",
+            "started_at":  started_at,
+            "finished_at": finished_at,
+        }],
     }
 
 

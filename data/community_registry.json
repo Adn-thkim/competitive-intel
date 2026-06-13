@@ -1,0 +1,16 @@
+{
+  "version": "2026-06-12",
+  "description": "CE-D2 2군 도메인 특화 커뮤니티 큐레이션 레지스트리. domain_modeling 이 community_sites(0~2개)를 본 목록에서만 선정한다 (자유 생성 금지 — LLM 환각 도메인 차단). collection_mode 는 scripts/measure_brave_recall.py 실측 후 기재 — 미실측 도메인은 안전 기본값 snippet_only.",
+  "sites": [
+    {"domain": "milemoa.com", "label": "마일모아", "topics": ["신용카드", "마일리지", "해외결제", "여행", "항공"], "crawl_note": "서버 렌더링 추정 — 미실측", "collection_mode": "snippet_only"},
+    {"domain": "bobaedream.co.kr", "label": "보배드림", "topics": ["자동차", "중고차"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "quasarzone.com", "label": "퀘이사존", "topics": ["PC", "하드웨어", "전자기기"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "coolenjoy.net", "label": "쿨엔조이", "topics": ["PC", "하드웨어"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "pann.nate.com", "label": "네이트판", "topics": ["생활", "소비", "뷰티", "연애"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "instiz.net", "label": "인스티즈", "topics": ["연예", "패션", "1020 소비"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "82cook.com", "label": "82쿡", "topics": ["주부", "생활", "요리", "소비"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "ruliweb.com", "label": "루리웹", "topics": ["게임", "콘솔", "서브컬처"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "inven.co.kr", "label": "인벤", "topics": ["게임", "PC게임", "모바일게임"], "crawl_note": "미실측", "collection_mode": "snippet_only"},
+    {"domain": "dogdrip.net", "label": "개드립", "topics": ["유머", "잡담", "종합"], "crawl_note": "미실측", "collection_mode": "snippet_only"}
+  ]
+}

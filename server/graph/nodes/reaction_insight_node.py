@@ -93,12 +93,20 @@ def build_aspect_matrix(reaction_analysis: dict) -> dict:
     return {a: matrix[a] for a in sorted(matrix)}
 
 
-def select_top_quotes(reaction_analysis: dict, per_bucket: int = 1) -> list[dict]:
-    """aspect × 극성(pos/neg)별 대표 quote — intensity·채널 가중 상위 (결정론)."""
+def select_top_quotes(reaction_analysis: dict, per_bucket: int = 1,
+                      exclude_urls: frozenset[str] = frozenset()) -> list[dict]:
+    """aspect × 극성(pos/neg)별 대표 quote — intensity·채널 가중 상위 (결정론).
+
+    v0.14 CE-D10 — exclude_urls(snippet_only 출처)는 대표 인용 후보에서 제외.
+    스니펫 발췌 quote 는 문장 중간 절단·맥락 부재로 리포트 인용 부적격.
+    집계(build_aspect_matrix·timeline)에는 본 필터를 적용하지 않는다 (100% 반영).
+    """
     buckets: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for cid in sorted(reaction_analysis):
         for t in reaction_analysis[cid].get("tuples", []):
             if t["polarity"] == "neutral":
+                continue
+            if t.get("source_url", "") in exclude_urls:
                 continue
             buckets[(t["aspect"], t["polarity"])].append({**t, "candidate_id": cid})
     quotes: list[dict] = []
@@ -118,11 +126,17 @@ def select_top_quotes(reaction_analysis: dict, per_bucket: int = 1) -> list[dict
     return quotes
 
 
-def build_suggestions(reaction_analysis: dict) -> list[dict]:
-    """is_suggestion tuple 분리 (5점 요건 — product_dev 후보)."""
+def build_suggestions(reaction_analysis: dict,
+                      exclude_urls: frozenset[str] = frozenset()) -> list[dict]:
+    """is_suggestion tuple 분리 (5점 요건 — product_dev 후보).
+
+    v0.14 CE-D10 — snippet_only 출처 제외 (select_top_quotes 와 동일 근거).
+    """
     out = []
     for cid in sorted(reaction_analysis):
         for t in reaction_analysis[cid].get("tuples", []):
+            if t.get("source_url", "") in exclude_urls:
+                continue
             if t.get("is_suggestion"):
                 out.append({
                     "candidate_id": cid, "aspect": t["aspect"], "quote": t["quote"],
@@ -210,13 +224,19 @@ def reaction_insight_node(
     own_id = (state.get("own_product") or {}).get("product_id", "")
 
     # ── 코드 파트: 집계 (결정론) ────────────────────────────────────────────
+    # v0.14 CE-D10 — snippet_only 출처는 인용 층(top_quotes·suggestions)에서만 제외
+    snippet_urls = frozenset(
+        p.get("url", "") for p in state.get("community_posts") or []
+        if p.get("fetch_status") == "snippet_only" and p.get("url")
+    )
     matrix      = build_aspect_matrix(reaction_analysis)
-    top_quotes  = select_top_quotes(reaction_analysis)
-    suggestions = build_suggestions(reaction_analysis)
+    top_quotes  = select_top_quotes(reaction_analysis, exclude_urls=snippet_urls)
+    suggestions = build_suggestions(reaction_analysis, exclude_urls=snippet_urls)
     timeline    = build_timeline(reaction_analysis)
     score, score_rationale = compute_rubric(reaction_analysis, suggestions)
     channel_meta = {
-        cid: {k: r.get(k) for k in ("channel_counts", "sample_size", "collected_at")}
+        cid: {k: r.get(k) for k in ("channel_counts", "post_count",
+                                    "sample_size", "collected_at")}
         for cid, r in reaction_analysis.items()
     }
     source_refs = [

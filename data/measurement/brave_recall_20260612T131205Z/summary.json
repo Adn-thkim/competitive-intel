@@ -1,0 +1,14 @@
+{
+  "measured_at": "20260612T131205Z",
+  "queries": 24,
+  "unique_posts": 501,
+  "multi_candidate_posts": 26,
+  "snippet_filter_excluded": 330,
+  "false_exclusion_auto_provisional": 6,
+  "body_mention_candidate_dist (fetch 표본, 3=3개 이상)": {
+    "0": 35,
+    "1": 3,
+    "3": 1
+  },
+  "gate_check_avg_per_site_x_cand_ge_10": true
+}

@@ -239,6 +239,13 @@ def reaction_analysis_node(
                     "community": sum(1 for it in items if it["channel"] == "community"),
                     "blog":      sum(1 for it in items if it["channel"] == "blog"),
                 },
+                # v0.14 — 원 게시글 수 (chunk 도입으로 item 수 ≠ 게시글 수.
+                # UI 표본 뱃지는 post_count 기준 권장 — CE 설계 §7 사용자 확정)
+                "post_count": {
+                    ch: len({it["source_url"] for it in items
+                             if it["channel"] == ch and it.get("source_url")})
+                    for ch in ("youtube", "community", "blog")
+                },
                 "sample_size":      len(items),          # AP-3 — 표본 크기 의무
                 "collected_at":     started_at,          # AP-3 — 수집 시점 의무
                 "dropped_by_guard": dropped,

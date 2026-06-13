@@ -740,17 +740,17 @@ builder.add_edge("executive_summary",   END)
 
 v0.9 토폴로지(§6-2)에서 `competitor_discovery` 종료 후 두 분기가 동시 진행됩니다. 분기 A(`normalize_competitor_ids` → `competitor_selection` → `official_source_resolver` → `url_retry`)와 분기 B(`domain_modeling` 단일)의 동시 쓰기 키를 점검합니다.
 
-| 키 | 분기 A (4개 노드 누적) | 분기 B (domain_modeling) | 충돌 여부 |
-|---|:-:|:-:|:-:|
-| `agent_steps` | append | append | 안전(`operator.add`) |
-| `errors` | append | append | 안전(`operator.add`) |
-| `domain_taxonomy` | 미수정 | 갱신 | 안전 |
-| `competition_axes` | 읽기 전용 | 읽기 전용 | 안전 |
-| `competitor_candidates` | normalize에서 replace, 이후 미수정 | 미수정 | 안전 |
-| `selected_competitor_ids` | competitor_selection에서 생성 | 미수정 | 안전 |
-| `official_sources` | official_source_resolver/url_retry에서 갱신 | 미수정 | 안전 |
-| `critical_error` | url_retry에서 설정 가능 | 미수정 | 안전 |
-| `own_product_summary` | 미수정 | 읽기 전용 | 안전 |
+| 키                         |             분기 A (4개 노드 누적)             | 분기 B (domain_modeling) |       충돌 여부        |
+| ------------------------- | :-------------------------------------: | :--------------------: | :----------------: |
+| `agent_steps`             |                 append                  |         append         | 안전(`operator.add`) |
+| `errors`                  |                 append                  |         append         | 안전(`operator.add`) |
+| `domain_taxonomy`         |                   미수정                   |           갱신           |         안전         |
+| `competition_axes`        |                  읽기 전용                  |         읽기 전용          |         안전         |
+| `competitor_candidates`   |       normalize에서 replace, 이후 미수정       |          미수정           |         안전         |
+| `selected_competitor_ids` |        competitor_selection에서 생성        |          미수정           |         안전         |
+| `official_sources`        | official_source_resolver/url_retry에서 갱신 |          미수정           |         안전         |
+| `critical_error`          |            url_retry에서 설정 가능            |          미수정           |         안전         |
+| `own_product_summary`     |                   미수정                   |         읽기 전용          |         안전         |
 
 점검 결과 **충돌 없음**. 단, 본 매트릭스는 코드 변경 시점에 재검증해야 하며, 향후 분기 A의 어떤 노드라도 `domain_taxonomy`를 read/write하게 되면 본 매트릭스 갱신이 필수입니다.
 
