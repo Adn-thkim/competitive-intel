@@ -210,6 +210,12 @@ def reaction_insight_node(
     if not is_report_active(state, REPORT_TYPE):
         return make_skip_result(REPORT_TYPE, started_at)
 
+    # selected_purposes 미선택 시 skip.
+    # reaction_absa(reaction_analysis_node)는 selected_purposes 를 체크해서 빈 dict 를
+    # 반환하지만, 본 노드는 is_report_active() 만 체크하므로 별도 게이트가 필요하다.
+    if REPORT_TYPE not in (state.get("selected_purposes") or []):
+        return make_skip_result(REPORT_TYPE, started_at)
+
     reaction_analysis: dict = state.get("reaction_analysis") or {}
     if not reaction_analysis:
         return make_error_result(
