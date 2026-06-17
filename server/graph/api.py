@@ -230,3 +230,31 @@ async def get_graph_state(thread_id: str) -> dict:
 async def health() -> dict:
     """서버 기동 확인. pythonServer.js가 이 응답을 감지해 resolve()한다."""
     return {"status": "ok"}
+
+
+@app.get("/quota/youtube")
+async def youtube_quota() -> dict:
+    """현재 프로세스의 YouTube Data API v3 quota 사용량 조회.
+
+    _daily_used 는 서버 기동 후 누적 소비 units. 자정(UTC) 경과 시 자동 리셋.
+    Google Cloud 실제 잔량과 일치하려면 서버가 하루 종일 재시작 없이 실행된 경우에 한함.
+    정확한 잔량은 https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas 참조.
+    """
+    from server.llm.youtube_client import current_quota_used, _daily_used_date
+    from server.config import YOUTUBE_DAILY_QUOTA, YOUTUBE_QUOTA_SAFETY_MARGIN
+
+    used      = current_quota_used()
+    limit     = YOUTUBE_DAILY_QUOTA
+    margin    = YOUTUBE_QUOTA_SAFETY_MARGIN
+    remaining = limit - used
+    usable    = max(0, remaining - margin)   # safety_margin 제외 실사용 가능량
+
+    return {
+        "used":              used,
+        "remaining":         remaining,
+        "usable":            usable,
+        "daily_limit":       limit,
+        "safety_margin":     margin,
+        "reset_date_utc":    _daily_used_date,
+        "console_url":       "https://console.cloud.google.com/apis/api/youtube.googleapis.com/quotas",
+    }

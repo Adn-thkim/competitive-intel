@@ -101,7 +101,6 @@ from server.graph.nodes.cross_reference_node                  import cross_refer
 # v0.10.27 — 5중 fan-out (2차) 통합 노드 5종
 from server.graph.nodes.feature_mapping_official_node          import feature_mapping_official_node
 from server.graph.nodes.feature_mapping_blog_community_node    import feature_mapping_blog_community_node
-from server.graph.nodes.feature_mapping_youtube_reactions_node import feature_mapping_youtube_reactions_node
 from server.graph.nodes.feature_mapping_owned_channels_node    import feature_mapping_owned_channels_node
 from server.graph.nodes.feature_mapping_macro_node             import feature_mapping_macro_node
 from server.graph.nodes.additional_urls_validation_node import additional_urls_validation_node
@@ -206,7 +205,6 @@ def build_graph() -> object:
     # v0.10.27 — 5중 fan-out (2차) 통합 노드 5종
     builder.add_node("feature_mapping_official",           feature_mapping_official_node)
     builder.add_node("feature_mapping_blog_community",     feature_mapping_blog_community_node)
-    builder.add_node("feature_mapping_youtube_reactions",  feature_mapping_youtube_reactions_node)
     builder.add_node("feature_mapping_owned_channels",     feature_mapping_owned_channels_node)
     builder.add_node("feature_mapping_macro",              feature_mapping_macro_node)
     builder.add_node("additional_urls_validation",   additional_urls_validation_node)
@@ -313,7 +311,6 @@ def build_graph() -> object:
     #      cross_reference 가 *_urls_by_candidate 키를 carry 한 뒤
     #      각 통합 노드가 자기 source 키만 직접 read.
     builder.add_edge("cross_reference", "feature_mapping_official")
-    builder.add_edge("cross_reference", "feature_mapping_youtube_reactions")
     builder.add_edge("cross_reference", "feature_mapping_owned_channels")
     builder.add_edge("cross_reference", "feature_mapping_macro")
 
@@ -322,7 +319,6 @@ def build_graph() -> object:
         [
             "feature_mapping_official",
             "feature_mapping_blog_community",
-            "feature_mapping_youtube_reactions",
             "feature_mapping_owned_channels",
             "feature_mapping_macro",
         ],
@@ -451,16 +447,14 @@ try:
     ]
     _fanout_5_2 = [
         ("cross_reference", "feature_mapping_official"),
-        ("cross_reference", "feature_mapping_youtube_reactions"),
         ("cross_reference", "feature_mapping_owned_channels"),
         ("cross_reference", "feature_mapping_macro"),
     ]
     _fanin_5_2 = [
-        ("feature_mapping_official",          "additional_urls_validation"),
-        ("feature_mapping_blog_community",    "additional_urls_validation"),
-        ("feature_mapping_youtube_reactions", "additional_urls_validation"),
-        ("feature_mapping_owned_channels",    "additional_urls_validation"),
-        ("feature_mapping_macro",             "additional_urls_validation"),
+        ("feature_mapping_official",       "additional_urls_validation"),
+        ("feature_mapping_blog_community", "additional_urls_validation"),
+        ("feature_mapping_owned_channels", "additional_urls_validation"),
+        ("feature_mapping_macro",          "additional_urls_validation"),
     ]
     _has_fanout_5_1 = all(p in _edge_pairs for p in _fanout_5_1)
     _has_fanin_5_1  = all(p in _edge_pairs for p in _fanin_5_1)

@@ -99,7 +99,8 @@ def _union_raw_features(state: dict) -> list[dict]:
     4. **`source_origin` 메타 부착** (D23 정식화 핵심) — 각 existing_url 의 origin
        을 그대로 candidate_id 별 추적하여 additional_urls 검증 분기 시 활용
     """
-    priority = ("official", "blog_community", "youtube_reactions", "owned_channels", "macro")
+    # youtube_reactions 제거 — Phase 3 폐기 (youtube_collection_redesign.md)
+    priority = ("official", "blog_community", "owned_channels", "macro")
     coverage_rank = {"sufficient": 3, "partial": 2, "not_found": 1}
     by_key: dict[tuple[str, str], dict] = {}
 
@@ -178,11 +179,10 @@ def _union_raw_features(state: dict) -> list[dict]:
 
 # source-type → additional_urls.source_origin 값 매핑 (v0.10.25 신설)
 _SOURCE_ORIGIN_BY_SRC: dict[str, str] = {
-    "official":          "official_subpage",
-    "blog_community":    "blog_community",
-    "youtube_reactions": "youtube_reactions",
-    "owned_channels":    "owned_channel_search",
-    "macro":             "macro_search",
+    "official":       "official_subpage",
+    "blog_community": "blog_community",
+    "owned_channels": "owned_channel_search",
+    "macro":          "macro_search",
 }
 
 

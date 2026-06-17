@@ -1,55 +1,41 @@
 """
-server/graph/nodes/url_discovery_youtube_reactions_node.py (v0.10.20 실 구현)
-----------------------------------------------------------------------------
+server/graph/nodes/url_discovery_youtube_reactions_node.py
+----------------------------------------------------------
 5중 fan-out 중 source-type 3번 — reaction_insight YouTube 영상 탐색.
 
-v0.10.19 까지의 스켈레톤(빈 결과 반환) 을 폐기하고 본 PR(v0.10.20) 에서 YouTube
-Data API v3 실 구현을 도입합니다.
-
-역할 (v0.10.20)
-----------------
-1. domain_taxonomy 의 `search_query_hints` 중 `source_hint="youtube_reactions"`
-   인 hint 만 `_extract_hints_for_source` 헬퍼로 추출 (v0.10.19.1 적용).
-2. 각 hint × candidate(own + selected comp) 모든 조합에 대해 토큰 치환 후
-   `youtube_search_videos` 호출. search.list + videos.list 머지 결과 수집.
-3. 발견된 각 영상에 `feature_ids` 메타 부착 (v0.10.19.1 의 객체 양식 hints).
-4. viewCount + commentCount 필터 적용 (config 임계치).
-5. cross_reference (owned channel 영상 제외) 는 v0.10.26 의 별도 노드에서 처리.
+역할 (youtube_collection_redesign.md Phase 1)
+---------------------------------------------
+1. candidate 이름을 검색 쿼리로 직접 사용 (hint 기반 로직 폐기).
+2. publishedAfter 최근 2년 필터 적용 (_PUBLISHED_AFTER_YEARS=2, RFC 3339).
+3. viewCount + commentCount 임계치 필터 (config.YOUTUBE_MIN_* 상수).
+4. 동일 video_id intra-candidate 중복 제거.
+5. owned 채널 영상 제외는 cross_reference_node 에서 담당.
 
 quota 관리
 ----------
 - 일일 한도 10,000 units. search.list = 100 units, videos.list = 1 unit/call.
-- 예상 호출(cache miss 첫 실행): candidate 4명 × 평균 3 쿼리 = 12 호출 × 101u
-  ≈ 1,212 units (전체 quota 의 12%).
+- 예상 호출(cache miss 첫 실행): candidate 수 × 101u.
 - 동일 도메인 재실행 시 24h TTL agent_cache 로 0 units.
-- `YouTubeQuotaExceeded` 발생 시 본 노드는 부분 수집 결과 + status="quota_skip"
-  agent_step 으로 graceful 종료. 다른 4개 source-type 노드는 정상 진행.
+- `YouTubeQuotaExceeded` 발생 시 부분 수집 결과 + status="quota_skip" 으로 graceful 종료.
 
-API key 미설정
----------------
-`YOUTUBE_API_KEY` 미설정 시 `YouTubeApiUnavailable` 발생. 본 노드는 빈 결과 +
-status="skipped" agent_step 으로 종료 (v0.10.19 스켈레톤과 동일한 graceful 동작).
-
-위치 (v0.10.19 토폴로지 1차 fan-out)
-------------------------------------
+위치 (1차 fan-out)
+--------------------
 ab_join
   ├─→ url_discovery_official_node
   ├─→ url_discovery_blog_community_node
-  ├─→ [url_discovery_youtube_reactions_node]   ← 이 노드 (v0.10.20 실 구현)
+  ├─→ [url_discovery_youtube_reactions_node]
   ├─→ url_discovery_owned_channels_node
   └─→ url_discovery_macro_node
         ↓ list-fan-in
       urls_merge_node
-        ↓ ...
 """
 
 import logging
 from concurrent.futures import ThreadPoolExecutor, as_completed
-from datetime import datetime, timezone
+from datetime import datetime, timedelta, timezone
 
 from server.config import (
     YOUTUBE_API_KEY,
-    YOUTUBE_MAX_RESULTS,
     YOUTUBE_MIN_VIEW_COUNT,
     YOUTUBE_MIN_COMMENT_COUNT,
     YOUTUBE_REGION_CODE,
@@ -58,9 +44,6 @@ from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
     _candidate_name_map,
-    _extract_active_reports,
-    _extract_hints_for_source,
-    _substitute_tokens,
     _error,
 )
 from server.llm.youtube_client import (
@@ -69,6 +52,8 @@ from server.llm.youtube_client import (
     current_quota_used,
     youtube_search_videos,
 )
+
+_PUBLISHED_AFTER_YEARS = 2   # 최근 N년 이내 영상만 수집
 
 logger = logging.getLogger(__name__)
 
@@ -79,7 +64,10 @@ _YOUTUBE_MAX_WORKERS = 3   # quota safety + Brave 와 동일 패턴
 def url_discovery_youtube_reactions_node(
     state: DomainAnalysisState, config: dict | None = None,
 ) -> dict:
-    """v0.10.20 실 구현 — YouTube Data API v3 로 reaction_insight 영상 검색.
+    """youtube_collection_redesign.md Phase 1 — candidate_name 직접 검색.
+
+    hint 기반 로직을 폐기하고 candidate 이름을 검색 쿼리로 사용한다.
+    publishedAfter 최근 2년 필터를 적용하며, 동일 video_id 중복은 candidate별로 제거한다.
 
     Returns
     -------
@@ -122,59 +110,20 @@ def url_discovery_youtube_reactions_node(
             }],
         }
 
-    # ── 입력 수집 + hints 추출 ───────────────────────────────────────────────
-    domain_taxonomy: dict       = state.get("domain_taxonomy") or {}
-    domain_name: str            = state.get("domain_name") or ""
+    # ── 입력 수집 ────────────────────────────────────────────────────────────
     own_product: dict           = state.get("own_product") or {}
     competitor_candidates: list = state.get("competitor_candidates") or []
     selected_ids: list[str]     = state.get("selected_competitor_ids") or []
 
-    if not domain_taxonomy:
-        return _error(started_at, "domain_taxonomy 가 state 에 없습니다.")
-    if not domain_name:
-        return _error(started_at, "domain_name 이 state 에 없습니다.")
-
-    all_active = _extract_active_reports(domain_taxonomy)
-    hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
-
-    if not hints_with_meta:
-        logger.info(
-            "url_discovery_youtube_reactions_node: source_hint='youtube_reactions' 인 "
-            "hint 가 없습니다 — 빈 결과 반환",
-        )
-        finished_at = datetime.now(timezone.utc).isoformat()
-        return {
-            "youtube_reactions_urls_by_candidate": {},
-            "agent_steps": [{
-                "step_name":   "UrlDiscoveryYoutubeReactions",
-                "status":      "completed",
-                "started_at":  started_at,
-                "finished_at": finished_at,
-            }],
-        }
-
-    # ── candidate × hint 토큰 치환 + 작업 목록 생성 ──────────────────────────
+    # candidate_id → 검색 쿼리(= candidate 이름) 매핑. "own" fallback 키는 제외.
     name_map = _candidate_name_map(own_product, competitor_candidates, selected_ids)
-    own_product_name = own_product.get("name") or own_product.get("product_name") or ""
+    search_targets: list[tuple[str, str]] = [
+        (cid, name) for cid, name in name_map.items()
+        if cid != "own" and name
+    ]
 
-    # (candidate_id, query, feature_id, report_type) 작업 목록
-    tasks: list[tuple[str, str, str, str]] = []
-    query_meta: dict[str, list[tuple[str, str]]] = {}   # query → [(feature_id, report_type), ...]
-
-    for query_template, feature_id, rt in hints_with_meta:
-        for cand_id, cand_name in name_map.items():
-            if cand_id == "own":
-                continue   # fallback 키 중복 회피
-            query = _substitute_tokens(
-                query_template, name_map, cand_name, own_product_name, domain_name,
-            )
-            if not query or "{" in query:
-                continue   # 치환 실패 스킵
-            tasks.append((cand_id, query, feature_id, rt))
-            query_meta.setdefault(query, []).append((feature_id, rt))
-
-    if not tasks:
-        logger.info("url_discovery_youtube_reactions_node: 토큰 치환 후 작업 0건")
+    if not search_targets:
+        logger.info("url_discovery_youtube_reactions_node: 검색 대상 candidate 없음")
         finished_at = datetime.now(timezone.utc).isoformat()
         return {
             "youtube_reactions_urls_by_candidate": {},
@@ -186,42 +135,47 @@ def url_discovery_youtube_reactions_node(
             }],
         }
 
-    # 동일 query dedup (query → 첫 등장 candidate_id)
-    deduped: dict[str, str] = {}
-    for cand_id, query, _, _ in tasks:
-        deduped.setdefault(query, cand_id)
+    # publishedAfter: 최근 _PUBLISHED_AFTER_YEARS년 이내 (RFC 3339).
+    # ISO 주 시작(월요일 00:00 UTC)으로 절사 → 같은 주 재실행 시 캐시 키 동일.
+    cutoff = datetime.now(timezone.utc) - timedelta(days=365 * _PUBLISHED_AFTER_YEARS)
+    week_start = cutoff - timedelta(days=cutoff.weekday())
+    published_after = week_start.strftime("%Y-%m-%dT00:00:00Z")
 
     # ── YouTube API 호출 (병렬, quota_skip graceful) ─────────────────────────
     logger.info(
-        "url_discovery_youtube_reactions_node: API 호출 시작 (unique queries=%d, hints=%d)",
-        len(deduped), len(hints_with_meta),
+        "url_discovery_youtube_reactions_node: API 호출 시작 (candidates=%d, "
+        "published_after=%s)",
+        len(search_targets), published_after,
     )
     results_by_candidate: dict[str, list[dict]] = {}
     errors: list[dict[str, str]] = []
     quota_skipped = False
     api_unavailable = False
 
-    def _search(q: str) -> tuple[str, list[dict] | None, str | None]:
-        """단일 쿼리 호출. 실패 시 (q, None, err_msg) 반환."""
+    def _search(cid: str, cand_name: str) -> tuple[str, list[dict] | None, str | None]:
+        """단일 candidate 이름 검색 (전량 수집). 실패 시 (cid, None, err_msg) 반환."""
         try:
-            return q, youtube_search_videos(q, max_results=YOUTUBE_MAX_RESULTS,
-                                            region_code=YOUTUBE_REGION_CODE), None
+            return cid, youtube_search_videos(
+                cand_name,
+                region_code=YOUTUBE_REGION_CODE,
+                published_after=published_after,
+            ), None
         except YouTubeQuotaExceeded as exc:
-            return q, None, f"quota_exceeded: {exc}"
+            return cid, None, f"quota_exceeded: {exc}"
         except YouTubeApiUnavailable as exc:
-            return q, None, f"api_unavailable: {exc}"
+            return cid, None, f"api_unavailable: {exc}"
         except Exception as exc:  # noqa: BLE001
-            return q, None, f"unexpected: {exc}"
+            return cid, None, f"unexpected: {exc}"
 
     with ThreadPoolExecutor(max_workers=_YOUTUBE_MAX_WORKERS) as pool:
-        futures = {pool.submit(_search, q): q for q in deduped}
+        futures = {pool.submit(_search, cid, name): cid for cid, name in search_targets}
         for fut in as_completed(futures):
-            q = futures[fut]
+            cand_id = futures[fut]
             try:
-                _q, videos, err = fut.result()
+                _cid, videos, err = fut.result()
             except Exception as exc:  # noqa: BLE001
-                err     = f"future exception: {exc}"
-                videos  = None
+                err    = f"future exception: {exc}"
+                videos = None
             if err:
                 if "quota_exceeded" in err:
                     quota_skipped = True
@@ -229,37 +183,38 @@ def url_discovery_youtube_reactions_node(
                     api_unavailable = True
                 errors.append({
                     "node":      "url_discovery_youtube_reactions_node",
-                    "error":     f"query={q[:60]}: {err}",
+                    "error":     f"candidate={cand_id}: {err}",
                     "timestamp": datetime.now(timezone.utc).isoformat(),
                 })
                 continue
             if not videos:
                 continue
 
-            metas       = query_meta.get(q, [])
-            feature_ids = sorted({fid for fid, _ in metas if fid})
-            cand_id     = deduped[q]
-
-            # viewCount + commentCount 임계치 필터
+            # viewCount + commentCount 임계치 필터 + intra-candidate video_id dedup
+            seen_ids: set[str] = set()
             for v in videos:
                 if v.get("view_count", 0) < YOUTUBE_MIN_VIEW_COUNT:
                     continue
                 if v.get("comment_count", 0) < YOUTUBE_MIN_COMMENT_COUNT:
                     continue
+                vid = v["video_id"]
+                if vid in seen_ids:
+                    continue    # 동일 영상 중복 제거 (intra-candidate)
+                seen_ids.add(vid)
                 results_by_candidate.setdefault(cand_id, []).append({
                     "url":              v["url"],
-                    "video_id":         v["video_id"],
+                    "video_id":         vid,
                     "channel_id":       v["channel_id"],
                     "channel_title":    v["channel_title"],
                     "title":            v.get("title", ""),
                     "page_title":       v.get("title", ""),       # page_meta_collect 호환
-                    "meta_description": v.get("description", ""),  # 동일
+                    "meta_description": v.get("description", ""),
                     "view_count":       v["view_count"],
                     "like_count":       v["like_count"],
                     "comment_count":    v["comment_count"],
                     "published_at":     v.get("published_at", ""),
                     "origin":           "youtube_reactions",
-                    "feature_ids":      feature_ids,                # v0.10.19.1
+                    "feature_ids":      [],   # hint 폐기 — feature_mapping 노드 제거 (Phase 3)
                     "matched_report_types": ["reaction_insight"],
                 })
 
