@@ -166,10 +166,10 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
     own_product_name = own_product.get("name") or own_product.get("product_name") or ""
 
     # ── Step 1: carry-through (official_sources → origin="official_source") ──
-    # candidate_id → list of {url, origin, primary} 기록. primary URL 1개씩.
+    # candidate_id → list of {url, origin, primary} 기록. 복수 공식 URL 운반.
     carried_by_candidate: dict[str, list[dict]] = {}
-    # candidate_id → official_domain (host) — Step 2 site: 검색에 사용
-    domain_by_candidate: dict[str, str] = {}
+    # candidate_id → 공식 도메인 집합 (복수 도메인 허용) — Step 2 site: 검색에 사용
+    domain_by_candidate: dict[str, set[str]] = {}
 
     for src in official_sources:
         cid   = src.get("candidate_id", "")
@@ -178,8 +178,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
             continue
 
         if stype == "official":
-            if src.get("validated") and src.get("primary_url"):
-                url = src["primary_url"]
+            if not src.get("validated"):
+                continue
+            # official_urls(복수, 신규) 우선, 부재 시 primary_url 단일 (하위호환)
+            official_urls = [u for u in (src.get("official_urls") or []) if u] or (
+                [src["primary_url"]] if src.get("primary_url") else []
+            )
+            for url in official_urls:
                 carried_by_candidate.setdefault(cid, []).append({
                     "url":                  url,
                     "page_title":           "",
@@ -190,7 +195,7 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
                 })
                 domain = _extract_official_domain(url)
                 if domain:
-                    domain_by_candidate.setdefault(cid, domain)
+                    domain_by_candidate.setdefault(cid, set()).add(domain)
         elif stype == "reference":
             # reference 의 reference_sources 중 validated 항목만 carry. domain 추출은 생략
             # (reference candidate 는 공식 도메인 부재 → site: 검색 대상 아님)
@@ -219,18 +224,19 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
     # ── Step 3: site: 한정 검색 (candidate × domain × sub-page 키워드) ──────
     # (candidate_id, query, subpage_category) 작업 목록
     subpage_tasks: list[tuple[str, str, str]] = []
-    for cid, official_domain in domain_by_candidate.items():
+    for cid, official_domains in domain_by_candidate.items():
         cand_name = name_map.get(cid) or name_map.get("own", "")
         if not cand_name:
             continue
-        for keyword in _OFFICIAL_SUBPAGE_KEYWORDS:
-            query = _build_subpage_query(cand_name, official_domain, keyword)
-            subpage_tasks.append((cid, query, keyword))
+        for official_domain in sorted(official_domains):
+            for keyword in _OFFICIAL_SUBPAGE_KEYWORDS:
+                query = _build_subpage_query(cand_name, official_domain, keyword)
+                subpage_tasks.append((cid, query, keyword))
 
     # source_hint="official" hint 가 있으면 site: 부착하여 추가 보강
     # (D33 옵션 a: domain_taxonomy 의 LLM 추천 hint 도 활용)
     for query_template, feature_id, rt in hints_with_meta:
-        for cid, official_domain in domain_by_candidate.items():
+        for cid, official_domains in domain_by_candidate.items():
             cand_name = name_map.get(cid) or name_map.get("own", "")
             if not cand_name:
                 continue
@@ -239,13 +245,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
             )
             if not base_query or "{" in base_query:
                 continue
-            # hint 자체에 site: 가 있으면 그대로 사용, 없으면 부착
-            if "site:" not in base_query.lower():
-                full_query = f"{base_query} site:{official_domain}"
+            # hint 자체에 site: 가 있으면 그대로 사용, 없으면 도메인별로 부착
+            if "site:" in base_query.lower():
+                subpage_tasks.append((cid, base_query, "hint"))
             else:
-                full_query = base_query
-            # subpage_category = "hint" (LLM 추천 hint 기반임을 표시)
-            subpage_tasks.append((cid, full_query, "hint"))
+                for official_domain in sorted(official_domains):
+                    subpage_tasks.append(
+                        (cid, f"{base_query} site:{official_domain}", "hint"))
 
     # 동일 쿼리 dedup
     stage_dedup: dict[str, tuple[str, str, str]] = {}
@@ -276,13 +282,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
         futures = [pool.submit(_search, *t) for t in stage_dedup.values()]
         for fut in as_completed(futures):
             cid, results, keyword = fut.result()
-            domain = domain_by_candidate.get(cid, "")
+            domains = domain_by_candidate.get(cid) or set()
             for r in results:
                 url = (r.get("url") or "").strip()
                 if not url:
                     continue
-                # site: 누락 대비 host suffix 재검증
-                if domain and not _host_endswith(url, domain):
+                # site: 누락 대비 host suffix 재검증 (복수 공식 도메인 ANY 매칭)
+                if domains and not _host_endswith_any(url, domains):
                     continue
                 subpage_results.setdefault(cid, []).append({
                     "url":              url,
@@ -384,3 +390,12 @@ def _host_endswith(url: str, domain: str) -> bool:
     if host.startswith("www."):
         host = host[4:]
     return host == domain or host.endswith("." + domain)
+
+
+def _host_endswith_any(url: str, domains) -> bool:
+    """URL host 가 허용 도메인 집합 중 하나라도 매칭하는지 (복수 공식 도메인 게이트).
+
+    한 상품이 복수 공식 도메인(예: tossbank.com + toss.im)을 가질 수 있으므로,
+    단일 도메인 검사 _host_endswith 를 집합으로 확장한 ANY 매칭 헬퍼.
+    """
+    return any(_host_endswith(url, d) for d in (domains or ()) if d)

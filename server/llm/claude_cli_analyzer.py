@@ -64,6 +64,7 @@ class ClaudeCodeCliAnalyzer:
         prompt: str,
         output_schema: dict,
         max_retries: int = 3,
+        repair=None,
     ) -> dict:
         """
         프롬프트를 실행하고 output_schema를 만족하는 dict를 반환한다.
@@ -81,6 +82,9 @@ class ClaudeCodeCliAnalyzer:
             LLM 출력이 만족해야 하는 JSON Schema.
         max_retries : int
             schema 검증 실패 시 최대 재시도 횟수.
+        repair : callable | None
+            validate 직전 파싱 결과에 적용할 구조 보정 콜백 (parsed -> parsed).
+            ClaudeApiAnalyzer 와 동일한 인터페이스 패리티용.
 
         Returns
         -------
@@ -120,6 +124,8 @@ class ClaudeCodeCliAnalyzer:
 
                 raw_output = self._invoke_cli(full_prompt)
                 parsed     = self._extract_json(raw_output)
+                if repair is not None:
+                    parsed = repair(parsed)
                 jsonschema.validate(parsed, output_schema)
                 if attempt > 1:
                     logger.info("call_with_schema: %d회 시도에 성공", attempt)

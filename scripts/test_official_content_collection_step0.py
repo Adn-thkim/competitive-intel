@@ -13,6 +13,7 @@ import copy
 
 from server.graph.nodes.official_content_collection_node import (
     _MAX_URLS_PER_PAIR,
+    _official_domain_map,
     build_extraction_targets,
 )
 
@@ -302,3 +303,49 @@ class TestPriorityCapDeterminism:
         fees_entry = next(u for u in target["urls"]
                           if u["url"] == "https://www.travelwallet.com/fees")
         assert fees_entry["feature_ids"] == ["feat_atm_limit", "feat_exchange_fee"]
+
+
+# ─── 복수 공식 도메인 허용 목록 (multi-domain allow-list) ─────────────────────
+
+class TestMultiOfficialDomain:
+    def test_domain_map_backward_compat_single(self):
+        """official_urls 부재 시 primary_url 단일 도메인으로 폴백 (집합 1원소)."""
+        dmap = _official_domain_map(_base_state()["official_sources"])
+        assert dmap["comp_travel_wallet"] == {"travelwallet.com"}
+        assert dmap["own_toss_travel"] == {"toss.im"}
+
+    def test_domain_map_multi_from_official_urls(self):
+        """official_urls 가 복수 도메인이면 집합으로 산출."""
+        sources = [
+            {"candidate_id": "own_toss_travel", "source_type": "official",
+             "validated": True, "primary_url": "https://toss.im/tossfeed",
+             "official_urls": ["https://toss.im/tossfeed",
+                               "https://www.tossbank.com/articles/fx2"]},
+        ]
+        assert _official_domain_map(sources)["own_toss_travel"] == {"toss.im", "tossbank.com"}
+
+    def test_additional_url_on_second_official_domain_passes(self):
+        """2차 공식 도메인(tossbank.com) 위의 additional_url 이 게이트를 통과한다.
+
+        단일 도메인(primary=toss.im) 구조였다면 차단됐을 URL — 회귀 방지 핵심.
+        """
+        state = _base_state()
+        # own 을 게이트 대상으로: 복수 공식 도메인 + 2차 도메인 위 additional_url 부여
+        for s in state["official_sources"]:
+            if s["candidate_id"] == "own_toss_travel":
+                s["official_urls"] = ["https://toss.im/travel",
+                                      "https://www.tossbank.com"]
+        cov_own = state["analysis_features"][0]["candidate_coverage"][1]
+        cov_own["coverage"] = "partial"
+        cov_own["additional_urls"] = [
+            {"url": "https://www.tossbank.com/articles/fx2",   # 2차 공식 도메인
+             "validated": True, "http_status": 200,
+             "source_origin": "official_subpage"},
+            {"url": "https://thirdparty.com/toss-review",      # 제3자 → 차단 유지
+             "validated": True, "http_status": 200,
+             "source_origin": "official_subpage"},
+        ]
+        targets = build_extraction_targets(state)
+        urls = [u["url"] for u in _target_of(targets, "own_toss_travel")["urls"]]
+        assert "https://www.tossbank.com/articles/fx2" in urls
+        assert "https://thirdparty.com/toss-review" not in urls

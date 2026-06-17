@@ -100,6 +100,7 @@ class ClaudeApiAnalyzer:
         prompt: str,
         output_schema: dict,
         max_retries: int = 3,
+        repair=None,
     ) -> dict:
         """프롬프트를 실행하고 output_schema 를 만족하는 dict 를 반환한다.
 
@@ -114,6 +115,11 @@ class ClaudeApiAnalyzer:
             LLM 출력이 만족해야 하는 JSON Schema.
         max_retries : int
             schema 검증 실패 시 최대 재시도 횟수.
+        repair : callable | None
+            validate 직전 파싱 결과에 적용할 구조 보정 콜백 (parsed -> parsed).
+            모델이 래퍼 객체를 생략하고 배열만 반환하는 등의 구조 일탈을, 호출
+            지점이 아는 도메인 정보로 정규화할 때 사용한다. 내용 날조가 아니라
+            구조만 손대야 하며, 보정 후에도 schema 위반이면 정상적으로 재시도·실패한다.
 
         Returns
         -------
@@ -134,21 +140,13 @@ class ClaudeApiAnalyzer:
         rate_limit_waits = 0
         while attempt <= max_retries:
             try:
-                # [v0.12.3 수정] 재시도에도 schema 재주입 — API 호출은 무상태(매 호출
-                # 독립 메시지)라 "앞서 제시된 schema" 가 재시도 컨텍스트에 존재하지
-                # 않는다. schema + error feedback 을 함께 전달한다.
-                if attempt == 1:
-                    full_prompt = self._build_schema_prompt(prompt, output_schema)
-                else:
-                    full_prompt = (
-                        self._build_schema_prompt(prompt, output_schema)
-                        + f"\n\n[이전 시도 {attempt - 1}회 오류: {str(last_error)[:300]}]\n"
-                        "위 오류를 수정해, 위 JSON Schema 를 정확히 만족하는 JSON 만 "
-                        "다시 반환하라."
-                    )
-
-                raw_output = self._invoke_api(full_prompt)
-                parsed     = self._extract_json(raw_output)
+                # tool use 강제 호출 — JSON parse 에러 원천 차단 (v0.14)
+                # _invoke_api_with_tool 은 block.input(dict)을 직접 반환하므로
+                # json.JSONDecodeError 가 발생하지 않는다.
+                parsed = self._invoke_api_with_tool(prompt, output_schema)
+                parsed = self._fix_string_encoded_fields(parsed, output_schema)
+                if repair is not None:
+                    parsed = repair(parsed)
                 jsonschema.validate(parsed, output_schema)
                 if attempt > 1 or rate_limit_waits > 0:
                     logger.info("ClaudeApiAnalyzer: 성공 (schema 시도 %d, 429 대기 %d회)",
@@ -171,7 +169,7 @@ class ClaudeApiAnalyzer:
                 time.sleep(sleep_s)
                 continue   # attempt 유지
 
-            except (json.JSONDecodeError, jsonschema.ValidationError) as exc:
+            except jsonschema.ValidationError as exc:
                 last_error = exc
                 logger.warning(
                     "ClaudeApiAnalyzer: schema 검증 실패 (시도 %d/%d) — %s",
@@ -195,8 +193,114 @@ class ClaudeApiAnalyzer:
         )
 
     # ── 내부 헬퍼 ─────────────────────────────────────────────────────────────
+    @staticmethod
+    def _sanitize_schema_for_tool(schema: dict) -> dict:
+        """Anthropic tool_use input_schema 호환 형태로 스키마를 정규화한다.
+
+        처리 규칙:
+        - 최상위 $schema·$id 제거 (Anthropic 미지원)
+        - type 배열 (예: ["number", "null"]) → anyOf 로 변환 (재귀)
+        """
+        import copy
+
+        def _normalize(node: object) -> object:
+            if isinstance(node, dict):
+                result = {}
+                for k, v in node.items():
+                    if k in ("$schema", "$id"):
+                        continue  # 최상위·중첩 모두 제거
+                    if k == "type" and isinstance(v, list):
+                        # ["number", "null"] → anyOf: [{type: number}, {type: null}]
+                        result["anyOf"] = [{"type": t} for t in v]
+                    else:
+                        result[k] = _normalize(v)
+                return result
+            if isinstance(node, list):
+                return [_normalize(item) for item in node]
+            return node
+
+        return _normalize(copy.deepcopy(schema))
+
+    @staticmethod
+    def _fix_string_encoded_fields(data, schema: dict):
+        """tool_use 응답이 JSON 문자열로 인코딩된 경우 파싱 (최상위 + 최상위 필드).
+
+        모델이 시스템 프롬프트의 "JSON 반환" 지시를 따르면서 tool_use 와 충돌,
+        구조화 값 대신 JSON 문자열을 제출하는 현상을 방어한다. 두 층위를 처리한다:
+          (1) 출력 전체가 통째로 JSON 문자열 한 덩어리인 경우 → 먼저 디코딩.
+              (official_content_collection own_* candidate 에서 결정론적 재현 —
+               배열/객체가 아니라 들여쓰기된 JSON 문자열로 반환되어 schema 검증 실패.)
+          (2) 최상위 array·object 필드가 JSON 문자열로 이중 인코딩된 경우 → 필드 단위 파싱.
+        중첩 재귀는 과도한 방어 — YAGNI. 파싱 실패 시 원값 유지 (jsonschema 에서 정상 오류 처리).
+        """
+        import json as _json
+
+        # (1) 최상위가 통째로 JSON 문자열로 직렬화된 경우 디코딩.
+        if isinstance(data, str):
+            try:
+                data = _json.loads(data)
+            except Exception:
+                return data
+        if not isinstance(data, dict):
+            return data
+        for key, field_schema in schema.get("properties", {}).items():
+            if key not in data:
+                continue
+            val = data[key]
+            if isinstance(val, str) and field_schema.get("type") in ("array", "object"):
+                try:
+                    data[key] = _json.loads(val)
+                except Exception:
+                    pass  # 파싱 실패 → 원값 유지, jsonschema 에서 오류 처리
+        return data
+
+    def _invoke_api_with_tool(self, prompt: str, output_schema: dict) -> dict:
+        """Anthropic tool_use 강제 호출 — schema-guaranteed dict 반환 (v0.14).
+
+        tool_choice={"type":"tool","name":"output"} 로 API 가 반드시 해당 tool 을
+        호출하도록 강제한다. block.input 은 이미 Python dict 이므로
+        json.JSONDecodeError 가 원천 차단된다.
+
+        기존 _invoke_api + _extract_json + _build_schema_prompt 경로를 대체한다.
+        """
+        tool_def = {
+            "name":         "output",
+            "description":  "요청된 구조화 결과를 반환한다.",
+            "input_schema": self._sanitize_schema_for_tool(output_schema),
+        }
+        kwargs: dict = {
+            "model":       self.model,
+            "max_tokens":  self.max_tokens,
+            "temperature": 0,
+            "tools":       [tool_def],
+            "tool_choice": {"type": "tool", "name": "output"},
+            "messages":    [{"role": "user", "content": prompt}],
+        }
+        if self.system_prompt:
+            # tool_use 모드에서 시스템 프롬프트의 "JSON 반환" 지시와의 충돌 방지.
+            # 파일 내용은 그대로 두어 캐시 키(system_prompt_sha256)에 영향 없음.
+            _TOOL_USE_OVERRIDE = (
+                "\n\n[Tool Use 모드 지시] 위에서 JSON 텍스트를 반환하라는 지시는 무시하십시오. "
+                "응답은 반드시 'output' 도구의 파라미터를 직접 채워 제출하십시오. "
+                "extracted_features, conflicts 등 배열 필드를 JSON 문자열로 직렬화하지 말고 "
+                "배열 값 그대로 설정하십시오. "
+                "출력 스키마의 최상위가 객체이면 반드시 그 객체 전체(모든 required 키)를 채워 "
+                "제출하고, 내부 배열 필드 하나만 단독으로 반환하지 마십시오. "
+                "출력 전체나 일부를 JSON 문자열로 직렬화하지 말고, 도구 파라미터의 "
+                "구조화된 객체·배열 값 그대로 제출하십시오."
+            )
+            kwargs["system"] = self.system_prompt + _TOOL_USE_OVERRIDE
+        response = self._client.messages.create(**kwargs)
+        for block in response.content:
+            if getattr(block, "type", "") == "tool_use" and block.name == "output":
+                return block.input   # dict — JSON 파싱 불필요
+        raise RuntimeError(
+            "tool_use 블록이 응답에 없습니다 — stop_reason="
+            f"{getattr(response, 'stop_reason', '?')}"
+        )
+
     def _invoke_api(self, prompt: str) -> str:
-        """anthropic.messages.create 호출. temperature=0 결정론적."""
+        """text 모드 API 호출 (레거시 — _invoke_api_with_tool 대체)."""
         kwargs = {
             "model":       self.model,
             "max_tokens":  self.max_tokens,
@@ -205,9 +309,7 @@ class ClaudeApiAnalyzer:
         }
         if self.system_prompt:
             kwargs["system"] = self.system_prompt
-
         response = self._client.messages.create(**kwargs)
-        # response.content 는 ContentBlock 리스트. text 블록만 concat.
         text_parts = [
             block.text for block in response.content
             if hasattr(block, "text") and isinstance(block.text, str)

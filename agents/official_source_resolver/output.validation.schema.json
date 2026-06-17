@@ -27,7 +27,12 @@
           },
           "selected_url": {
             "type": ["string", "null"],
-            "description": "공식 URL로 판단된 URL. 적합한 후보 없으면 null."
+            "description": "공식 URL로 판단된 대표(primary) URL. 적합한 후보 없으면 null."
+          },
+          "official_urls": {
+            "type": "array",
+            "items": { "type": "string" },
+            "description": "candidates 중 동일 브랜드의 1차(공식) 출처로 판단되는 URL 전부. 한 상품이 복수 공식 도메인(예: tossbank.com + toss.im)을 가질 때 사용. selected_url 포함. 없거나 불확실하면 [] 또는 [selected_url]."
           },
           "is_official": {
             "type": "boolean",

@@ -101,7 +101,7 @@ from server.graph.nodes.feature_url_mapper_node import (
 from server.graph.nodes.url_discovery_official_node import (
     _OFFICIAL_SUBPAGE_KEYWORDS,
     _extract_official_domain,
-    _host_endswith,
+    _host_endswith_any,
 )
 
 logger = logging.getLogger(__name__)
@@ -161,25 +161,35 @@ _TOKEN_SPLIT_RE = re.compile(r"[\s/·,()\[\]{}<>~%:;'\"!?．。]+")
 
 # ─── Step 0 순수 함수 ────────────────────────────────────────────────────────
 
-def _official_domain_map(official_sources: list[dict]) -> dict[str, str]:
-    """candidate_id → official_domain (validated official primary_url 기준).
+def _official_urls_of(src: dict) -> list[str]:
+    """official source 의 검증된 공식 URL 목록 (복수 도메인 지원, 하위호환).
 
-    url_discovery_official_node Step 1 과 동일 규칙. reference source는
-    공식 도메인이 아니므로 additional_urls 게이트 기준에서 제외한다.
+    신규 필드 `official_urls`(검증된 공식 URL 전부, primary 포함)를 우선 사용하고,
+    부재 시(기존 캐시·데이터) `primary_url` 단일로 폴백한다.
     """
-    domains: dict[str, str] = {}
+    urls = src.get("official_urls")
+    if isinstance(urls, list) and urls:
+        return [u for u in urls if u]
+    primary = src.get("primary_url")
+    return [primary] if primary else []
+
+
+def _official_domain_map(official_sources: list[dict]) -> dict[str, set[str]]:
+    """candidate_id → 허용 공식 도메인 집합 (validated official 기준).
+
+    한 상품이 복수 공식 도메인(예: tossbank.com + toss.im)을 가질 수 있으므로
+    집합으로 산출한다. reference source는 공식 도메인이 아니므로 게이트 기준에서 제외.
+    """
+    domains: dict[str, set[str]] = {}
     for src in official_sources or []:
-        if (
-            src.get("source_type") == "official"
-            and src.get("validated")
-            and src.get("primary_url")
-        ):
+        if src.get("source_type") == "official" and src.get("validated"):
             cid = src.get("candidate_id", "")
             if not cid:
                 continue
-            domain = _extract_official_domain(src["primary_url"])
-            if domain:
-                domains.setdefault(cid, domain)
+            for url in _official_urls_of(src):
+                domain = _extract_official_domain(url)
+                if domain:
+                    domains.setdefault(cid, set()).add(domain)
     return domains
 
 
@@ -191,7 +201,7 @@ def _subpage_tier(subpage_category: str, feature_text: str) -> int:
 
 
 def _gate_coverage_urls(
-    cov: dict, official_domain: str, feature_text: str
+    cov: dict, official_domains: set[str], feature_text: str
 ) -> list[tuple[int, dict]]:
     """단일 candidate_coverage 항목에서 (tier, url_entry) 목록 산출 (§4-3 게이트).
 
@@ -227,7 +237,7 @@ def _gate_coverage_urls(
         if au.get("source_origin", "") != _ADDITIONAL_SOURCE_ORIGIN:
             continue
         # official_domain 미확정 candidate는 보수적으로 차단 (모듈 docstring)
-        if not official_domain or not _host_endswith(url, official_domain):
+        if not official_domains or not _host_endswith_any(url, official_domains):
             continue
         gated.append((_TIER_ADDITIONAL, {
             "url":              url,
@@ -339,7 +349,7 @@ def build_extraction_targets(state: dict) -> list[dict]:
 
             # 쌍당 상한 5: 이 (fid × cid) 쌍의 게이트 통과 URL 중 (tier, url) 상위만 채택
             gated = sorted(
-                _gate_coverage_urls(cov, domain_map.get(cid, ""), feature_text),
+                _gate_coverage_urls(cov, domain_map.get(cid) or set(), feature_text),
                 key=lambda te: (te[0], te[1]["url"]),
             )[:_MAX_URLS_PER_PAIR]
 
@@ -667,6 +677,31 @@ def _payload_cache_input(payload: dict) -> dict:
     }
 
 
+def _wrap_bare_features(candidate_id: str):
+    """call_with_schema repair 훅 — 래퍼 객체 누락 복구.
+
+    모델이 최상위 객체(candidate_id·extracted_features·profile_summary·conflicts)를
+    생략하고 `extracted_features` 배열만 단독 반환하는 구조 일탈만 정규 객체로 감싼다.
+    (출력이 JSON 문자열 한 덩어리로 직렬화된 경우는 어댑터의 _fix_string_encoded_fields
+    가 repair 보다 먼저 배열로 디코딩하므로, 이 훅은 배열만 처리하면 된다.)
+    배열 항목의 내용은 손대지 않으므로, 항목이 item schema(feat_ 패턴·required 등)를
+    위반하면 이후 jsonschema.validate 가 정상적으로 실패시킨다(값 날조 방지).
+    """
+    def _repair(parsed):
+        if isinstance(parsed, list):
+            logger.warning(
+                "official_content_collection: bare array 응답 구조 복구 "
+                "(candidate=%s, items=%d)", candidate_id, len(parsed))
+            return {
+                "candidate_id":       candidate_id,
+                "extracted_features": parsed,
+                "profile_summary":    "",
+                "conflicts":          [],
+            }
+        return parsed
+    return _repair
+
+
 def _load_llm_assets() -> tuple[str, dict]:
     agent_dir = AGENTS_DIR / _LLM_AGENT_ID
     system_prompt = _load_text(agent_dir / "system_prompt_kr.md")
@@ -754,7 +789,8 @@ def run_llm_extraction(
                 + "\n```"
             )
             stats["llm_calls"] += 1
-            output = analyzer.call_with_schema(prompt, output_schema)
+            output = analyzer.call_with_schema(
+                prompt, output_schema, repair=_wrap_bare_features(cid))
             store_agent_output(
                 agent_id=_LLM_AGENT_ID, cache_input=cache_input,
                 context=context, output=output, logger=logger)

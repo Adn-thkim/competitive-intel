@@ -201,6 +201,11 @@ class DomainAnalysisState(TypedDict, total=False):
     # ── official_source_resolver_node 출력 ──────────────────────────────────
     domain_discovery_results: list[dict[str, Any]]
     page_validation_results:  list[dict[str, Any]]
+    # official_sources 항목(official 유형):
+    #   {candidate_id, source_type:"official", primary_url, official_urls(복수 공식 URL,
+    #    primary 포함 — 복수 공식 도메인 허용 목록의 근거), validated, fallback_urls, ...}
+    #   official_urls 부재 시 소비측(_official_domain_map / url_discovery / feature_url_mapper)은
+    #   primary_url 단일로 폴백한다(하위호환).
     official_sources:          list[dict[str, Any]]
     source_validation:         list[dict[str, Any]]
 
@@ -250,6 +255,14 @@ class DomainAnalysisState(TypedDict, total=False):
     v0.10.19 단계에서는 스켈레톤 (빈 dict). v0.10.20 에서 YouTube Data API v3 실 통합.
     각 영상 항목: {url, video_id, channel_id, channel_title, view_count, like_count,
                   comment_count, published_at, origin="youtube_reactions", matched_report_types}.
+    """
+
+    video_candidate_index: dict[str, list[str]]
+    """
+    cross_reference_node 산출 (youtube_collection_redesign.md Phase 4).
+    video_id → [candidate_ids] 역인덱스. owned 채널 필터 통과 영상만 포함.
+    youtube_reaction_collection_node 가 영상당 1회 수집 + 댓글 multi-tagging 에 사용.
+    구조: {"VIDEO_ID": ["comp_xxx", "comp_yyy"], ...}
     """
 
     owned_channel_urls_by_candidate: dict[str, list[dict[str, Any]]]
@@ -312,8 +325,9 @@ class DomainAnalysisState(TypedDict, total=False):
 
     youtube_reactions_raw_features: list[dict[str, Any]]
     """
-    feature_mapping_youtube_reactions_node 산출. reaction_insight 의 feature × candidate ×
-    YouTube 영상 커버리지. view_count·like_count·comment_count 메타 보존.
+    [DEPRECATED — youtube_collection_redesign.md Phase 3]
+    feature_mapping_youtube_reactions_node 산출. 해당 노드 폐기 후 항상 빈 리스트.
+    순서 6 구현 완료 시 본 키 삭제 예정.
     """
 
     owned_channel_raw_features: list[dict[str, Any]]
