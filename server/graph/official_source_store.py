@@ -29,7 +29,10 @@ data/cache/official_sources.json
       "source_type": "official",
       "brand": "...",
       "product_name": "...",
-      "primary_url": "...",
+      "primary_url": "...",                 // 대표(primary) 공식 URL
+      "official_urls": ["...", "..."],      // 복수 공식 도메인 허용 목록(검증된 공식 URL 전부, primary 포함).
+                                            //   부재(구 스키마) 시 소비측은 [primary_url] 로 폴백.
+                                            //   resolver 가 이 필드 없는 official 엔트리는 캐시 미스로 재해석.
       "http_status": 200,
       "validated": true,
       "llm_selected": true,

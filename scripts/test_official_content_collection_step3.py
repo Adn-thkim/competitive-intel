@@ -73,7 +73,7 @@ class TestAssemble:
     def test_llm_failure_candidate_filled_not_found(self):
         """LLM 실패 candidate 도 not_found 행으로 유지 (§7)."""
         class BoomAnalyzer(FakeAnalyzer):
-            def call_with_schema(self, prompt, output_schema):
+            def call_with_schema(self, prompt, output_schema, **kwargs):
                 raise RuntimeError("API down")
 
         results, errors, targets = _targets_and_results(analyzer=BoomAnalyzer())
@@ -84,8 +84,8 @@ class TestAssemble:
     def test_needs_manual_review_threshold(self):
         """explicit 비율 < 50% 또는 conflicts 존재 시 수동 검토 플래그."""
         class PartialAnalyzer(FakeAnalyzer):
-            def call_with_schema(self, prompt, output_schema):
-                out = super().call_with_schema(prompt, output_schema)
+            def call_with_schema(self, prompt, output_schema, **kwargs):
+                out = super().call_with_schema(prompt, output_schema, **kwargs)
                 for f in out["extracted_features"]:
                     f["extraction_status"] = "partial"
                 return out

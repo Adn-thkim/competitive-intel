@@ -37,6 +37,7 @@ import requests as req_lib
 
 from server.config import (
     AGENTS_DIR,
+    BASE_DIR,
     BRAVE_SEARCH_API_KEY,
     CLI_MODEL,
     CLI_TIMEOUT,
@@ -78,6 +79,13 @@ _USER_AGENT = (
 _MAX_WORKERS = 8   # 병렬 HTTP 검증 스레드 수
 
 _KNOWN_DOMAINS_CACHE: dict | None = None
+_BLOCKLIST_CACHE: set[str] | None = None
+_BLOCKLIST_QUERY_MAX = 6   # 'NOT site:' 부착 상한 (재현율 보호; 초과분은 host 재검증)
+_BASE_QUERY_COUNT    = 2    # _build_brave_queries 의 기본 쿼리 수(한/영) — site: 보조와 구분용
+_SITE_BOOST_MAX      = 4    # known_domains 도메인별 site: 보조 쿼리 상한
+# official_urls 산출 로직 버전. 로직이 바뀌면 올려 기존 캐시 엔트리를 재해석시킨다.
+# v1: LLM official_urls 만. v2: + known_domains 클러스터 보강(fast-path 포함).
+_OFFICIAL_URLS_LOGIC_V = 2
 
 
 # ─────────────────────────────────────────────────── 공개 노드 함수 ──────────
@@ -152,7 +160,16 @@ def official_source_resolver_node(state: DomainAnalysisState, config: dict | Non
         cid = item["candidate_id"]
         t0 = time.time()
         cached = store.get(cid, ttl_days=OFFICIAL_SOURCE_STORE_TTL_DAYS)
-        if cached and _revalidate_cached_source(cached):
+        # 자동 마이그레이션: official_urls 산출 로직 버전이 현재와 다른 official 엔트리는
+        # 캐시 미스로 처리해 재해석을 강제한다. official_urls 필드가 아예 없는 구 데이터
+        # (official_urls_v 부재)뿐 아니라, v1(클러스터 보강 전, 단일 도메인 고착) 엔트리도
+        # 포함한다 — 예: own_토스트래블카드=toss.im 단일 → v2 재해석으로 tossbank.com 회수.
+        needs_migration = (
+            cached is not None
+            and cached.get("source_type") == "official"
+            and cached.get("official_urls_v") != _OFFICIAL_URLS_LOGIC_V
+        )
+        if cached and not needs_migration and _revalidate_cached_source(cached):
             elapsed_ms = int((time.time() - t0) * 1000)
             # 메타 필드 제거 후 정식 source dict로 반환
             cached_clean = {k: v for k, v in cached.items() if not k.startswith("_")}
@@ -498,6 +515,173 @@ def _host_matches_domain(host: str, domain: str) -> bool:
     return host == domain or host.endswith("." + domain)
 
 
+# ─────────────── 부정 차단 목록(backstop) — 수집 단계 원천 차단 (①②) ──────────
+
+def _load_blocklist() -> set[str]:
+    """blocklist.json 의 hosts 를 로드 (1회 캐시). www. 제거·소문자 정규화."""
+    global _BLOCKLIST_CACHE
+    if _BLOCKLIST_CACHE is not None:
+        return _BLOCKLIST_CACHE
+    path = AGENTS_DIR / "official_source_resolver" / "blocklist.json"
+    data = _load_json(path) or {}
+    hosts = data.get("hosts", []) if isinstance(data, dict) else []
+    cleaned: set[str] = set()
+    for h in hosts:
+        if isinstance(h, str) and h.strip():
+            v = h.strip().lower()
+            cleaned.add(v[4:] if v.startswith("www.") else v)
+    _BLOCKLIST_CACHE = cleaned
+    return _BLOCKLIST_CACHE
+
+
+def _host_blocklisted(url: str) -> bool:
+    """URL host 가 차단 목록의 어느 항목과 매칭(정확/서브도메인)하는지."""
+    host = _host_of(url)
+    if not host:
+        return False
+    return any(_host_matches_domain(host, b) for b in _load_blocklist())
+
+
+def _blocklist_query_suffix() -> str:
+    """Brave 쿼리에 부착할 'NOT site:' 제외 연산자 (재현율 보호 위해 상위 N개만).
+
+    초과분은 _discover_with_brave 의 host 재검증이 받아낸다. 빈 목록이면 빈 문자열.
+    """
+    hosts = sorted(_load_blocklist())[:_BLOCKLIST_QUERY_MAX]
+    return "".join(f" NOT site:{h}" for h in hosts)
+
+
+# ─────────────── 양성 게이트(공식성 보증) — 조립 단계 (④) ─────────────────────
+
+_BRAND_TOKEN_SPLIT = re.compile(r"[\s/·,()\[\]{}<>~%:;'\"!?.\-_]+")
+
+
+def _brand_tokens(item: dict) -> set[str]:
+    """brand·product_name 에서 2자 이상 토큰 추출 (소문자). 라틴 브랜드 도메인 매칭용."""
+    toks: set[str] = set()
+    for field in (item.get("brand", ""), item.get("product_name", "")):
+        for t in _BRAND_TOKEN_SPLIT.split((field or "").lower()):
+            if len(t) >= 2:
+                toks.add(t)
+    return toks
+
+
+def _host_token_match(host: str, tokens: set[str]) -> bool:
+    """host 또는 등록가능 도메인 첫 레이블에 브랜드 토큰이 포함되는지."""
+    if not host:
+        return False
+    label = host.split(".")[0]
+    return any(t in host or t in label for t in tokens)
+
+
+def _known_domains_for_item(item: dict) -> list[str]:
+    """item 의 brand/product_name/토큰을 known_domains 키로 조회한 공식 도메인 목록.
+
+    site: 보조 쿼리 생성용. 브랜드 문자열 표기 차이에 강건하도록 다중 키를 시도한다
+    (예: brand='토스' → ['toss.im','tossbank.com','tossinvest.com']).
+    """
+    kd = _load_known_domains()
+    keys = {
+        deterministic_normalize(item.get("brand", "") or ""),
+        deterministic_normalize(item.get("product_name", "") or ""),
+    }
+    for t in _brand_tokens(item):
+        keys.add(deterministic_normalize(t))
+    domains: list[str] = []
+    seen: set[str] = set()
+    for k in keys:
+        if not k:
+            continue
+        for d in kd.get(k, []):
+            if d not in seen:
+                seen.add(d)
+                domains.append(d)
+    return domains
+
+
+def _known_cluster_for_host(host: str) -> set[str]:
+    """host 가 속한 known_domains 클러스터(같은 브랜드의 공식 도메인 목록) 반환.
+
+    primary_url 의 host 가 큐레이션된 브랜드 묶음(예: 토스 → toss.im·tossbank.com·
+    tossinvest.com)에 속하면 그 묶음 전체를 허용 근거로 삼는다. 브랜드 문자열
+    정규화에 의존하지 않으므로(primary host 기준), 브랜드명-도메인 불일치에 강건하다.
+    """
+    if not host:
+        return set()
+    for domains in _load_known_domains().values():
+        if any(_host_matches_domain(host, d) for d in domains):
+            return set(domains)
+    return set()
+
+
+def _filter_official_urls(
+    extra_urls: list[str], item: dict, primary_url: str | None
+) -> tuple[list[str], list[str]]:
+    """양성 게이트: 추가 공식 후보 URL 중 공식성이 결정적으로 확인되는 것만 통과.
+
+    통과 조건(OR): (1) host 가 primary 의 known_domains 클러스터에 속함,
+    (2) host 가 brand 키 known_domains 목록에 속함, (3) 브랜드 토큰 일치.
+    반환: (kept, rejected). rejected 는 호출자가 검토용 JSON 에 기록한다.
+    """
+    allowed: set[str] = _known_cluster_for_host(_host_of(primary_url or ""))
+    brand_key = deterministic_normalize(item.get("brand", "") or "")
+    if brand_key:
+        allowed |= set(_load_known_domains().get(brand_key, []))
+    tokens = _brand_tokens(item)
+
+    kept: list[str] = []
+    rejected: list[str] = []
+    for u in extra_urls:
+        host = _host_of(u)
+        if any(_host_matches_domain(host, d) for d in allowed) or _host_token_match(host, tokens):
+            kept.append(u)
+        else:
+            rejected.append(u)
+    return kept, rejected
+
+
+def _record_gate_review(item: dict, rejected: list[str], primary_url: str | None) -> None:
+    """양성 게이트가 탈락시킨 official 후보를 검토용 JSON 에 누적 기록 (best-effort).
+
+    미등록 브랜드(known_domains 미적중 + 토큰 불일치)로 떨어진 항목을 사용자가
+    검토해 known_domains 에 승격할 수 있도록 한다. 실패는 무시(비치명).
+    """
+    if not rejected:
+        return
+    try:
+        path = BASE_DIR / "data" / "review" / "official_url_gate_review.json"
+        path.parent.mkdir(parents=True, exist_ok=True)
+        existing: dict = {}
+        if path.exists():
+            try:
+                existing = json.loads(path.read_text(encoding="utf-8")) or {}
+            except Exception:  # noqa: BLE001
+                existing = {}
+        records = existing.get("records", []) if isinstance(existing, dict) else []
+        seen = {(r.get("candidate_id"), r.get("url")) for r in records}
+        now = datetime.now(timezone.utc).isoformat()
+        for u in rejected:
+            key = (item.get("candidate_id", ""), u)
+            if key in seen:
+                continue
+            records.append({
+                "candidate_id": item.get("candidate_id", ""),
+                "brand":        item.get("brand", ""),
+                "product_name": item.get("product_name", ""),
+                "url":          u,
+                "host":         _host_of(u),
+                "primary_url":  primary_url or "",
+                "reason":       "양성 게이트 미통과(known_domains 미적중 + 브랜드 토큰 불일치) — 검토 후 known_domains 승격 가능",
+                "recorded_at":  now,
+            })
+            seen.add(key)
+        path.write_text(
+            json.dumps({"records": records}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("_record_gate_review 실패 (무시): %s", exc)
+
+
 def _try_fast_path(item: dict, candidates: list[dict]) -> dict | None:
     """
     A-2 fast-path: known-domain + title/path 매칭 시 LLM 호출을 우회한다.
@@ -619,23 +803,34 @@ def _discover_with_brave(item: dict, tried_urls: set | None = None) -> list[dict
                 )
                 query_results[q] = []
 
-    # ── 결과 병합 (쿼리 순서대로, 중복·tried 제거) ────────────────────────────
+    # ── 결과 병합 (라운드로빈 — 쿼리별 상위부터 번갈아) ──────────────────────
+    # site: 보조 쿼리 결과가 일반 쿼리 결과에 상한으로 밀려 누락되지 않도록, 각 쿼리의
+    # depth 0 결과부터 번갈아 채택한다. 보조 쿼리 수만큼 상한을 확대해 일반 커버리지 유지.
     seen:           set[str]   = set()
     raw_candidates: list[dict] = []
-    for query in queries:
-        for rank, r in enumerate(query_results.get(query, [])):
+    per_query = [query_results.get(q, []) for q in queries]
+    cap = count + max(0, len(queries) - _BASE_QUERY_COUNT)   # 보조 쿼리 수만큼 확대
+    max_depth = max((len(r) for r in per_query), default=0)
+    for depth in range(max_depth):
+        for results in per_query:
+            if depth >= len(results):
+                continue
+            r = results[depth]
             url = (r.get("url") or "").strip()
             if not url or url in tried or url in seen:
+                continue
+            # ② host 재검증 — Brave 가 'NOT site:' 를 흘리거나 쿼리 상한 초과분 차단
+            if _host_blocklisted(url):
                 continue
             seen.add(url)
             raw_candidates.append({
                 "url":     url,
                 "snippet": r.get("description", ""),
-                "rank":    rank,
+                "rank":    depth,
             })
-            if len(raw_candidates) >= count:
+            if len(raw_candidates) >= cap:
                 break
-        if len(raw_candidates) >= count:
+        if len(raw_candidates) >= cap:
             break
 
     if not raw_candidates:
@@ -718,13 +913,25 @@ def _build_brave_queries(item: dict) -> list[str]:
         brand   = item.get("brand", "").strip()
         product = item.get("product_name", "").strip()
         name    = f"{brand} {product}".strip() if brand else product
-        return [f"{name} 공식 사이트", f"{name} official website"]
-    if stype == "reference":
+        base    = [f"{name} 공식 사이트", f"{name} official website"]
+    elif stype == "reference":
         method   = item.get("method_name", "").strip()
         provider = item.get("provider_type", "").strip()
         name     = f"{method} {provider}".strip() if provider else method
-        return [f"{name} 공식 안내", f"{name} official guide"]
-    return []
+        base     = [f"{name} 공식 안내", f"{name} official guide"]
+    else:
+        return []
+    # ① 부정 차단 목록을 'NOT site:' 연산자로 부착 (원천 차단). 빈 목록이면 무영향.
+    suffix = _blocklist_query_suffix()
+    queries = [f"{q}{suffix}" for q in base]
+    # 회수율 보강: known_domains 도메인별 site: 보조 쿼리. 복수 공식 도메인(예: 토스 →
+    # toss.im·tossbank.com) 중 일부가 일반 쿼리 상위에 안 떠도 각 도메인을 강제 탐색한다.
+    # site: 가 도메인을 한정하므로 차단 목록 suffix 는 불필요.
+    if stype == "official":
+        boost_name = (item.get("brand", "").strip() or item.get("product_name", "").strip())
+        for d in _known_domains_for_item(item)[:_SITE_BOOST_MAX]:
+            queries.append(f"{boost_name} site:{d}".strip())
+    return queries
 
 
 def _fetch_page_meta(url: str) -> dict:
@@ -1026,12 +1233,47 @@ def _assemble_source(
             llm_confidence = best.get("url_confidence")
             fallback_urls  = [e["url"] for e in sorted_urls[1:] if e.get("url")]
 
+        # ── 복수 공식 도메인 후보 풀 구성 ───────────────────────────────────────
+        # (1) LLM이 공식으로 지목한 official_urls (LLM 경로)
+        # (2) 발견 후보(candidates + fallback_urls) 중 known_domains 클러스터에 속하는 URL.
+        #     fast-path 처럼 LLM 을 우회하는 경로에서도 복수 공식 도메인을 회수하기 위함.
+        #     클러스터는 큐레이션된 허용목록이라 결정적이고 안전하다(토스 → toss.im+tossbank.com).
+        cluster = _known_cluster_for_host(_host_of(primary_url or ""))
+        multi_candidates: list[str] = list((llm_val or {}).get("official_urls") or [])
+        if cluster:
+            pool = [c.get("url", "") for c in candidates] + list(fallback_urls)
+            for u in pool:
+                if u and any(_host_matches_domain(_host_of(u), d) for d in cluster):
+                    multi_candidates.append(u)
+
+        # ③ HTTP 검증 통과분만 1차 수집한 뒤, ④ 양성 게이트로 공식성 확인.
+        http_ok_extra: list[str] = []
+        for u in multi_candidates:
+            u = (u or "").strip()
+            if not u or u == primary_url or u in http_ok_extra:
+                continue
+            status, final_url = _await_http(http_futures, cid, u)
+            if status and 200 <= status < 400:
+                canon = final_url or u
+                if canon != primary_url and canon not in http_ok_extra:
+                    http_ok_extra.append(canon)
+
+        # ④ 양성 게이트: known_domains 클러스터/브랜드 토큰으로 공식성 확인.
+        # 미통과(미등록 브랜드 등)는 검토용 JSON 에 기록 후 제외. primary 는 항상 유지.
+        kept_extra, rejected_extra = _filter_official_urls(http_ok_extra, item, primary_url)
+        if rejected_extra:
+            _record_gate_review(item, rejected_extra, primary_url)
+
+        official_urls: list[str] = ([primary_url] if primary_url else []) + kept_extra
+
         source: dict = {
             "candidate_id":   cid,
             "source_type":    "official",
             "brand":          item.get("brand", ""),
             "product_name":   item.get("product_name", ""),
             "primary_url":    primary_url,
+            "official_urls":  official_urls,
+            "official_urls_v": _OFFICIAL_URLS_LOGIC_V,
             "http_status":    http_status,
             "validated":      validated,
             "llm_selected":   llm_selected,

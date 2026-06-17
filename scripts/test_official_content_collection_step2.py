@@ -55,7 +55,7 @@ class FakeAnalyzer:
         self.calls = 0
         self.last_payload = None
 
-    def call_with_schema(self, prompt: str, output_schema: dict) -> dict:
+    def call_with_schema(self, prompt: str, output_schema: dict, **kwargs) -> dict:
         self.calls += 1
         payload = json.loads(prompt.split("```json\n", 1)[1].rsplit("\n```", 1)[0])
         self.last_payload = payload
@@ -129,7 +129,7 @@ class TestRunLlmExtraction:
     def test_analyzer_failure_is_partial(self):
         """analyzer 예외 → 해당 candidate 만 output=None + errors 누적, 전체 진행 (§7)."""
         class BoomAnalyzer(FakeAnalyzer):
-            def call_with_schema(self, prompt, output_schema):
+            def call_with_schema(self, prompt, output_schema, **kwargs):
                 raise RuntimeError("API 5xx")
 
         results, errors, _ = run_llm_extraction(_base_state(), analyzer=BoomAnalyzer())

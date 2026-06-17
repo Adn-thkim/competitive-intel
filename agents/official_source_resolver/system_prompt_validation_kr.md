@@ -79,6 +79,11 @@ type == "reference" (func_*)         → 기관 공식 안내 페이지 판단
 - 각 항목의 `candidates` 중 조건을 만족하는 **가장 신뢰도 높은 URL 1개**를
   해당 항목의 `selected_url`로 반환한다.
 - 적합한 URL이 없으면 `selected_url=null`, `is_official=false`로 반환한다.
+- `official_urls`에는 `candidates` 중 **동일 브랜드·기관의 1차(공식) 출처로 인정되는 URL을 모두**
+  담는다(`selected_url` 포함). 한 상품이 복수의 공식 도메인을 가질 수 있다.
+  - 예: 토스 트래블카드는 발급사 도메인 `tossbank.com`과 서비스 도메인 `toss.im`이 모두 공식이다 → 둘 다 포함.
+  - 서드파티(비교 사이트·위키·블로그·뉴스)는 **절대 포함하지 않는다**. 경로 A/B의 공식 인정 조건을 통과한 URL만 넣는다.
+  - 공식 후보가 `selected_url` 하나뿐이면 `official_urls`는 `[selected_url]`, 공식 후보가 없으면 `[]`.
 - `confidence`는 0.0~1.0 사이 숫자로 표현한다:
   - 0.9~1.0: 브랜드 도메인 + 상품명 title 일치
   - 0.7~0.9: 브랜드 도메인 + 메인 페이지

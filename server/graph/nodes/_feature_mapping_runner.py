@@ -242,6 +242,8 @@ def run_source_mapping(
     )
 
     # 캐시 조회 — cache_input 은 source-type 한정 active_reports + sorted candidate_ids
+    # + candidate별 URL 핑거프린트. URL 집합이 LLM 입력의 본체이므로, candidate_ids 만
+    # 키로 쓰면 운반 URL 변경(예: 복수 공식 도메인 추가)이 캐시에 반영되지 않는다(staleness).
     cache_input = {
         "domain":         domain_name,
         "own_product":    {
@@ -251,6 +253,12 @@ def run_source_mapping(
         "source":         source,
         "report_types":   sorted(active_reports_for_source.keys()),
         "candidate_ids":  sorted(c.get("candidate_id", "") for c in candidates_with_meta),
+        "url_fingerprint": {
+            c.get("candidate_id", ""): sorted(
+                u.get("url", "") for u in (c.get("validated_urls") or []) if u.get("url")
+            )
+            for c in candidates_with_meta
+        },
         "active_reports": active_reports_for_source,
     }
     cached = load_agent_output(

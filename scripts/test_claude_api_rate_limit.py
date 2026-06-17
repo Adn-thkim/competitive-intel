@@ -61,13 +61,13 @@ class TestBackoffLoop:
         analyzer = _analyzer(monkeypatch)
         calls = {"n": 0}
 
-        def _fake_invoke(prompt):
+        def _fake_invoke(prompt, output_schema):
             calls["n"] += 1
             if calls["n"] <= 2:          # 첫 2회는 429
                 raise _rate_limit_error(retry_after=3)
-            return '{"ok": true}'         # 3회차 성공
+            return {"ok": True}           # 3회차 성공 (tool_use 는 dict 반환)
 
-        monkeypatch.setattr(analyzer, "_invoke_api", _fake_invoke)
+        monkeypatch.setattr(analyzer, "_invoke_api_with_tool", _fake_invoke)
         result = analyzer.call_with_schema("p", _SCHEMA, max_retries=3)
         assert result == {"ok": True}
         assert calls["n"] == 3
@@ -76,10 +76,10 @@ class TestBackoffLoop:
     def test_gives_up_after_max_waits(self, monkeypatch, _no_sleep):
         analyzer = _analyzer(monkeypatch)
 
-        def _always_429(prompt):
+        def _always_429(prompt, output_schema):
             raise _rate_limit_error(retry_after=1)
 
-        monkeypatch.setattr(analyzer, "_invoke_api", _always_429)
+        monkeypatch.setattr(analyzer, "_invoke_api_with_tool", _always_429)
         with pytest.raises(RuntimeError):
             analyzer.call_with_schema("p", _SCHEMA, max_retries=3)
         assert len(_no_sleep) == mod._RATE_LIMIT_MAX_WAITS   # 대기 상한까지만 시도

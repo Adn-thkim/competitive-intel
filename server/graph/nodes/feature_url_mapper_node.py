@@ -529,13 +529,17 @@ def _build_candidates_with_meta(
         stype = src.get("source_type")
 
         if stype == "official":
-            if src.get("validated") and src.get("primary_url"):
-                url = src["primary_url"]
-                official_by_candidate.setdefault(cid, []).append({
-                    "url":    url,
-                    "origin": "official_source",
-                })
-                urls_to_fetch_meta.add(url)
+            if src.get("validated"):
+                # official_urls(복수, 신규) 우선, 부재 시 primary_url 단일 (하위호환)
+                official_urls = [u for u in (src.get("official_urls") or []) if u] or (
+                    [src["primary_url"]] if src.get("primary_url") else []
+                )
+                for url in official_urls:
+                    official_by_candidate.setdefault(cid, []).append({
+                        "url":    url,
+                        "origin": "official_source",
+                    })
+                    urls_to_fetch_meta.add(url)
         elif stype == "reference":
             for ref in src.get("reference_sources", []):
                 if not ref.get("validated"):

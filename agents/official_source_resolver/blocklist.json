@@ -1,0 +1,27 @@
+{
+  "_meta": {
+    "description": "official URL 수집 단계의 부정 차단 목록(backstop). _discover_with_brave 가 Brave 후보를 host 기준으로 원천 제외하고, _build_brave_queries 가 상위 일부를 'NOT site:' 연산자로 쿼리에 부착한다. 집계·위키·UGC·소셜 등 '공식 1차 출처가 될 수 없는' 호스트만 보수적으로 등재한다. registrable 도메인 또는 명시 서브도메인 단위로 적되, 정식 페이지가 존재할 수 있는 도메인(예: naver.com 전체)은 넣지 말 것.",
+    "version": 1,
+    "updated_at": "2026-06-14",
+    "match_rule": "host == entry 또는 host.endswith('.' + entry) (www. 제거 후). 예: 'blog.naver.com' 은 'm.blog.naver.com' 도 매칭."
+  },
+  "hosts": [
+    "card-gorilla.com",
+    "namu.wiki",
+    "wikipedia.org",
+    "blog.naver.com",
+    "cafe.naver.com",
+    "post.naver.com",
+    "in.naver.com",
+    "tistory.com",
+    "brunch.co.kr",
+    "velog.io",
+    "medium.com",
+    "youtube.com",
+    "facebook.com",
+    "instagram.com",
+    "twitter.com",
+    "x.com",
+    "threads.net"
+  ]
+}
