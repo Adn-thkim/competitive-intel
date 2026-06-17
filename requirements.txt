@@ -24,3 +24,6 @@ requests==2.32.3
 trafilatura>=2.0
 beautifulsoup4>=4.12   # Trafilatura 실패 시 폴백
 pypdf>=5.0             # 약관·수수료표 PDF 텍스트 추출
+
+# ── YouTube 자막 수집 (measure_youtube_collection 측정 스크립트) ──────────────
+youtube-transcript-api==1.2.4
