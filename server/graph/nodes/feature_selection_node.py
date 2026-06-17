@@ -236,7 +236,10 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
     selected_feature_ids: list[str] = resume_value.get("selected_feature_ids", [])
     selected_purposes_raw: list[str] = resume_value.get("selected_purposes", [])
 
-    if not selected_feature_ids:
+    # reaction_insight 는 features 없이 aspect_codebook 만 보유하므로,
+    # 해당 리포트만 선택된 경우 selected_feature_ids 가 비어 있을 수 있다.
+    # selected_purposes_raw 에 값이 있으면 정상 제출로 간주한다.
+    if not selected_feature_ids and not selected_purposes_raw:
         return _error(started_at, "selected_feature_ids가 비어 있습니다. "
                                   "최소 1개 이상의 feature를 선택해야 합니다.")
 

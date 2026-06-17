@@ -239,26 +239,38 @@ function UrlPreviewCard({ urlPreview }) {
   );
 }
 
-/* ── ABSA Aspect 카드 (v0.10.29 — B-only 스타일 준용) ───────────────────────── */
+/* ── ABSA Aspect 카드 (v0.10.29 — 체크박스 선택 가능) ───────────────────────── */
 
-function AbsaAspectCard({ aspect }) {
+function AbsaAspectCard({ aspect, isSelected, onToggle }) {
   return (
-    <div className="rounded-lg border-2 border-blue-200 bg-blue-50/30 px-3.5 py-3">
-      <div className="flex flex-wrap items-center gap-2 mb-1">
-        <span className="font-mono text-[11px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
-          {aspect.aspect_id}
-        </span>
-        <span className="text-sm font-semibold text-gray-900">{aspect.label}</span>
-        {aspect.domain_specific && (
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-            도메인 특화
-          </span>
-        )}
-        <span className="ml-auto text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
-          자동 포함
-        </span>
-      </div>
-      <p className="text-xs text-gray-500 leading-relaxed">{aspect.definition}</p>
+    <div className={[
+      'rounded-lg border-2 transition-colors',
+      isSelected
+        ? 'border-blue-400 bg-blue-50'
+        : 'border-blue-200 bg-blue-50/30 hover:border-blue-300',
+    ].join(' ')}>
+      <label className="flex items-start gap-3 px-3.5 py-3 cursor-pointer">
+        <input
+          type="checkbox"
+          className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"
+          checked={isSelected}
+          onChange={onToggle}
+        />
+        <div className="flex-1 min-w-0">
+          <div className="flex flex-wrap items-center gap-2 mb-1">
+            <span className="font-mono text-[11px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
+              {aspect.aspect_id}
+            </span>
+            <span className="text-sm font-semibold text-gray-900">{aspect.label}</span>
+            {aspect.domain_specific && (
+              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
+                도메인 특화
+              </span>
+            )}
+          </div>
+          <p className="text-xs text-gray-500 leading-relaxed">{aspect.definition}</p>
+        </div>
+      </label>
     </div>
   );
 }
@@ -375,8 +387,11 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
   //  urlCoverageVisible 로 별도 제어되므로 선택 가능 여부와 무관하게 유지됨.)
   const checkboxDisabled     = false;
 
-  const featureIds   = report.features.map(f => f.feature_id);
-  const allSelected  = featureIds.every(id => selectedIds.has(id));
+  // reaction_insight는 features 대신 aspect_codebook의 aspect_id를 선택 단위로 사용
+  const featureIds = isReactionInsight
+    ? aspectCodebook.map(a => a.aspect_id)
+    : report.features.map(f => f.feature_id);
+  const allSelected  = featureIds.length > 0 && featureIds.every(id => selectedIds.has(id));
   const someSelected = featureIds.some(id => selectedIds.has(id));
   const selectedCount = featureIds.filter(id => selectedIds.has(id)).length;
 
@@ -402,12 +417,12 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             {report.report_label}
           </h3>
           <p className="text-xs text-gray-400 mt-0.5">
-            {checkboxDisabled || isReactionInsight
+            {checkboxDisabled
               ? `${featureIds.length}개 자동 포함`
               : `${selectedCount} / ${featureIds.length}개 선택됨`}
           </p>
         </div>
-        {!checkboxDisabled && !isReactionInsight && (
+        {!checkboxDisabled && (
           <button
             type="button"
             onClick={handleToggleAll}
@@ -440,7 +455,12 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
           <div className="space-y-2">
             {aspectCodebook.length > 0
               ? aspectCodebook.map(aspect => (
-                  <AbsaAspectCard key={aspect.aspect_id} aspect={aspect} />
+                  <AbsaAspectCard
+                    key={aspect.aspect_id}
+                    aspect={aspect}
+                    isSelected={selectedIds.has(aspect.aspect_id)}
+                    onToggle={() => onToggleFeature(aspect.aspect_id)}
+                  />
                 ))
               : (
                 <p className="text-xs text-gray-400 italic">
@@ -509,8 +529,13 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   const iv      = intakeResult?.interrupt_value ?? {};
   const reports = iv.reports ?? [];
 
-  // 초기 선택: 모든 feature를 기본 선택 상태로 시작
-  const allFeatureIds = reports.flatMap(r => r.features.map(f => f.feature_id));
+  // 초기 선택: 모든 feature + reaction_insight의 ABSA aspect를 기본 선택 상태로 시작
+  const allFeatureIds = reports.flatMap(r => {
+    if (r.report_type === 'reaction_insight') {
+      return (r.aspect_codebook ?? []).map(a => a.aspect_id);
+    }
+    return r.features.map(f => f.feature_id);
+  });
   const [selectedIds, setSelectedIds] = useState(new Set(allFeatureIds));
 
   const [submitting, setSubmitting] = useState(false);
@@ -538,7 +563,12 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   function deriveSelectedReportTypes() {
     const reportTypeSet = new Set();
     for (const report of reports) {
-      const hasSelected = report.features.some(f => selectedIds.has(f.feature_id));
+      let hasSelected;
+      if (report.report_type === 'reaction_insight') {
+        hasSelected = (report.aspect_codebook ?? []).some(a => selectedIds.has(a.aspect_id));
+      } else {
+        hasSelected = report.features.some(f => selectedIds.has(f.feature_id));
+      }
       if (hasSelected) reportTypeSet.add(report.report_type);
     }
     return [...reportTypeSet];
@@ -557,6 +587,12 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
     // (graph 실행 중 체크포인트에서 report_outputs 가 보이는 즉시 결과 페이지로 전환)
     onStarted?.();
 
+    // aspect_id는 server의 valid feature_id 집합에 없으므로 제외.
+    // reaction_insight 포함 여부는 selected_purposes(deriveSelectedReportTypes)로 전달.
+    const pureFeatureIds = new Set(
+      reports.flatMap(r => r.features.map(f => f.feature_id))
+    );
+
     try {
       const res = await fetch('/api/approve', {
         method: 'POST',
@@ -566,7 +602,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
           resume: {
             // v0.10: 키 이름 selected_purposes 유지(server state.py 호환), 값은 report_type 목록
             selected_purposes:    deriveSelectedReportTypes(),
-            selected_feature_ids: [...selectedIds],
+            selected_feature_ids: [...selectedIds].filter(id => pureFeatureIds.has(id)),
           },
         }),
       });
