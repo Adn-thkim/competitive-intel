@@ -40,6 +40,8 @@ ab_join
 출력 state 키
 -------------
 - youtube_reactions_urls_by_candidate : 필터링 후 갱신 (replace)
+- video_candidate_index               : {video_id: [candidate_ids]} 역인덱스 (replace)
+                                        owned 필터 통과 영상만 포함. multi-tagging 에 사용.
 - agent_steps                          : 누적 reducer
 
 캐싱
@@ -99,8 +101,9 @@ def cross_reference_node(state: DomainAnalysisState, config: dict | None = None)
         if it.get("platform") == "youtube_official" and it.get("channel_id")
     }
 
-    # reactions 영상 중 owned channel_id 일치 항목 제외 (결정론적)
+    # reactions 영상 중 owned channel_id 일치 항목 제외 + video_candidate_index 동시 구축
     filtered: dict[str, list[dict]] = {}
+    video_candidate_index: dict[str, list[str]] = {}   # video_id → [candidate_ids]
     excluded_count = 0
     for cand_id, items in reactions.items():
         kept: list[dict] = []
@@ -109,14 +112,25 @@ def cross_reference_node(state: DomainAnalysisState, config: dict | None = None)
                 excluded_count += 1
                 continue
             kept.append(v)
+            # video_candidate_index 구축 (kept 영상만 — set으로 중복 방지)
+            vid = v.get("video_id", "")
+            if vid:
+                existing = video_candidate_index.get(vid)
+                if existing is None:
+                    video_candidate_index[vid] = [cand_id]
+                elif cand_id not in existing:
+                    existing.append(cand_id)
         if kept:
             filtered[cand_id] = kept
 
     total_in  = sum(len(v) for v in reactions.values())
     total_out = sum(len(v) for v in filtered.values())
+    multi_candidate_videos = sum(1 for cids in video_candidate_index.values() if len(cids) > 1)
     logger.info(
-        "cross_reference_node: owned_yt_channels=%d → reactions %d → %d (%d 제외)",
+        "cross_reference_node: owned_yt_channels=%d → reactions %d → %d (%d 제외), "
+        "video_candidate_index=%d videos (%d multi-candidate)",
         len(owned_yt_channel_ids), total_in, total_out, excluded_count,
+        len(video_candidate_index), multi_candidate_videos,
     )
 
     finished_at = datetime.now(timezone.utc).isoformat()
@@ -128,5 +142,6 @@ def cross_reference_node(state: DomainAnalysisState, config: dict | None = None)
     }
     return {
         "youtube_reactions_urls_by_candidate": filtered,
+        "video_candidate_index":               video_candidate_index,
         "agent_steps":                          [step],
     }
