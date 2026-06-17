@@ -50,12 +50,54 @@ REPORT_TYPE   = "reaction_insight"
 _LLM_AGENT_ID = "reaction_analysis"
 _LLM_TIMEOUT_SEC = 600     # 댓글 대량 입력 — CLI 여유 timeout
 
+# 수집 풀 확장(600+건) 이후 CLI 과부하 방지 — candidate당 입력 상한.
+# 초과 시 posted_at 내림차순(최신 우선) deterministic 샘플링으로 채널 비율 유지.
+_MAX_ITEMS_PER_CANDIDATE = 250
+
 _WS_RE = re.compile(r"\s+")
 
 
 def _norm(text: str) -> str:
     """quote 실존 검증용 정규화 — 공백 제거 (LLM 의 공백 변형 허용)."""
     return _WS_RE.sub("", text or "")
+
+
+def _sample_items(items: list[dict], max_n: int) -> list[dict]:
+    """채널 비율 유지 deterministic 샘플링 (posted_at 내림차순, 최신 우선).
+
+    전체 items 수가 max_n 이하면 그대로 반환.
+    초과 시 채널별로 max_n × 채널비율만큼 최신 순으로 선택한다.
+    채널 비율이 소수일 경우 먼저 처리된 채널에 나머지 슬롯을 배분한다.
+    """
+    if len(items) <= max_n:
+        return items
+
+    from collections import defaultdict
+    by_ch: dict[str, list[dict]] = defaultdict(list)
+    for it in items:
+        by_ch[it.get("channel", "")].append(it)
+
+    # 각 채널을 posted_at 내림차순 정렬 (deterministic)
+    for ch in by_ch:
+        by_ch[ch].sort(key=lambda x: x.get("posted_at", ""), reverse=True)
+
+    total   = len(items)
+    allotted = 0
+    quota: dict[str, int] = {}
+    channels = sorted(by_ch)   # deterministic 순서
+    for i, ch in enumerate(channels):
+        is_last = (i == len(channels) - 1)
+        if is_last:
+            quota[ch] = max_n - allotted
+        else:
+            q = round(max_n * len(by_ch[ch]) / total)
+            quota[ch] = q
+            allotted += q
+
+    result: list[dict] = []
+    for ch in channels:
+        result.extend(by_ch[ch][: quota[ch]])
+    return result
 
 
 # ─── 코드 파트: 입력 조립 (순수 함수) ────────────────────────────────────────
@@ -206,7 +248,13 @@ def reaction_analysis_node(
 
     # candidate 순차 처리 (CLI 어댑터 — 동시 실행 이점 없음)
     for cid in sorted(inputs):
-        items = inputs[cid]
+        items_raw = inputs[cid]
+        items = _sample_items(items_raw, _MAX_ITEMS_PER_CANDIDATE)
+        if len(items) < len(items_raw):
+            logger.info(
+                "reaction_analysis[%s]: 입력 %d건 → %d건으로 샘플링 (MAX=%d)",
+                cid, len(items_raw), len(items), _MAX_ITEMS_PER_CANDIDATE,
+            )
         payload = {
             "candidate_id":   cid,
             "candidate_name": name_by_cid.get(cid, cid),
