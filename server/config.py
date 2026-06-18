@@ -83,6 +83,19 @@ FEATURE_MAPPING_LLM_TIMEOUT = int(
     os.getenv("FEATURE_MAPPING_LLM_TIMEOUT", str(CLI_TIMEOUT))
 )
 
+# reaction_analysis chunking 설정 (reaction_analysis_chunking_design.md — CONFIRMED).
+# candidate 전량 댓글을 스레드 원자 단위 chunk 로 분할해 candidate×chunk 를 병렬 호출한다.
+# CHUNK_CHARS: chunk 1개의 누적 text 상한(자). 신한SOL 실측 캘리브레이션(1016건≈201K자가
+#   600초 성공) 기준 CHUNK_TIMEOUT=300s·safety 0.6 → 60,000자(최대 candidate chunk 수 ~3).
+# CHUNK_CHARS_MIN: 마지막 잔여를 제외한 chunk 의 하한. 고정 오버헤드(O≈3.9K자) 분할 손실 방지.
+# CHUNK_TIMEOUT: chunk 1회 CLI 호출 timeout. PARALLEL: 평탄화 병렬 풀 상한(무제한 금지).
+# MAX_ITEMS: candidate당 입력 하드 상한(비정상 폭주 방지, 정상 운영 미도달).
+REACTION_ABSA_CHUNK_CHARS     = int(os.getenv("REACTION_ABSA_CHUNK_CHARS", "60000"))
+REACTION_ABSA_CHUNK_CHARS_MIN = int(os.getenv("REACTION_ABSA_CHUNK_CHARS_MIN", "20000"))
+REACTION_ABSA_CHUNK_TIMEOUT   = int(os.getenv("REACTION_ABSA_CHUNK_TIMEOUT", "300"))
+REACTION_ABSA_PARALLEL        = int(os.getenv("REACTION_ABSA_PARALLEL", "4"))
+REACTION_ABSA_MAX_ITEMS       = int(os.getenv("REACTION_ABSA_MAX_ITEMS", "5000"))
+
 # FeatureUrlMapperAgent 병렬 처리 설정.
 # v0.10 이후: 이 노드는 report_config의 active 리포트 단위로 병렬 LLM 호출한다.
 # (예: 7개 active 리포트 → max_workers=4 → ~2라운드 × ~60s = 약 2분)
@@ -246,6 +259,20 @@ def validate_config() -> list[str]:
         warnings.append(
             f"CLI_TIMEOUT={CLI_TIMEOUT}초가 너무 짧습니다. "
             "LLM 응답 대기 중 타임아웃이 빈번히 발생할 수 있습니다."
+        )
+
+    if REACTION_ABSA_CHUNK_CHARS_MIN >= REACTION_ABSA_CHUNK_CHARS:
+        warnings.append(
+            f"REACTION_ABSA_CHUNK_CHARS_MIN({REACTION_ABSA_CHUNK_CHARS_MIN}) 이 "
+            f"CHUNK_CHARS({REACTION_ABSA_CHUNK_CHARS}) 이상입니다. 하한이 상한보다 작아야 합니다."
+        )
+    if REACTION_ABSA_CHUNK_TIMEOUT < 30:
+        warnings.append(
+            f"REACTION_ABSA_CHUNK_TIMEOUT={REACTION_ABSA_CHUNK_TIMEOUT}초가 너무 짧습니다."
+        )
+    if REACTION_ABSA_PARALLEL < 1:
+        warnings.append(
+            f"REACTION_ABSA_PARALLEL={REACTION_ABSA_PARALLEL} 은 1 이상이어야 합니다."
         )
 
     return warnings
