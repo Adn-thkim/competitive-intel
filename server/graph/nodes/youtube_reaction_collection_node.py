@@ -167,13 +167,29 @@ def _filter_basic(raw: list[dict]) -> list[dict]:
 
 
 def _prefilter_v2(comments: list[dict]) -> list[dict]:
-    """pre-filter v2: 기본 노이즈 제거 → aspect 키워드 → 순수 의문문 제거."""
+    """pre-filter v2 (+YR-D3): 기본 노이즈 제거 → 순수 의문문 제거 → aspect 키워드.
+
+    YR-D3 (youtube_reply_collection_design.md) — 부모(최상위) 댓글이 aspect 키워드를 가진
+    스레드의 대댓글은 키워드 필터를 면제한다(부모 맥락을 잇는 응답 보존). 기본 노이즈·
+    순수 의문문 필터는 대댓글에도 동일 적용한다. thread_id/is_reply 미배선(구 데이터) 시
+    모든 항목이 최상위로 간주되어 기존 v2 동작과 동일하다.
+    """
+    basic = _filter_basic(comments)
+    # 부모(최상위)가 aspect 키워드를 가진 thread 집합 — 대댓글 키워드 면제 신호 (YR-D3)
+    passing_threads = {
+        c.get("thread_id", "")
+        for c in basic
+        if not c.get("is_reply") and _has_aspect_keyword((c.get("text") or "").strip())
+    }
     result: list[dict] = []
-    for c in _filter_basic(comments):
+    for c in basic:
         text = (c.get("text") or "").strip()
-        if not _has_aspect_keyword(text):
-            continue
         if _is_pure_question(text):
+            continue
+        if c.get("is_reply") and c.get("thread_id", "") in passing_threads:
+            result.append(c)          # YR-D3 — 부모 통과 스레드의 대댓글 키워드 면제
+            continue
+        if not _has_aspect_keyword(text):
             continue
         result.append(c)
     return result

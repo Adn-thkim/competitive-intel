@@ -343,18 +343,63 @@ def youtube_videos_list(video_id: str) -> dict | None:
 
 
 # ── 내부 헬퍼 ────────────────────────────────────────────────────────────────
+def _parse_comment_thread(thread: dict) -> list[dict]:
+    """commentThreads 항목 1개 → 최상위 댓글 + 인라인 대댓글(최대 5) 레코드 목록.
+
+    youtube_reply_collection_design.md YR-D1(Phase A)·YR-D2 — part="snippet,replies"
+    응답의 인라인 reply 를 parent 연결(thread_id·is_reply·parent_id)과 함께 방출한다.
+    텍스트 없는 항목은 제외하며, 최상위 텍스트가 없으면 스레드 자체를 버린다(대댓글 맥락 상실).
+    작성자 식별정보 비저장(D11).
+    """
+    thread_id = thread.get("id", "")
+
+    def _record(comment_id: str, snippet: dict, is_reply: bool) -> dict | None:
+        text = (snippet.get("textOriginal") or snippet.get("textDisplay") or "").strip()
+        if not text:
+            return None
+        author_channel = (snippet.get("authorChannelId") or {}).get("value", "")
+        return {
+            "comment_id":   comment_id,
+            "thread_id":    thread_id,
+            "is_reply":     is_reply,
+            "parent_id":    thread_id if is_reply else "",
+            "text":         text,
+            "like_count":   int(snippet.get("likeCount", 0) or 0),
+            "published_at": snippet.get("publishedAt", ""),
+            # D11 — 작성자 식별정보 비저장. 동일 작성자 도배 탐지용 해시 prefix 만 보존.
+            "author_hash":  hashlib.sha256(author_channel.encode("utf-8")).hexdigest()[:12]
+                            if author_channel else "",
+        }
+
+    top_snippet = ((thread.get("snippet") or {}).get("topLevelComment") or {}).get("snippet") or {}
+    top = _record(thread_id, top_snippet, is_reply=False)
+    if top is None:
+        return []
+
+    records: list[dict] = [top]
+    for reply in ((thread.get("replies") or {}).get("comments") or []):
+        rec = _record(reply.get("id", ""), reply.get("snippet") or {}, is_reply=True)
+        if rec is not None:
+            records.append(rec)
+    return records
+
+
 def youtube_comment_threads(video_id: str) -> list[dict]:
-    """영상 1건의 최상위 댓글 전체 수집 (commentThreads.list, nextPageToken 페이지네이션). 24h TTL 캐시.
+    """영상 1건의 최상위 댓글 + 인라인 대댓글 전체 수집 (commentThreads.list, nextPageToken 페이지네이션). 24h TTL 캐시.
 
     v0.14 (youtube_collection_redesign.md Step 2) — youtube_reaction_collection_node 가 사용.
+    v0.15 (youtube_reply_collection_design.md YR-D1 Phase A) — part="snippet,replies" 로
+    인라인 대댓글(스레드당 최대 5)을 parent 연결과 함께 수집. 호출당 quota 동일(1 unit).
     모든 페이지를 순회하며 전체 댓글 수집 (페이지당 1 unit). 좋아요 상위 선별은 호출자 책임.
 
     Returns
     -------
     list[dict]
-        각 댓글 항목 (작성자 식별정보 비저장 — D11):
-        {"comment_id", "text"(textOriginal 원문), "like_count", "published_at",
+        각 댓글/대댓글 항목 (작성자 식별정보 비저장 — D11):
+        {"comment_id", "thread_id", "is_reply"(bool), "parent_id"(대댓글만, 부모 thread.id),
+         "text"(textOriginal 원문), "like_count", "published_at",
          "author_hash"(중복 작성자 탐지용 sha256 prefix)}
+        한 스레드의 최상위 + 대댓글은 items 안에서 연속 배치된다.
         댓글 비활성(commentsDisabled) 영상은 빈 리스트 반환 (예외 아님 — 부분 실패 허용).
         페이지네이션 중 quota 초과 시 수집된 댓글만 반환(부분 결과).
 
@@ -366,7 +411,9 @@ def youtube_comment_threads(video_id: str) -> list[dict]:
         raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
 
     cache_input = {"video_id": video_id}
-    cache_context = {"agent_id": "youtube_comments", "v": 2}
+    # v:3 — YR-D1 Phase A 로 응답 스키마 변경(대댓글·parent 필드 추가). 구버전(v:2,
+    # 최상위-only) 캐시 재사용 방지를 위해 버전 무효화.
+    cache_context = {"agent_id": "youtube_comments", "v": 3}
     cached = load_agent_output(
         agent_id="youtube_comments", cache_input=cache_input,
         context=cache_context, logger=logger, ttl_hours=YOUTUBE_CACHE_TTL_HOURS,
@@ -374,29 +421,13 @@ def youtube_comment_threads(video_id: str) -> list[dict]:
     if cached is not None:
         return cached.get("items", []) or []
 
-    def _parse_thread(thread: dict) -> dict | None:
-        top = ((thread.get("snippet") or {}).get("topLevelComment") or {}).get("snippet") or {}
-        text = (top.get("textOriginal") or top.get("textDisplay") or "").strip()
-        if not text:
-            return None
-        author_channel = (top.get("authorChannelId") or {}).get("value", "")
-        return {
-            "comment_id":   thread.get("id", ""),
-            "text":         text,
-            "like_count":   int(top.get("likeCount", 0) or 0),
-            "published_at": top.get("publishedAt", ""),
-            # D11 — 작성자 식별정보 비저장. 동일 작성자 도배 탐지용 해시 prefix 만 보존.
-            "author_hash":  hashlib.sha256(author_channel.encode("utf-8")).hexdigest()[:12]
-                            if author_channel else "",
-        }
-
     items: list[dict] = []
     page_token: str = ""
 
     while True:
         _check_and_consume_quota(_COMMENTS_LIST_COST)
         params: dict = {
-            "part":       "snippet",
+            "part":       "snippet,replies",
             "videoId":    video_id,
             "order":      "relevance",
             "maxResults": 100,        # 페이지당 최대
@@ -447,9 +478,7 @@ def youtube_comment_threads(video_id: str) -> list[dict]:
 
         data = resp.json()
         for thread in data.get("items") or []:
-            parsed = _parse_thread(thread)
-            if parsed:
-                items.append(parsed)
+            items.extend(_parse_comment_thread(thread))
 
         page_token = data.get("nextPageToken", "")
         if not page_token:

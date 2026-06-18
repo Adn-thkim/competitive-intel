@@ -200,6 +200,9 @@ def _fetch_comments(video_id: str, max_total: int = 0) -> tuple[list[dict], str]
     (comments, status)
       status: "ok" | "disabled" | "quota_exceeded" | "error"
     """
+    # YR-D1 Phase A — 생산 파서 재사용으로 대댓글+parent 필드 일관 수집.
+    from server.llm.youtube_client import _parse_comment_thread
+
     comments: list[dict] = []
     page_token: str | None = None
     page = 0
@@ -208,7 +211,7 @@ def _fetch_comments(video_id: str, max_total: int = 0) -> tuple[list[dict], str]
         if max_total and len(comments) >= max_total:
             break
         params: dict[str, Any] = {
-            "part":       "snippet",
+            "part":       "snippet,replies",
             "videoId":    video_id,
             "order":      "relevance",
             "maxResults": 100,
@@ -232,16 +235,7 @@ def _fetch_comments(video_id: str, max_total: int = 0) -> tuple[list[dict], str]
         data = resp.json()
         page += 1
         for item in data.get("items") or []:
-            top = (item.get("snippet") or {}).get("topLevelComment") or {}
-            cs  = (top.get("snippet") or {})
-            text = cs.get("textOriginal") or cs.get("textDisplay") or ""
-            if text:
-                comments.append({
-                    "comment_id":   top.get("id", ""),
-                    "text":         text,
-                    "like_count":   cs.get("likeCount", 0),
-                    "published_at": cs.get("publishedAt", ""),
-                })
+            comments.extend(_parse_comment_thread(item))
         page_token = data.get("nextPageToken")
         if not page_token:
             break

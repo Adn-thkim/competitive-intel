@@ -107,6 +107,8 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
 
     youtube: 댓글 1건 = item 1건 (source_url = 영상 watch URL).
     community: 게시글 1건 = item 1건 (제목 + 본문 발췌).
+    각 item 은 `thread_id` 를 포함한다(YR-D4) — CH-D3 스레드 원자 chunk 경계가 소비하며,
+    youtube 대댓글은 부모와 동일 thread_id, 그 외는 항목별 고유값.
     """
     if REPORT_TYPE not in (state.get("selected_purposes") or []):
         return {}
@@ -132,6 +134,9 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
                           f"https://www.youtube.com/watch?v={c.get('video_id', '')}",
             "posted_at":  c.get("published_at", ""),
             "text":       text,
+            # YR-D4 — CH-D3 스레드 원자 chunk 경계가 소비. 대댓글은 부모와 동일 thread_id.
+            # thread_id 미배선(구 데이터) 시 댓글별 고유값으로 폴백(각 댓글=1 스레드).
+            "thread_id":  c.get("thread_id") or f"yt:{key}",
         })
 
     # community_posts → channel="community", blog_posts → channel="blog".
@@ -153,6 +158,8 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
                 "source_url": p.get("url", ""),
                 "posted_at":  p.get("published_at", ""),
                 "text":       text,
+                # YR-D4 — 비유튜브는 스레드 개념 없음: 게시글 1건=원자 단위(고유 thread_id).
+                "thread_id":  p.get("url") or f"{channel}:{key}",
             })
 
     return items
