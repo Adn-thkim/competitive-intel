@@ -1,13 +1,17 @@
 #!/usr/bin/env python3
 """
-scripts/validate_youtube_prefilter.py  (v0.2 — 순수 의문문 제거 추가)
+scripts/validate_youtube_prefilter.py  (v0.3 — YR-D3 대댓글 키워드 면제 재측정)
 ----------------------------------------------
 measure_youtube_collection.py 산출물에 키워드 pre-filter를 적용하고
 false negative / precision 샘플을 출력해 필터 품질을 검증한다.
 
-필터 2단계:
+필터 단계:
   1단계: 키워드 매칭 (aspect 관련 텍스트 선별)
   2단계: 순수 의문문 제거 (모든 문장이 의문형인 단문 — ABSA 입력 가치 없음)
+  YR-D3(v3): 부모(최상위)가 aspect 키워드를 가진 스레드의 대댓글은 키워드 면제
+
+재측정: v2(균일 적용) 대비 v3(YR-D3)의 유지율/오제외율 변화를 비교 출력한다.
+대댓글 데이터가 있어야(measure 가 Phase A 로 수집) 의미가 있으며, 없으면 v3==v2.
 
 실행
 ----
@@ -148,6 +152,37 @@ def _apply_filter_v2(comments: list[dict]) -> tuple[list[dict], list[dict], list
     return kept, removed_no_kw, removed_pq
 
 
+def _apply_filter_v3(comments: list[dict]) -> tuple[list[dict], list[dict]]:
+    """v3 = v2 + YR-D3: 부모(최상위)가 aspect 키워드를 가진 스레드의 대댓글은 키워드 면제.
+
+    순수 의문문은 대댓글에도 적용. thread_id/is_reply 없는 구 데이터면 v3 == v2.
+
+    Returns
+    -------
+    (kept, exempted)
+      exempted: YR-D3로 새로 통과한 대댓글(키워드 없으나 부모 통과) — v2 대비 증가분.
+    """
+    passing_threads = {
+        c.get("thread_id", "")
+        for c in comments
+        if not c.get("is_reply") and _hit_aspects(c.get("text", ""))
+    }
+    kept, exempted = [], []
+    for c in comments:
+        text = c.get("text", "")
+        if _is_pure_question(text):
+            continue
+        if c.get("is_reply") and c.get("thread_id", "") in passing_threads:
+            kept.append(c)
+            if not _hit_aspects(text):
+                exempted.append(c)   # 키워드 없이 부모 통과로만 들어온 항목
+            continue
+        if not _hit_aspects(text):
+            continue
+        kept.append(c)
+    return kept, exempted
+
+
 # ── 출력 헬퍼 ─────────────────────────────────────────────────────────────────
 
 def _truncate(text: str, width: int = 90) -> str:
@@ -190,22 +225,31 @@ def main() -> None:
             all_comments.extend(v.get("comments") or [])
         total = len(all_comments)
 
-        kept_v1, _     = _apply_filter_v1(all_comments)
-        kept_v2, _, pq = _apply_filter_v2(all_comments)
+        replies = [c for c in all_comments if c.get("is_reply")]
+
+        kept_v1, _      = _apply_filter_v1(all_comments)
+        kept_v2, _, pq  = _apply_filter_v2(all_comments)
+        kept_v3, exempt = _apply_filter_v3(all_comments)
 
         summary_rows.append({
-            "cid":    cid,
-            "total":  total,
-            "v1":     len(kept_v1),
-            "v2":     len(kept_v2),
-            "pq":     len(pq),       # 순수 의문문 제거 수
+            "cid":     cid,
+            "total":   total,
+            "replies": len(replies),
+            "v1":      len(kept_v1),
+            "v2":      len(kept_v2),
+            "v3":      len(kept_v3),
+            "exempt":  len(exempt),   # YR-D3 면제로 새로 통과한 대댓글
+            "pq":      len(pq),       # 순수 의문문 제거 수
         })
 
         print(f"\n{'═'*65}")
-        print(f"  {cid}  (전체 {total}건)")
+        print(f"  {cid}  (전체 {total}건 · 대댓글 {len(replies)}건)")
         print(f"  v1 유지: {len(kept_v1):>4}건 ({len(kept_v1)/total:.0%})  "
               f"v2 유지: {len(kept_v2):>4}건 ({len(kept_v2)/total:.0%})  "
-              f"│  순수 의문문 제거: {len(pq)}건")
+              f"v3 유지: {len(kept_v3):>4}건 ({len(kept_v3)/total:.0%})  "
+              f"│  순수 의문문 제거: {len(pq)}건  │  YR-D3 면제: {len(exempt)}건")
+        if exempt:
+            _print_sample(exempt, args.sample_pq, "YR-D3 키워드 면제 대댓글 샘플(오포함 검토용)", args.seed)
 
         # aspect별 v1/v2 비교
         print(f"\n  {'aspect':<22}  {'v1':>5}  {'v2':>5}  {'차이':>5}")
@@ -221,29 +265,44 @@ def main() -> None:
             _print_sample(pq, args.sample_pq, "순수 의문문 제거 샘플", args.seed)
 
     # ── 전체 합산 비교 ─────────────────────────────────────────────────────────
-    g_total = sum(r["total"] for r in summary_rows)
-    g_v1    = sum(r["v1"]    for r in summary_rows)
-    g_v2    = sum(r["v2"]    for r in summary_rows)
-    g_pq    = sum(r["pq"]    for r in summary_rows)
+    g_total   = sum(r["total"]   for r in summary_rows)
+    g_replies = sum(r["replies"] for r in summary_rows)
+    g_v1      = sum(r["v1"]      for r in summary_rows)
+    g_v2      = sum(r["v2"]      for r in summary_rows)
+    g_v3      = sum(r["v3"]      for r in summary_rows)
+    g_exempt  = sum(r["exempt"]  for r in summary_rows)
+    g_pq      = sum(r["pq"]      for r in summary_rows)
 
-    print(f"\n{'═'*65}")
-    print(f"  전체 합산 ({g_total}건)")
-    print(f"  {'candidate':<30}  {'전체':>5}  {'v1':>5}  {'v1%':>4}  {'v2':>5}  {'v2%':>4}  {'의문문':>5}")
-    print(f"  {'─'*30}  {'─'*5}  {'─'*5}  {'─'*4}  {'─'*5}  {'─'*4}  {'─'*5}")
+    print(f"\n{'═'*72}")
+    print(f"  전체 합산 ({g_total}건 · 대댓글 {g_replies}건)")
+    print(f"  {'candidate':<26}  {'전체':>5}  {'v2':>5}  {'v2%':>4}  {'v3':>5}  {'v3%':>4}  {'면제':>4}")
+    print(f"  {'─'*26}  {'─'*5}  {'─'*5}  {'─'*4}  {'─'*5}  {'─'*4}  {'─'*4}")
     for r in summary_rows:
-        print(f"  {r['cid']:<30}  {r['total']:>5}  {r['v1']:>5}  "
-              f"{r['v1']/r['total']:.0%}  {r['v2']:>5}  "
-              f"{r['v2']/r['total']:.0%}  {r['pq']:>5}")
-    print(f"  {'합계':<30}  {g_total:>5}  {g_v1:>5}  "
-          f"{g_v1/g_total:.0%}  {g_v2:>5}  "
-          f"{g_v2/g_total:.0%}  {g_pq:>5}")
+        print(f"  {r['cid']:<26}  {r['total']:>5}  {r['v2']:>5}  "
+              f"{r['v2']/r['total']:.0%}  {r['v3']:>5}  "
+              f"{r['v3']/r['total']:.0%}  {r['exempt']:>4}")
+    print(f"  {'합계':<26}  {g_total:>5}  {g_v2:>5}  "
+          f"{g_v2/g_total:.0%}  {g_v3:>5}  "
+          f"{g_v3/g_total:.0%}  {g_exempt:>4}")
+
+    # ── YR-D3 재측정 결론 ─────────────────────────────────────────────────────
+    print(f"\n  ── YR-D3 재측정 (오제외율/유지율 변화) ──")
+    if g_replies == 0:
+        print("  ⚠ 입력에 대댓글(is_reply)이 없습니다 — Phase A 적용 후 measure 재실행 필요.")
+        print("    현재 데이터로는 v3 == v2 (면제 0건). 재측정 불가.")
+    else:
+        d_ret = (g_v3 - g_v2) / g_total
+        print(f"  유지율: v2 {g_v2/g_total:.1%} → v3 {g_v3/g_total:.1%}  (+{d_ret:.1%}p)")
+        print(f"  YR-D3 면제(키워드 없이 부모 통과한 대댓글): {g_exempt}건")
+        print(f"  v3는 v2 대비 keep만 추가(완화)하므로 오제외(false negative)는 v2 이하.")
+        print(f"  ※ 오포함 위험은 위 '면제 대댓글 샘플'을 육안 검토해 판정.")
 
     # ── v2 필터 적용 결과 JSON 저장 ───────────────────────────────────────────
     filtered_results: dict = {}
     for cid, r in results.items():
         filtered_videos = []
         for v in r.get("videos") or []:
-            kept, _, _ = _apply_filter_v2(v.get("comments") or [])
+            kept, _ = _apply_filter_v3(v.get("comments") or [])
             filtered_videos.append({**v, "comments": kept})
         total_kept = sum(len(v["comments"]) for v in filtered_videos)
         filtered_results[cid] = {
@@ -253,16 +312,17 @@ def main() -> None:
             "videos":           filtered_videos,
         }
 
-    out_path = args.input.parent / (args.input.stem + "_filtered_v2.json")
+    out_path = args.input.parent / (args.input.stem + "_filtered_v3.json")
     out_data = {**data, "results": filtered_results,
                 "filter_meta": {
-                    "version":        "v2",
+                    "version":        "v3",
+                    "yr_d3":          "부모 통과 스레드의 대댓글 키워드 면제",
                     "pure_q_max_len": _PURE_QUESTION_MAX_LEN,
                     "kw_counts":      {aid: len(kws) for aid, kws in ASPECT_KW.items()},
                 }}
     out_path.write_text(json.dumps(out_data, ensure_ascii=False, indent=2, default=str),
                         encoding="utf-8")
-    print(f"\n  v2 저장: {out_path}")
+    print(f"\n  v3 저장: {out_path}")
 
 
 if __name__ == "__main__":
