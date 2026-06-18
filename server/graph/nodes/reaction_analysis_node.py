@@ -6,9 +6,12 @@ server/graph/nodes/reaction_analysis_node.py (v0.13 — reaction_insight 시리�
 
 책임 분리 (CM-D1 사상)
 ----------------------
-- 코드: 채널 2종 입력 조립(dedup·candidate 연관) · LLM 출력 가드(코드북 외 aspect ·
-  입력에 없는 source_url · 비실존 quote 제거) · 표본 메타(AP-3) 집계.
-- LLM (ClaudeCodeCliAnalyzer, candidate당 1회): 7-tuple 추출 — 분류·발췌만.
+- 코드: 채널 2종 입력 조립(dedup·candidate 연관) · 스레드 원자 chunk 분할(CH-D3·D4) ·
+  LLM 출력 가드(코드북 외 aspect · 입력에 없는 source_url · 비실존 quote 제거) · 표본 메타
+  (AP-3) 집계.
+- LLM (ClaudeCodeCliAnalyzer): chunk별 7-tuple 추출. candidate×chunk 를 평탄화해 상한 풀로
+  병렬 호출(CH-D11). 캐시 I/O 는 메인 스레드 전용(경쟁 회피).
+  설계: docs/design/reaction_analysis_chunking_design.md (CONFIRMED)
 
 read keys
 ---------
@@ -22,8 +25,10 @@ write keys
 ----------
 - reaction_analysis : {candidate_id: {"tuples": [7-tuple+is_suggestion],
                        "channel_counts": {"youtube": n, "community": n, "blog": n},
-                       "sample_size": int, "collected_at": ISO8601,
-                       "dropped_by_guard": int}}
+                       "post_count": {...}, "sample_size": int (수집 전량),
+                       "analyzed_size": int (분석 성공분), "collected_at": ISO8601,
+                       "dropped_by_guard": int, "failed_chunks": int,
+                       "missing_items": int}}
 - agent_steps / errors (누적 reducer)
 """
 
@@ -32,9 +37,17 @@ from __future__ import annotations
 import json
 import logging
 import re
+from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 
-from server.config import AGENTS_DIR
+from server.config import (
+    AGENTS_DIR,
+    REACTION_ABSA_CHUNK_CHARS,
+    REACTION_ABSA_CHUNK_CHARS_MIN,
+    REACTION_ABSA_CHUNK_TIMEOUT,
+    REACTION_ABSA_MAX_ITEMS,
+    REACTION_ABSA_PARALLEL,
+)
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -48,11 +61,6 @@ logger = logging.getLogger(__name__)
 
 REPORT_TYPE   = "reaction_insight"
 _LLM_AGENT_ID = "reaction_analysis"
-_LLM_TIMEOUT_SEC = 600     # 댓글 대량 입력 — CLI 여유 timeout
-
-# 수집 풀 확장(600+건) 이후 CLI 과부하 방지 — candidate당 입력 상한.
-# 초과 시 posted_at 내림차순(최신 우선) deterministic 샘플링으로 채널 비율 유지.
-_MAX_ITEMS_PER_CANDIDATE = 250
 
 _WS_RE = re.compile(r"\s+")
 
@@ -62,42 +70,76 @@ def _norm(text: str) -> str:
     return _WS_RE.sub("", text or "")
 
 
-def _sample_items(items: list[dict], max_n: int) -> list[dict]:
-    """채널 비율 유지 deterministic 샘플링 (posted_at 내림차순, 최신 우선).
+def _group_sort_threads(items: list[dict]) -> list[list[dict]]:
+    """thread_id 로 그룹화 + 결정론 정렬 (CH-D3). 반환: 스레드(item 리스트)들의 리스트.
 
-    전체 items 수가 max_n 이하면 그대로 반환.
-    초과 시 채널별로 max_n × 채널비율만큼 최신 순으로 선택한다.
-    채널 비율이 소수일 경우 먼저 처리된 채널에 나머지 슬롯을 배분한다.
+    스레드 내부는 posted_at·source_url 오름차순(최상위/최초 먼저). 스레드 간은 대표(최초)
+    posted_at 내림차순(최신 스레드 우선), 동률 시 thread_id 로 결정론적 순서를 보장한다.
     """
-    if len(items) <= max_n:
-        return items
-
-    from collections import defaultdict
-    by_ch: dict[str, list[dict]] = defaultdict(list)
+    groups: dict[str, list[dict]] = {}
     for it in items:
-        by_ch[it.get("channel", "")].append(it)
+        groups.setdefault(it.get("thread_id", ""), []).append(it)
+    threads: list[tuple[str, str, list[dict]]] = []
+    for tid, group in groups.items():
+        group.sort(key=lambda x: (x.get("posted_at", ""), x.get("source_url", "")))
+        threads.append((group[0].get("posted_at", ""), tid, group))
+    threads.sort(key=lambda t: (t[0], t[1]), reverse=True)
+    return [g for _, _, g in threads]
 
-    # 각 채널을 posted_at 내림차순 정렬 (deterministic)
-    for ch in by_ch:
-        by_ch[ch].sort(key=lambda x: x.get("posted_at", ""), reverse=True)
 
-    total   = len(items)
-    allotted = 0
-    quota: dict[str, int] = {}
-    channels = sorted(by_ch)   # deterministic 순서
-    for i, ch in enumerate(channels):
-        is_last = (i == len(channels) - 1)
-        if is_last:
-            quota[ch] = max_n - allotted
-        else:
-            q = round(max_n * len(by_ch[ch]) / total)
-            quota[ch] = q
-            allotted += q
+def _thread_chars(thread: list[dict]) -> int:
+    return sum(len(it.get("text", "")) for it in thread)
 
-    result: list[dict] = []
-    for ch in channels:
-        result.extend(by_ch[ch][: quota[ch]])
-    return result
+
+def _split_threads(threads: list[list[dict]], budget: int,
+                   min_chars: int) -> list[list[dict]]:
+    """스레드 원자 chunk 분할 (CH-D3·CH-D4). 스레드는 절대 분할하지 않는다.
+
+    누적 text 길이 budget 까지 스레드를 담되, 다음 스레드가 budget 을 넘기면 현재 chunk 를
+    닫는다. 단 현재 chunk 가 min_chars 미만이면(마지막 잔여 제외) 닫지 않고 계속 채워 비최종
+    chunk 의 하한을 보장한다. 단일 스레드가 budget 초과 시 그 스레드만으로 1 chunk.
+    """
+    chunks: list[list[dict]] = []
+    cur: list[dict] = []
+    cur_chars = 0
+    for thread in threads:
+        tchars = _thread_chars(thread)
+        if cur and cur_chars + tchars > budget and cur_chars >= min_chars:
+            chunks.append(cur)
+            cur, cur_chars = [], 0
+        cur.extend(thread)
+        cur_chars += tchars
+    if cur:
+        chunks.append(cur)
+    return chunks
+
+
+def _dedup_tuples(tuples: list[dict]) -> list[dict]:
+    """경계 중복 환각 방어 — (aspect, source_url, norm(quote)) 기준 dedup (CH-D7)."""
+    seen: set[tuple] = set()
+    out: list[dict] = []
+    for t in tuples:
+        k = (t.get("aspect"), t.get("source_url"), _norm(t.get("quote", "")))
+        if k in seen:
+            continue
+        seen.add(k)
+        out.append(t)
+    return out
+
+
+_CHANNELS = ("youtube", "community", "blog")
+
+
+def _count_by_channel(items: list[dict]) -> dict[str, int]:
+    return {ch: sum(1 for it in items if it.get("channel") == ch) for ch in _CHANNELS}
+
+
+def _unique_urls_by_channel(items: list[dict]) -> dict[str, int]:
+    return {
+        ch: len({it["source_url"] for it in items
+                 if it.get("channel") == ch and it.get("source_url")})
+        for ch in _CHANNELS
+    }
 
 
 # ─── 코드 파트: 입력 조립 (순수 함수) ────────────────────────────────────────
@@ -238,7 +280,7 @@ def reaction_analysis_node(
     if analyzer is None:
         from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer  # 지연 import
         analyzer = ClaudeCodeCliAnalyzer(system_prompt=system_prompt,
-                                         timeout=_LLM_TIMEOUT_SEC)
+                                         timeout=REACTION_ABSA_CHUNK_TIMEOUT)  # CH-D6
     context = make_cache_context(
         agent_id=_LLM_AGENT_ID,
         model=getattr(analyzer, "model", "claude_cli"),
@@ -253,72 +295,114 @@ def reaction_analysis_node(
         for p in state.get("product_profiles") or []
     }
 
-    # candidate 순차 처리 (CLI 어댑터 — 동시 실행 이점 없음)
+    # ── 1) candidate별 스레드 정렬·chunk 분할 + 평탄화 작업목록 (CH-D3·D4) ─────
+    chunks_by_cid: dict[str, tuple[list[dict], list[list[dict]]]] = {}
+    tasks: list[tuple[str, int, list[dict]]] = []
     for cid in sorted(inputs):
-        items_raw = inputs[cid]
-        items = _sample_items(items_raw, _MAX_ITEMS_PER_CANDIDATE)
-        if len(items) < len(items_raw):
-            logger.info(
-                "reaction_analysis[%s]: 입력 %d건 → %d건으로 샘플링 (MAX=%d)",
-                cid, len(items_raw), len(items), _MAX_ITEMS_PER_CANDIDATE,
-            )
+        threads = _group_sort_threads(inputs[cid])
+        # 안전 상한 (CH-D2) — 정상 운영 미도달. 스레드 단위로 누적해 초과분 폐기.
+        kept_threads: list[list[dict]] = []
+        cnt = 0
+        for th in threads:
+            if kept_threads and cnt + len(th) > REACTION_ABSA_MAX_ITEMS:
+                logger.warning("reaction_analysis[%s]: MAX_ITEMS=%d 초과 — 이후 스레드 폐기",
+                               cid, REACTION_ABSA_MAX_ITEMS)
+                break
+            kept_threads.append(th)
+            cnt += len(th)
+        chunks = _split_threads(kept_threads, REACTION_ABSA_CHUNK_CHARS,
+                                REACTION_ABSA_CHUNK_CHARS_MIN)
+        items_sorted = [it for ch in chunks for it in ch]
+        chunks_by_cid[cid] = (items_sorted, chunks)
+        for i, chunk in enumerate(chunks):
+            tasks.append((cid, i, chunk))
+
+    # ── 2) 캐시 조회 (메인 스레드 순차) → 적중/미스 분리 (CH-D5·D11) ───────────
+    results: dict[tuple[str, int], list[dict]] = {}
+    cache_inputs: dict[tuple[str, int], dict] = {}
+    misses: list[tuple[str, int, list[dict]]] = []
+    for cid, i, chunk in tasks:
+        ci = {
+            "candidate_id": cid,
+            "aspect_ids":   sorted(valid_aspects),
+            "items_sha":    [_norm(it["text"])[:64] for it in chunk],
+        }
+        cache_inputs[(cid, i)] = ci
+        cached = load_agent_output(
+            agent_id=_LLM_AGENT_ID, cache_input=ci,
+            context=context, output_schema=output_schema, logger=logger)
+        if cached is not None:
+            results[(cid, i)] = cached.get("tuples", [])
+        else:
+            misses.append((cid, i, chunk))
+
+    # ── 3) 미스만 평탄화 병렬 CLI 호출 (워커: call_with_schema 만) (CH-D11) ────
+    # 워커는 LLM 호출만 수행한다. 캐시 I/O·종합은 메인 스레드 전용 — agent_cache 의
+    # 비원자적 read-modify-write 경쟁(엔트리 유실) 회피.
+    def _call_chunk(cid: str, chunk: list[dict]) -> dict:
         payload = {
             "candidate_id":   cid,
             "candidate_name": name_by_cid.get(cid, cid),
             "aspects":        aspects,
-            "items":          items,
+            "items":          chunk,
         }
-        cache_input = {
-            "candidate_id": cid,
-            "aspect_ids":   sorted(valid_aspects),
-            "items_sha":    [_norm(it["text"])[:64] for it in items],
-        }
-        try:
-            llm_out = load_agent_output(
-                agent_id=_LLM_AGENT_ID, cache_input=cache_input,
-                context=context, output_schema=output_schema, logger=logger)
-            if llm_out is None:
-                prompt = ("다음 사용자 반응에서 aspect 별 의견을 추출하라.\n\n```json\n"
-                          + json.dumps(payload, ensure_ascii=False) + "\n```")
-                llm_out = analyzer.call_with_schema(prompt, output_schema)
-                store_agent_output(
-                    agent_id=_LLM_AGENT_ID, cache_input=cache_input,
-                    context=context, output=llm_out, logger=logger)
+        prompt = ("다음 사용자 반응에서 aspect 별 의견을 추출하라.\n\n```json\n"
+                  + json.dumps(payload, ensure_ascii=False) + "\n```")
+        return analyzer.call_with_schema(prompt, output_schema)
 
-            tuples, dropped = sanitize_tuples(
-                llm_out.get("tuples", []), items, valid_aspects)
-            reaction_analysis[cid] = {
-                "tuples": tuples,
-                "channel_counts": {
-                    "youtube":   sum(1 for it in items if it["channel"] == "youtube"),
-                    "community": sum(1 for it in items if it["channel"] == "community"),
-                    "blog":      sum(1 for it in items if it["channel"] == "blog"),
-                },
-                # v0.14 — 원 게시글 수 (chunk 도입으로 item 수 ≠ 게시글 수.
-                # UI 표본 뱃지는 post_count 기준 권장 — CE 설계 §7 사용자 확정)
-                "post_count": {
-                    ch: len({it["source_url"] for it in items
-                             if it["channel"] == ch and it.get("source_url")})
-                    for ch in ("youtube", "community", "blog")
-                },
-                "sample_size":      len(items),          # AP-3 — 표본 크기 의무
-                "collected_at":     started_at,          # AP-3 — 수집 시점 의무
-                "dropped_by_guard": dropped,
-            }
-            if dropped:
-                logger.warning("reaction_analysis: %s 가드 제거 %d건", cid, dropped)
-        except Exception as exc:  # noqa: BLE001 — candidate 단위 부분 실패 (§7)
-            errors.append({
-                "node": "reaction_analysis_node",
-                "error": f"candidate={cid}: {type(exc).__name__}: {str(exc)[:200]}",
-                "timestamp": datetime.now(timezone.utc).isoformat(),
-            })
+    if misses:
+        with ThreadPoolExecutor(
+            max_workers=min(len(misses), REACTION_ABSA_PARALLEL)
+        ) as pool:
+            fut_map = {pool.submit(_call_chunk, cid, chunk): (cid, i)
+                       for cid, i, chunk in misses}
+            for fut in as_completed(fut_map):
+                cid, i = fut_map[fut]
+                try:
+                    out_i = fut.result()              # CH-D6 per-chunk timeout
+                    results[(cid, i)] = out_i.get("tuples", [])
+                    store_agent_output(               # 메인 스레드 — 경쟁 회피
+                        agent_id=_LLM_AGENT_ID, cache_input=cache_inputs[(cid, i)],
+                        context=context, output=out_i, logger=logger)
+                except Exception as exc:  # noqa: BLE001 — chunk 단위 부분 실패 (CH-D10)
+                    errors.append({
+                        "node": "reaction_analysis_node",
+                        "error": f"candidate={cid}/chunk={i}: "
+                                 f"{type(exc).__name__}: {str(exc)[:200]}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+
+    # ── 4) candidate별 종합 (메인 스레드) (CH-D7·D8·D9·D10) ───────────────────
+    for cid, (items_sorted, chunks) in chunks_by_cid.items():
+        n = len(chunks)
+        succeeded = [i for i in range(n) if (cid, i) in results]
+        if not succeeded:                     # 전 chunk 실패 → candidate 누락 (CH-D10)
+            continue
+        merged = _dedup_tuples([t for i in succeeded for t in results[(cid, i)]])
+        tuples, dropped = sanitize_tuples(merged, items_sorted, valid_aspects)
+        analyzed = sum(len(chunks[i]) for i in succeeded)
+        reaction_analysis[cid] = {
+            "tuples":           tuples,
+            "channel_counts":   _count_by_channel(items_sorted),
+            "post_count":       _unique_urls_by_channel(items_sorted),
+            "sample_size":      len(items_sorted),    # AP-3 — 수집 전량
+            "analyzed_size":    analyzed,             # CH-D9 — 분석 성공분
+            "collected_at":     started_at,           # AP-3
+            "dropped_by_guard": dropped,
+            "failed_chunks":    n - len(succeeded),            # CH-D10 Q4
+            "missing_items":    len(items_sorted) - analyzed,  # CH-D10 Q4
+        }
+        if dropped:
+            logger.warning("reaction_analysis: %s 가드 제거 %d건", cid, dropped)
+        if n - len(succeeded):
+            logger.warning("reaction_analysis: %s chunk %d/%d 실패 — 댓글 %d건 누락",
+                           cid, n - len(succeeded), n, len(items_sorted) - analyzed)
 
     step = _step("completed", started_at)
     if errors:
         step["error_message"] = f"{len(errors)}건 부분 실패"
     total = sum(len(v["tuples"]) for v in reaction_analysis.values())
-    logger.info("reaction_analysis: %d candidates · tuple %d건 (부분실패 %d)",
+    logger.info("reaction_analysis: %d candidates · tuple %d건 (chunk 부분실패 %d)",
                 len(reaction_analysis), total, len(errors))
 
     out: dict = {"reaction_analysis": reaction_analysis, "agent_steps": [step]}
