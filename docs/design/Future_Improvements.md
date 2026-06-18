@@ -250,6 +250,51 @@ marketing_social 시리즈 완료 후 수동 등록(1번)부터.
 
 ---
 
+## 7. 일반(aspect 무관) suggestion 포착 — prefilter suggestion 패턴 면제
+
+| 항목 | 값 |
+|---|---|
+| 최초 기록 일자 | 2026-06-18 |
+| 관련 설계 | `youtube_reply_collection_design.md`(YR-D3) · `reaction_analysis_chunking_design.md` |
+| 현재 채택안 | aspect 키워드 미보유 댓글은 `_prefilter_v2`에서 폐기(YR-D3 대댓글 면제만 예외). 제안 여부 무관 |
+| 대안 (보류) | prefilter에 suggestion 패턴 면제 + 다운스트림 "기타/other" aspect 경로 + 리포트 "기타 개선 제안" 버킷(3계층) |
+
+### 배경 (2026-06-18)
+
+is_suggestion은 prefilter가 아니라 reaction_analysis(LLM ABSA)가 부여하는 속성이며, 모든
+suggestion tuple은 코드북 aspect에 바인딩된다(`sanitize_tuples`가 코드북 외 aspect 제거,
+`build_suggestions`는 is_suggestion tuple만 수집). 따라서 **aspect에 걸리지 않는 일반 개선
+제안**(예: "전반적으로 UI가 더 직관적이면 좋겠어요"처럼 모호하거나, 코드북에 없는 새 축의
+요구)은 (a) `_prefilter_v2` 키워드 단계에서 먼저 폐기되고, (b) 설령 통과해도 ABSA·sanitize·
+build_suggestions 어디에도 담길 슬롯이 없다. 현재는 aspect별 제안 뷰(항목당 top-N)와 정합적
+이므로 일반 제안을 의도적으로 범위 밖으로 둔다.
+
+### 개선안 (재검토 시 적용 — 3계층)
+
+1. **prefilter**: suggestion 형태 패턴("~했으면", "~해주세요", "추가해 주세요", "있으면 좋겠"
+   등)을 키워드 면제 신호로 추가(YR-D3와 유사). 키워드 없는 제안형 댓글을 보존.
+2. **다운스트림**: 코드북·`output.schema.json`에 "기타/other" aspect 경로를 허용해 일반 제안이
+   tuple로 살아남게 한다.
+3. **리포트**: `reaction_insight`에 "기타 개선 제안" 버킷 추가.
+
+### 재검토 트리거
+
+- (T1) 제품팀이 "코드북 축에 안 걸리는 일반 개선 제안" 누락을 문제로 제기
+- (T2) suggestion에서 동일 주제가 반복 발견되어 신규 aspect 코드북 확장 신호로 이어짐
+- (T3) aspect별 제안 뷰의 suggestion 커버리지가 사용자 기대 대비 부족하다는 피드백
+
+### 유의 — 측정 선행
+
+개선안 1(prefilter 완화)은 오포함(노이즈 제안형 댓글 유입)을 늘릴 수 있다. 도입 전
+`validate_youtube_prefilter.py`로 완화 전후 유지율/오포함을 측정해 손익을 판정한다(YR-D3
+재측정과 동일 절차).
+
+### 검토 시점
+
+reaction_insight의 aspect별 제안 뷰 구현 후, suggestion 커버리지 실측 1회 시점.
+
+---
+
 ## 변경 이력
 
 | 일자 | 변경 |
@@ -260,3 +305,4 @@ marketing_social 시리즈 완료 후 수동 등록(1번)부터.
 | 2026-06-04 | 4번 항목 (ProductIdResolver 상품명 정규화 오염) 신설 — Step 0 실데이터 검증 중 발견, 임시 조치 완료 |
 | 2026-06-07 | 5번 항목 (인메모리 Brave 캐시 파일 전환) 신설 — Brave 월 크레딧 소진 사고 후속 |
 | 2026-06-07 | 6번 항목 (모회사·계열 브랜드 채널 탐지 확장) 신설 — owned_channels 실사 미발견 3건 원인 분석 후속 |
+| 2026-06-18 | 7번 항목 (일반 suggestion 포착 — prefilter suggestion 패턴 면제) 신설 — aspect 무관 제안 미지원, 3계층 변경 보류 |
