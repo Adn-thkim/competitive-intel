@@ -165,6 +165,14 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
   const orderedInsights = [...insights].sort((a, b) =>
     (aspectOrder[a.aspect] ?? 99) - (aspectOrder[b.aspect] ?? 99));
 
+  // 개선 제안 — 자사 관점, aspect 별 그룹 (Q2: backend 가 candidate×aspect top-N 으로 상한)
+  const suggestionsByAspect = ownSuggestions.reduce((acc, s) => {
+    (acc[s.aspect] = acc[s.aspect] || []).push(s);
+    return acc;
+  }, {});
+  const suggestionAspects = Object.keys(suggestionsByAspect)
+    .sort((a, b) => (aspectOrder[a] ?? 99) - (aspectOrder[b] ?? 99));
+
   const maxMonthCount = Math.max(1, ...Object.values(timelineSeries).map(t => t.count ?? 0));
 
   return (
@@ -337,22 +345,32 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
         </div>
       )}
 
-      {/* ── 6. 개선 제안 — 자사 관점만 (item 3) ── */}
+      {/* ── 6. 개선 제안 — 자사 관점, 항목(aspect)별 대표 N건 (Q2) ── */}
       {ownSuggestions.length > 0 && (
         <div className="mb-5">
           <h4 className="text-sm font-bold text-gray-800 mb-1">개선 제안 후보 (자사 사용자 요청)</h4>
           <p className="text-xs text-gray-600 mb-2">
-            자사 상품 사용자가 직접 요청한 기능·개선 사항입니다 — product 백로그 후보.
+            자사 상품 사용자가 직접 요청한 기능·개선 사항을 <b>항목별 대표 요청</b>으로
+            정리했습니다 — product 백로그 후보.
           </p>
-          {ownSuggestions.map((s, i) => (
-            <p key={i} className="text-xs text-gray-700 mb-1">
-              💡 <b>{labelOf(s.aspect)}</b> — “{s.quote}”
-              {s.source_url && (
-                <a href={s.source_url} target="_blank" rel="noreferrer"
-                  className="ml-1 text-blue-500 hover:underline">원문↗</a>
-              )}
-            </p>
-          ))}
+          <div className="space-y-2.5">
+            {suggestionAspects.map(a => (
+              <div key={a} className="rounded-lg border border-gray-100 bg-gray-50/50 p-2.5">
+                <p className="text-xs font-semibold text-indigo-700 mb-1">{labelOf(a)}</p>
+                <div className="space-y-1">
+                  {suggestionsByAspect[a].map((s, i) => (
+                    <p key={i} className="text-xs text-gray-700">
+                      💡 “{s.quote}”
+                      {s.source_url && (
+                        <a href={s.source_url} target="_blank" rel="noreferrer"
+                          className="ml-1 text-blue-500 hover:underline">원문↗</a>
+                      )}
+                    </p>
+                  ))}
+                </div>
+              </div>
+            ))}
+          </div>
         </div>
       )}
 
