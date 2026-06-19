@@ -286,6 +286,7 @@ def _collect_posts(
 import re as _re
 from concurrent.futures import ThreadPoolExecutor as _Pool
 
+from server.cache_ttl import get_ttl_hours
 from server.config import (
     COMMUNITY_CHUNK_CHARS,
     COMMUNITY_MAX_CHUNKS,
@@ -315,7 +316,7 @@ _NAV_SIGNS = ("본문 바로가기", "메뉴 바로가기")
 
 _FETCH_AGENT_ID_V14  = "community_content_fetch"
 _FETCH_CACHE_CTX_V14 = {"agent_id": _FETCH_AGENT_ID_V14, "v": 1}
-_FETCH_CACHE_TTL_H   = 24
+_FETCH_CACHE_TTL_H   = get_ttl_hours("community_fetch_hours", 720)  # cache_ttls.yaml
 # 문장 경계 분할 — 한국어 종결어미·구두점 뒤 공백
 _SENTENCE_SPLIT_RE = _re.compile(r"(?<=[.!?…다요죠임함됨])\s+")
 

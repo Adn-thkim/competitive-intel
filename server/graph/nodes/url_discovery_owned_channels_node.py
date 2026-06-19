@@ -71,6 +71,7 @@ from pathlib import Path
 
 import requests
 
+from server.cache_ttl import get_ttl_hours
 from server.config import (
     AGENTS_DIR,
     BRAVE_SEARCH_API_KEY,
@@ -91,7 +92,7 @@ from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
 logger = logging.getLogger(__name__)
 
 
-_OWNED_CHANNEL_CACHE_TTL_HOURS = 24 * 7   # 7일 (공식 핸들 변동 적음)
+_OWNED_CHANNEL_CACHE_TTL_HOURS = get_ttl_hours("owned_channel_hours", 720)  # cache_ttls.yaml
 # v0.13.6 — 5 → 20 상향 (Brave 과금은 요청 단위라 무비용. 트래블월렛 네이버 블로그
 # 케이스: 공식 블로그 홈이 상위 5위 밖 — Google 대비 Brave 랭킹 격차 보완.
 # count 는 Brave 캐시 키에 포함되므로 owned_channels 쿼리만 재검색됨)

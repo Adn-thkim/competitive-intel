@@ -52,6 +52,7 @@ import requests
 from urllib.parse import unquote
 
 from server.graph.agent_cache import load_agent_output, store_agent_output
+from server.cache_ttl import get_ttl_hours
 from server.graph.progress_store import set_progress
 from server.graph.state import AgentStep, DomainAnalysisState
 from server.graph.nodes.community_collection_node import _robots_allowed
@@ -65,7 +66,7 @@ _MAX_POSTS     = 100   # v1.0.4 — 50→100 (12개월 윈도우 커버, 사용�
 _SUMMARY_CHARS = 300   # MS-D10 — RSS 동봉 요약 발췌 상한
 _RATE_LIMIT_S  = 1.0
 _HTTP_TIMEOUT  = (3, 10)
-_CACHE_TTL_H   = 24
+_CACHE_TTL_H   = get_ttl_hours("blog_rss_hours", 720)  # cache_ttls.yaml
 _USER_AGENT    = "Mozilla/5.0 (compatible; competitive-intel/1.0)"
 
 # MS-D13 — sitemap 폴백 상한

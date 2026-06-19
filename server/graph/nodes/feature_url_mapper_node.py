@@ -57,6 +57,7 @@ from pathlib import Path
 import requests as req_lib
 
 from server.config import BRAVE_SEARCH_API_KEY, BRAVE_SEARCH_CACHE_TTL_HOURS
+from server.cache_ttl import get_ttl_hours
 from server.graph.agent_cache import (
     load_agent_output,
     store_agent_output,
@@ -66,7 +67,7 @@ from server.graph.state import AnalysisFeature
 logger = logging.getLogger(__name__)
 
 # v0.10.12 — 4개 노드 캐시 공통 TTL (시간 단위)
-_NODE_CACHE_TTL_HOURS = 24
+_NODE_CACHE_TTL_HOURS = get_ttl_hours("feature_url_mapper_hours", 720)  # cache_ttls.yaml
 
 # ── HTTP·Brave 설정 ───────────────────────────────────────────────────────────
 _HTTP_CONNECT_TIMEOUT = 3

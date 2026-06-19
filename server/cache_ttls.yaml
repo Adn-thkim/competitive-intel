@@ -1,0 +1,23 @@
+# ──────────────────────────────────────────────────────────────────────────────
+# cache_ttls.yaml — 캐시 TTL 일괄 관리 (2026-06-19 신설)
+# ──────────────────────────────────────────────────────────────────────────────
+# competitor_selection 이후 노드/모듈이 쓰는 캐시 TTL을 한 곳에서 관리한다.
+# 읽기: server/cache_ttl.py 의 get_ttl_hours("<key>", fallback) / get_ttl_minutes(...).
+# 우선순위: 환경변수(노드별 기존 ENV) > 본 yaml(defaults) > 코드 fallback.
+#
+# 단위: *_hours = 시간, *_minutes = 분.  현재 일괄 30일 정책 (720h / 43200m).
+# 항목별로 조정 시 이 파일만 수정하면 된다(코드 변경 불필요).
+# ──────────────────────────────────────────────────────────────────────────────
+defaults:
+  # ── 파일 캐시 (재실행/재시작에도 유지) ──
+  brave_search_hours:           720   # url_discovery_brave 파일 캐시 (feature_url_mapper._brave_search)
+  youtube_hours:                720   # youtube_client (comments/search/statistics 등)
+  official_content_fetch_hours: 720   # official_content_collection 공식 페이지 fetch
+  community_fetch_hours:        720   # community_collection 본문/댓글 fetch
+  feature_url_mapper_hours:     720   # feature_url_mapper 노드 캐시 (4개 노드 공통)
+  owned_channel_hours:          720   # url_discovery_owned_channels
+  blog_rss_hours:               720   # blog_rss_collection (휴면)
+
+  # ── 인메모리 캐시 (서버 재시작 시 소멸 — 파일 캐시 전환은 Future_Improvements 5번) ──
+  brave_result_hours:           720   # url_cache E-1 (official_source_resolver 인메모리)
+  http_validation_minutes:    43200   # url_cache E-2 (URL 재검증 생략 — 30일)

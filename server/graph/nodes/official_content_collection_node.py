@@ -87,6 +87,7 @@ import requests
 import trafilatura
 
 from server.config import AGENTS_DIR, API_MODEL
+from server.cache_ttl import get_ttl_hours
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -121,7 +122,7 @@ _TIER_ADDITIONAL         = 3
 
 # ── Step 1: 콘텐츠 수집 상수 (§5-2, FE-D5 v3·FE-D10) ─────────────────────────
 _FETCH_AGENT_ID        = "official_content_fetch"
-_FETCH_CACHE_TTL_HOURS = 24
+_FETCH_CACHE_TTL_HOURS = get_ttl_hours("official_content_fetch_hours", 720)  # cache_ttls.yaml
 _FETCH_TIMEOUT         = (3, 10)      # (connect, read) — 코드베이스 requests 규약
 _FETCH_USER_AGENT      = "Mozilla/5.0 (compatible; OfficialContentCollector/1.0)"
 _FETCH_MAX_WORKERS     = 5
