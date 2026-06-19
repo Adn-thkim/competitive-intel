@@ -127,22 +127,36 @@ def select_top_quotes(reaction_analysis: dict, per_bucket: int = 1,
 
 
 def build_suggestions(reaction_analysis: dict,
-                      exclude_urls: frozenset[str] = frozenset()) -> list[dict]:
-    """is_suggestion tuple 분리 (5점 요건 — product_dev 후보).
+                      exclude_urls: frozenset[str] = frozenset(),
+                      per_aspect: int = 3) -> list[dict]:
+    """is_suggestion tuple 을 candidate×aspect 별 상위 N건으로 분리 (5점 요건 + Q2 상한).
+
+    Q2 (reaction_analysis_chunking_design §9) — chunking 으로 전량 분석 시 is_suggestion 이
+    데이터 비례 증가해 본 노드 LLM 입력을 부풀린다. candidate×aspect 별로 묶어 intensity·
+    채널 가중 상위 N(기본 3)만 노출해 입력을 `#candidate × #aspect × N` 으로 상한한다.
+    출력은 candidate·aspect 순 결정론 정렬(리포트 항목별 그룹 표시용).
 
     v0.14 CE-D10 — snippet_only 출처 제외 (select_top_quotes 와 동일 근거).
     """
-    out = []
+    buckets: dict[tuple[str, str], list[dict]] = defaultdict(list)
     for cid in sorted(reaction_analysis):
         for t in reaction_analysis[cid].get("tuples", []):
             if t.get("source_url", "") in exclude_urls:
                 continue
             if t.get("is_suggestion"):
-                out.append({
-                    "candidate_id": cid, "aspect": t["aspect"], "quote": t["quote"],
-                    "channel": t["channel"], "source_url": t["source_url"],
-                    "posted_at": t.get("posted_at", ""),
-                })
+                buckets[(cid, t["aspect"])].append(t)
+    out: list[dict] = []
+    for cid, aspect in sorted(buckets):
+        ranked = sorted(buckets[(cid, aspect)], key=lambda t: (
+            -int(t.get("intensity", 1) or 1),
+            -CHANNEL_WEIGHTS.get(t.get("channel", ""), 1.0),
+            t.get("quote", "")))
+        for t in ranked[:per_aspect]:
+            out.append({
+                "candidate_id": cid, "aspect": aspect, "quote": t["quote"],
+                "channel": t["channel"], "source_url": t["source_url"],
+                "posted_at": t.get("posted_at", ""),
+            })
     return out
 
 
