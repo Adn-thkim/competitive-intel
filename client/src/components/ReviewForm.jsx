@@ -305,8 +305,8 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
             <span className="text-red-500 font-bold">*</span> 표시 항목은 필수 입력 항목입니다.
           </p>
 
-          {/* 분석 기준(taxonomy) 캐시 선택 — 확인 버튼과 필수 안내 문구 사이로 이동(크기 유지) */}
-          <div className="flex-none w-40">
+          {/* 분석 기준(taxonomy) 캐시 선택 — 확인 버튼과 필수 안내 문구 사이로 이동. (v6) 표기가 잘리지 않게 폭 확대. */}
+          <div className="flex-none w-52">
             <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
               분석 기준
             </label>
@@ -319,7 +319,9 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
                          disabled:bg-gray-50 disabled:text-gray-400"
             >
               {taxonomyChoice.exists && (
-                <option value="reuse">{taxonomyChoice.latest_date} 생성본</option>
+                <option value="reuse">
+                  {taxonomyChoice.latest_date} 생성본{taxonomyChoice.version != null ? ` (v${taxonomyChoice.version})` : ''}
+                </option>
               )}
               <option value="regenerate">신규 생성</option>
             </select>

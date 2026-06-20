@@ -63,6 +63,10 @@ def positioning_map_node(state: DomainAnalysisState) -> dict:
     if not is_report_active(state, REPORT_TYPE):
         return make_skip_result(REPORT_TYPE, started_at)
 
+    # 사용자가 feature_selection 에서 선택한 리포트만 생성(reaction_insight·marketing_social 동일 게이트).
+    if REPORT_TYPE not in (state.get("selected_purposes") or []):
+        return make_skip_result(REPORT_TYPE, started_at)
+
     # TODO (comparison_matrix·reaction_insight 산출 형식 확정 후 구현):
     # 1. 두 상류 리포트의 좌표화 가능 데이터 추출
     # 2. 축 선정 (§1-4 4단계 절차 — 고객 의사결정 기준 빈도·중요도 가중)

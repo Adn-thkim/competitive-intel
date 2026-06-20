@@ -283,6 +283,10 @@ def comparison_matrix_node(
     if not is_report_active(state, REPORT_TYPE):
         return make_skip_result(REPORT_TYPE, started_at)
 
+    # 사용자가 feature_selection 에서 선택한 리포트만 생성(reaction_insight·marketing_social 동일 게이트).
+    if REPORT_TYPE not in (state.get("selected_purposes") or []):
+        return make_skip_result(REPORT_TYPE, started_at)
+
     feature_pool: dict = state.get("feature_pool") or {}
     if not feature_pool:
         return make_error_result(

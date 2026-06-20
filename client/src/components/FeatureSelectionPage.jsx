@@ -369,7 +369,10 @@ function FeatureCard({
 
 /* ── Report 섹션 (v0.10.18a — source_flow 별 UI 분기 + B-only 카드 결합) ──── */
 
-function ReportSection({ report, selectedIds, onToggleFeature }) {
+// 선택 단위 복합키 — 같은 feature_id가 여러 리포트에 공유돼도 리포트별로 독립 토글되도록 한다.
+const fkey = (reportType, id) => `${reportType}::${id}`;
+
+function ReportSection({ report, selectedKeys, onToggleFeature }) {
   // v0.10.18a — server 가 전달하는 신설 메타데이터 (후방 호환: source_flow 누락 시 "A")
   const sourceFlow         = report.source_flow ?? 'A';
   const introText          = report.intro_text  ?? '';
@@ -391,19 +394,20 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
   const featureIds = isReactionInsight
     ? aspectCodebook.map(a => a.aspect_id)
     : report.features.map(f => f.feature_id);
-  const allSelected  = featureIds.length > 0 && featureIds.every(id => selectedIds.has(id));
-  const someSelected = featureIds.some(id => selectedIds.has(id));
-  const selectedCount = featureIds.filter(id => selectedIds.has(id)).length;
+  const rt = report.report_type;
+  const allSelected  = featureIds.length > 0 && featureIds.every(id => selectedKeys.has(fkey(rt, id)));
+  const someSelected = featureIds.some(id => selectedKeys.has(fkey(rt, id)));
+  const selectedCount = featureIds.filter(id => selectedKeys.has(fkey(rt, id))).length;
 
   function handleToggleAll() {
     if (checkboxDisabled) return;   // B-only · marketing_social — 자동 포함, 전체 선택/해제 비활성
     if (allSelected) {
       featureIds.forEach(id => {
-        if (selectedIds.has(id)) onToggleFeature(id);
+        if (selectedKeys.has(fkey(rt, id))) onToggleFeature(rt, id);
       });
     } else {
       featureIds.forEach(id => {
-        if (!selectedIds.has(id)) onToggleFeature(id);
+        if (!selectedKeys.has(fkey(rt, id))) onToggleFeature(rt, id);
       });
     }
   }
@@ -458,8 +462,8 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
                   <AbsaAspectCard
                     key={aspect.aspect_id}
                     aspect={aspect}
-                    isSelected={selectedIds.has(aspect.aspect_id)}
-                    onToggle={() => onToggleFeature(aspect.aspect_id)}
+                    isSelected={selectedKeys.has(fkey(rt, aspect.aspect_id))}
+                    onToggle={() => onToggleFeature(rt, aspect.aspect_id)}
                   />
                 ))
               : (
@@ -477,8 +481,8 @@ function ReportSection({ report, selectedIds, onToggleFeature }) {
             <FeatureCard
               key={feature.feature_id}
               feature={feature}
-              isSelected={selectedIds.has(feature.feature_id)}
-              onToggle={() => onToggleFeature(feature.feature_id)}
+              isSelected={selectedKeys.has(fkey(rt, feature.feature_id))}
+              onToggle={() => onToggleFeature(rt, feature.feature_id)}
               urlCoverageVisible={urlCoverageVisible}
               checkboxDisabled={checkboxDisabled}
             />
@@ -529,30 +533,29 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   const iv      = intakeResult?.interrupt_value ?? {};
   const reports = iv.reports ?? [];
 
-  // 초기 선택: 모든 feature + reaction_insight의 ABSA aspect를 기본 선택 상태로 시작
-  const allFeatureIds = reports.flatMap(r => {
-    if (r.report_type === 'reaction_insight') {
-      return (r.aspect_codebook ?? []).map(a => a.aspect_id);
-    }
-    return r.features.map(f => f.feature_id);
+  // 초기 선택: 모든 feature + reaction_insight의 ABSA aspect를 (report,id) 복합키로 기본 선택.
+  // 복합키라 같은 feature_id가 여러 리포트에 있어도 카드별로 독립 토글된다.
+  const allKeys = reports.flatMap(r => {
+    const ids = r.report_type === 'reaction_insight'
+      ? (r.aspect_codebook ?? []).map(a => a.aspect_id)
+      : r.features.map(f => f.feature_id);
+    return ids.map(id => fkey(r.report_type, id));
   });
-  const [selectedIds, setSelectedIds] = useState(new Set(allFeatureIds));
+  const [selectedKeys, setSelectedKeys] = useState(new Set(allKeys));
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
 
-  const totalFeatures = allFeatureIds.length;
-  const selectedCount = selectedIds.size;
+  // 복합키는 모두 distinct — 총계와 선택 수가 자연 정합(전체 선택 시 N/N).
+  const totalFeatures = allKeys.length;
+  const selectedCount = selectedKeys.size;
 
   /* ── 개별 토글 ─────────────────────────────────────────────────────────── */
-  function toggleFeature(featureId) {
-    setSelectedIds(prev => {
+  function toggleFeature(reportType, id) {
+    const k = fkey(reportType, id);
+    setSelectedKeys(prev => {
       const next = new Set(prev);
-      if (next.has(featureId)) {
-        next.delete(featureId);
-      } else {
-        next.add(featureId);
-      }
+      if (next.has(k)) next.delete(k); else next.add(k);
       return next;
     });
     setError('');
@@ -563,13 +566,12 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   function deriveSelectedReportTypes() {
     const reportTypeSet = new Set();
     for (const report of reports) {
-      let hasSelected;
-      if (report.report_type === 'reaction_insight') {
-        hasSelected = (report.aspect_codebook ?? []).some(a => selectedIds.has(a.aspect_id));
-      } else {
-        hasSelected = report.features.some(f => selectedIds.has(f.feature_id));
+      const ids = report.report_type === 'reaction_insight'
+        ? (report.aspect_codebook ?? []).map(a => a.aspect_id)
+        : report.features.map(f => f.feature_id);
+      if (ids.some(id => selectedKeys.has(fkey(report.report_type, id)))) {
+        reportTypeSet.add(report.report_type);
       }
-      if (hasSelected) reportTypeSet.add(report.report_type);
     }
     return [...reportTypeSet];
   }
@@ -589,9 +591,15 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
 
     // aspect_id는 server의 valid feature_id 집합에 없으므로 제외.
     // reaction_insight 포함 여부는 selected_purposes(deriveSelectedReportTypes)로 전달.
+    // 복합키(report::id)에서 id를 복원해 순수 feature_id만 distinct 추출(서버는 전역 집합으로 소비).
     const pureFeatureIds = new Set(
       reports.flatMap(r => r.features.map(f => f.feature_id))
     );
+    const selectedFeatureIds = [...new Set(
+      [...selectedKeys]
+        .map(k => k.slice(k.indexOf('::') + 2))
+        .filter(id => pureFeatureIds.has(id))
+    )];
 
     try {
       const res = await fetch('/api/approve', {
@@ -602,7 +610,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
           resume: {
             // v0.10: 키 이름 selected_purposes 유지(server state.py 호환), 값은 report_type 목록
             selected_purposes:    deriveSelectedReportTypes(),
-            selected_feature_ids: [...selectedIds].filter(id => pureFeatureIds.has(id)),
+            selected_feature_ids: selectedFeatureIds,
           },
         }),
       });
@@ -626,11 +634,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   const allSelected = selectedCount === totalFeatures;
 
   function toggleAll() {
-    if (allSelected) {
-      setSelectedIds(new Set());
-    } else {
-      setSelectedIds(new Set(allFeatureIds));
-    }
+    setSelectedKeys(allSelected ? new Set() : new Set(allKeys));
     setError('');
   }
 
@@ -693,7 +697,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
               )}
               <ReportSection
                 report={report}
-                selectedIds={selectedIds}
+                selectedKeys={selectedKeys}
                 onToggleFeature={toggleFeature}
               />
             </div>

@@ -68,7 +68,9 @@ def _find_cached_taxonomy(qfp: str) -> dict:
                 continue
             if tax.get("query_fingerprint") != qfp:
                 continue
-            stamp = tax.get("created_at") or tax.get("updated_at") or ""
+            # 재생성은 updated_at 만 갱신하고 created_at(최초 생성일)은 보존하므로,
+            # "생성본" 날짜·최신 판정은 updated_at 을 우선한다(없으면 created_at 폴백).
+            stamp = tax.get("updated_at") or tax.get("created_at") or ""
             if best is None or stamp > best[0]:
                 best = (stamp, tax.get("version"))
     except Exception as exc:  # noqa: BLE001 — 캐시 조회 실패는 비치명적

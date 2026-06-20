@@ -63,6 +63,10 @@ def market_context_swot_node(state: DomainAnalysisState) -> dict:
     if not is_report_active(state, REPORT_TYPE):
         return make_skip_result(REPORT_TYPE, started_at)
 
+    # 사용자가 feature_selection 에서 선택한 리포트만 생성(reaction_insight·marketing_social 동일 게이트).
+    if REPORT_TYPE not in (state.get("selected_purposes") or []):
+        return make_skip_result(REPORT_TYPE, started_at)
+
     # TODO (market_context + 3개 상류 리포트 산출 형식 확정 후 구현):
     # 1. market_context (외부 macro)에서 PESTLE 4요소 + Porter's 5 Forces + 시장 규모 추출
     # 2. 3개 상류 리포트에서 S/W 인용
