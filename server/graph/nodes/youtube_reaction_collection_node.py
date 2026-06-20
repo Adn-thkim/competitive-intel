@@ -111,6 +111,25 @@ ASPECT_KW: dict[str, list[str]] = {
 }
 _ALL_KW: list[str] = [kw for kws in ASPECT_KW.values() for kw in kws]
 
+# aspect label 토큰 분리용 (공백·중점·괄호·슬래시·하이픈·물결·쉼표)
+_LABEL_SPLIT = re.compile(r"[\s·/()\[\]{}, ~\-]+")
+
+
+def _aspect_label_keywords(aspect_codebook: list[dict] | None) -> set[str]:
+    """taxonomy aspect_codebook 의 label 을 토큰화한 동적 키워드 집합.
+
+    하드코딩 ASPECT_KW(특정 taxonomy 버전 고정)가 새 aspect 어휘를 누락해 관련
+    댓글을 잘못 제외하는 문제를 보강한다. 합집합 게이트(_has_aspect_keyword)에
+    _ALL_KW 와 합쳐 쓰여 게이트를 느슨하게만 만들므로(오제외↓), 검증된 유지율을
+    해치지 않는다. label 만 사용(definition 은 문장이라 노이즈가 큼), 2자 미만 토큰 제외.
+    """
+    tokens: set[str] = set()
+    for aspect in aspect_codebook or []:
+        for tok in _LABEL_SPLIT.split(aspect.get("label") or ""):
+            if len(tok) >= 2:
+                tokens.add(tok)
+    return tokens
+
 # ── pre-filter v2: 순수 의문문 패턴 ──────────────────────────────────────────
 _PURE_QUESTION_MAX_LEN = 100
 _QUESTION_END = re.compile(
@@ -129,9 +148,12 @@ def _is_noise(text: str) -> bool:
     return len(text) < 30 and any(p.search(text) for p in _NOISE_SHORT_PATTERNS)
 
 
-def _has_aspect_keyword(text: str) -> bool:
-    """aspect 키워드 중 하나라도 포함되면 True (1단계 필터)."""
-    return any(kw in text for kw in _ALL_KW)
+def _has_aspect_keyword(text: str, keywords: set[str] | None = None) -> bool:
+    """aspect 키워드 중 하나라도 포함되면 True (1단계 필터).
+
+    keywords 미지정 시 _ALL_KW(큐레이션) 만 사용 — 기존 호출부·검증 스크립트 호환.
+    """
+    return any(kw in text for kw in (keywords if keywords is not None else _ALL_KW))
 
 
 def _is_pure_question(text: str) -> bool:
@@ -166,8 +188,11 @@ def _filter_basic(raw: list[dict]) -> list[dict]:
     return kept
 
 
-def _prefilter_v2(comments: list[dict]) -> list[dict]:
+def _prefilter_v2(comments: list[dict], aspect_keywords: set[str] | None = None) -> list[dict]:
     """pre-filter v2 (+YR-D3): 기본 노이즈 제거 → 순수 의문문 제거 → aspect 키워드.
+
+    aspect_keywords 미지정 시 _ALL_KW(큐레이션) 만 사용 — 기존 호출부·검증 스크립트 호환.
+    노드는 _ALL_KW ∪ 현재 taxonomy aspect_codebook label 토큰을 전달해 동적 aspect를 보강한다.
 
     YR-D3 (youtube_reply_collection_design.md) — 부모(최상위) 댓글이 aspect 키워드를 가진
     스레드의 대댓글은 키워드 필터를 면제한다(부모 맥락을 잇는 응답 보존). 기본 노이즈·
@@ -179,7 +204,8 @@ def _prefilter_v2(comments: list[dict]) -> list[dict]:
     passing_threads = {
         c.get("thread_id", "")
         for c in basic
-        if not c.get("is_reply") and _has_aspect_keyword((c.get("text") or "").strip())
+        if not c.get("is_reply")
+        and _has_aspect_keyword((c.get("text") or "").strip(), aspect_keywords)
     }
     result: list[dict] = []
     for c in basic:
@@ -189,7 +215,7 @@ def _prefilter_v2(comments: list[dict]) -> list[dict]:
         if c.get("is_reply") and c.get("thread_id", "") in passing_threads:
             result.append(c)          # YR-D3 — 부모 통과 스레드의 대댓글 키워드 면제
             continue
-        if not _has_aspect_keyword(text):
+        if not _has_aspect_keyword(text, aspect_keywords):
             continue
         result.append(c)
     return result
@@ -234,6 +260,13 @@ def youtube_reaction_collection_node(
     except YouTubeQuotaExceeded as exc:
         logger.warning("snippet quota 초과 — 메타 없이 진행: %s", exc)
 
+    # 동적 aspect 보강 — 현재 taxonomy aspect_codebook label 토큰을 큐레이션 키워드와 합집합.
+    aspect_codebook = (
+        (((state.get("domain_taxonomy") or {}).get("report_config") or {})
+         .get("reaction_insight") or {}).get("aspect_codebook")
+    )
+    aspect_keywords = set(_ALL_KW) | _aspect_label_keywords(aspect_codebook)
+
     errors: list[dict[str, Any]] = []
     collected_videos: list[dict] = []
     selected_comments: list[dict] = []
@@ -268,8 +301,8 @@ def youtube_reaction_collection_node(
             errors.append(_err(f"댓글 수집 실패 (video={vid}): {str(exc)[:150]}"))
             continue
 
-        # pre-filter v2 적용
-        filtered = _prefilter_v2(raw)
+        # pre-filter v2 적용 (동적 aspect 키워드 보강)
+        filtered = _prefilter_v2(raw, aspect_keywords)
 
         # multi-tagging: 통과 댓글을 모든 candidate_id에 복제
         for cid in cids:
