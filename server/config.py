@@ -51,6 +51,10 @@ ANALYSIS_CACHE_PATH        = CACHE_DIR / "analysis_runs.json"
 AGENT_OUTPUT_CACHE_DIR     = CACHE_DIR / "agent_outputs"
 OFFICIAL_SOURCE_STORE_PATH = CACHE_DIR / "official_sources.json"
 
+# 사용자 정정 오버라이드 스토어 — LLM 캐시(context 해시 키)와 분리된 별도 저장소.
+# raw_query 만으로 키를 잡아 prompt/schema/model 변경에도 정정이 유실되지 않는다.
+QUERY_INTAKE_OVERRIDES_DIR = BASE_DIR / "data" / "overrides" / "query_intake"
+
 # OfficialSourceStore TTL (일 단위).
 # 한 번 검증된 상품 공식 URL은 이 기간 동안 재탐색 없이 재사용된다.
 # 캐시 hit 시에도 HTTP 재검증 1회를 수행하므로 죽은 링크는 자동으로 폐기된다.

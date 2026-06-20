@@ -17,6 +17,8 @@ data/cache/
 data/projects/
 # 수집 노드 관측성 산출물 (raw 응답·feature_pool·backlog)
 data/collection/
+# 사용자 정정 오버라이드 (human_review 편집 — 로컬 사용자 데이터)
+data/overrides/
 
 # ── SQLite (향후 마이그레이션 후 생성될 파일) ────────────
 *.db

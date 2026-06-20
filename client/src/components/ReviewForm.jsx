@@ -66,6 +66,19 @@ const FIELD_LABELS = {
   geography:              '분석 기준 시장',
 };
 
+// 정정 해제 tooltip 용 — query_intake draft 필드 라벨
+const OVERRIDE_FIELD_LABELS = {
+  domain_name:          '분석 도메인',
+  own_product:          '자사 상품',
+  problem_statement:    '핵심 문제',
+  target_user:          '핵심 사용자',
+  core_value_props:     '핵심 가치 제안',
+  known_keywords:       '알려진 키워드',
+  usage_context:        '사용 맥락',
+  geography:            '분석 기준 시장',
+  business_constraints: '비즈니스 제약',
+};
+
 /** 섹션 렌더링 헬퍼 */
 function Section({ title, fields, values, errors, onChange, loading }) {
   if (!fields.length) return null;
@@ -115,6 +128,31 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
   const [apiError, setApiError] = useState(null);
   // 저장된 데이터 있으면 기본=재사용(false), 없으면 신규 생성 강제(true)
   const [regenerate, setRegenerate] = useState(!taxonomyChoice.exists);
+  // 사용자 정정 오버라이드 — interrupt#1 payload 의 override_fields
+  const [overrideFields, setOverrideFields] = useState(interruptValue?.override_fields ?? []);
+  const [clearing, setClearing] = useState(false);
+
+  const overrideLabels = overrideFields.map(f => OVERRIDE_FIELD_LABELS[f] ?? f);
+
+  async function handleClearOverrides() {
+    if (!overrideFields.length || clearing) return;
+    setClearing(true);
+    setApiError(null);
+    try {
+      const res = await fetch('/api/overrides/clear', {
+        method:  'POST',
+        headers: { 'Content-Type': 'application/json' },
+        body:    JSON.stringify({ raw_query: interruptValue?.raw_query }),
+      });
+      const data = await res.json();
+      if (!res.ok) throw new Error(data.error || `서버 오류 (HTTP ${res.status})`);
+      setOverrideFields(data.remaining_fields ?? []);
+    } catch (err) {
+      setApiError(err.message);
+    } finally {
+      setClearing(false);
+    }
+  }
 
   const handleChange = useCallback((path, val) => {
     setValues(prev => ({ ...prev, [path]: val }));
@@ -267,25 +305,48 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
             <span className="text-red-500 font-bold">*</span> 표시 항목은 필수 입력 항목입니다.
           </p>
 
-          {/* 분석 기준(taxonomy) 캐시 선택 + 제출 버튼 (드롭다운을 버튼 왼쪽에 배치) */}
+          {/* 분석 기준(taxonomy) 캐시 선택 — 확인 버튼과 필수 안내 문구 사이로 이동(크기 유지) */}
+          <div className="flex-none w-40">
+            <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
+              분석 기준
+            </label>
+            <select
+              value={regenerate ? 'regenerate' : 'reuse'}
+              onChange={e => setRegenerate(e.target.value === 'regenerate')}
+              disabled={!taxonomyChoice.exists || loading}
+              className="w-full px-3 py-3 border border-gray-300 rounded-xl text-sm
+                         bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500
+                         disabled:bg-gray-50 disabled:text-gray-400"
+            >
+              {taxonomyChoice.exists && (
+                <option value="reuse">{taxonomyChoice.latest_date} 생성본</option>
+              )}
+              <option value="regenerate">신규 생성</option>
+            </select>
+          </div>
+          <p className="mt-2 mb-4 text-xs text-gray-400">
+            {taxonomyChoice.exists
+              ? '동일한 검색 입력으로 저장된 분석 기준이 있습니다. 재사용하면 더 빠르게 분석 결과를 확인할 수 있습니다.'
+              : '저장된 데이터 없음 — 분석 기준을 새로 생성합니다.'}
+          </p>
+
+          {/* 정정 해제 버튼(옛 드롭다운 자리) + 제출 버튼 */}
           <div className="flex items-end gap-3">
-            <div className="flex-none w-40">
-              <label className="block text-xs font-semibold text-gray-400 uppercase tracking-wider mb-2">
-                분석 기준
-              </label>
-              <select
-                value={regenerate ? 'regenerate' : 'reuse'}
-                onChange={e => setRegenerate(e.target.value === 'regenerate')}
-                disabled={!taxonomyChoice.exists || loading}
-                className="w-full px-3 py-3 border border-gray-300 rounded-xl text-sm
-                           bg-white focus:ring-2 focus:ring-blue-500 focus:border-blue-500
-                           disabled:bg-gray-50 disabled:text-gray-400"
+            <div className="flex-none w-40 relative group">
+              <button
+                type="button"
+                onClick={handleClearOverrides}
+                disabled={!overrideFields.length || clearing || loading}
+                className="w-full py-3.5 px-4 whitespace-nowrap border border-gray-300 text-gray-700 font-semibold rounded-xl hover:bg-gray-50 disabled:opacity-50 disabled:cursor-not-allowed transition-colors text-sm"
               >
-                {taxonomyChoice.exists && (
-                  <option value="reuse">{taxonomyChoice.latest_date} 생성본</option>
-                )}
-                <option value="regenerate">신규 생성</option>
-              </select>
+                {clearing ? '해제 중…' : '정정 해제'}
+              </button>
+              {/* hover tooltip — 클릭 시 해제될 필드 안내 */}
+              <div className="pointer-events-none absolute bottom-full left-0 mb-2 w-56 px-3 py-2 rounded-lg bg-gray-800 text-white text-xs leading-relaxed opacity-0 group-hover:opacity-100 transition-opacity z-10">
+                {overrideFields.length
+                  ? `클릭 시 해제될 정정 항목: ${overrideLabels.join(', ')}`
+                  : '해제할 정정 항목이 없습니다.'}
+              </div>
             </div>
             <button
               type="submit"
@@ -303,14 +364,6 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
               ) : '확인 — 경쟁사 탐색 시작'}
             </button>
           </div>
-          <p className="mt-2 text-xs text-gray-400">
-            {taxonomyChoice.exists ? (
-              <>
-                동일한 검색 입력으로 저장된 분석 기준이 있습니다.<br />
-                재사용하면 더 빠르게 분석 결과를 확인할 수 있습니다.
-              </>
-            ) : '저장된 데이터 없음 — 분석 기준을 새로 생성합니다.'}
-          </p>
         </form>
       </div>
     </div>
