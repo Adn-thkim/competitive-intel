@@ -232,6 +232,19 @@ async def health() -> dict:
     return {"status": "ok"}
 
 
+class ClearOverridesRequest(BaseModel):
+    raw_query: str
+    field: str | None = None   # None → 전체 해제, 지정 → 해당 필드만 해제
+
+
+@app.post("/overrides/clear")
+def clear_query_intake_overrides(req: ClearOverridesRequest) -> dict:
+    """human_review 에서 저장된 query_intake 정정 오버라이드를 해제한다."""
+    from server.graph.query_intake_overrides import clear_overrides
+    remaining = clear_overrides(req.raw_query, req.field, logger=logger)
+    return {"ok": True, "remaining_fields": sorted(remaining.keys())}
+
+
 @app.get("/quota/youtube")
 async def youtube_quota() -> dict:
     """현재 프로세스의 YouTube Data API v3 quota 사용량 조회.

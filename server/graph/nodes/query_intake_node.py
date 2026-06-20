@@ -33,6 +33,7 @@ from server.graph.agent_cache import (
     make_cache_context,
     store_agent_output,
 )
+from server.graph.query_intake_overrides import apply_overrides, load_overrides
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.llm.claude_cli_analyzer import ClaudeCodeCliAnalyzer
 
@@ -126,6 +127,17 @@ def query_intake_node(state: DomainAnalysisState) -> dict:
             output=output,
             logger=logger,
         )
+
+    # ── 사용자 정정 오버라이드 병합 (캐시 히트·미스 양 경로 공통) ──────────────
+    # human_review 에서 사용자가 바꾼 draft 필드를 raw_query 키로 보관해 둔 것을
+    # 다시 적용한다(override 우선). LLM 캐시와 분리돼 prompt/schema/model 변경에도 보존.
+    overrides = load_overrides(raw_query)
+    if overrides:
+        output["draft_competitor_discovery_input"] = apply_overrides(
+            output.get("draft_competitor_discovery_input") or {}, overrides
+        )
+        logger.info("query_intake_node: 사용자 오버라이드 %d개 필드 병합 (%s)",
+                    len(overrides), sorted(overrides.keys()))
 
     # ── 메타 필드 동기화 ─────────────────────────────────────────────────────
     output["raw_query"]  = raw_query

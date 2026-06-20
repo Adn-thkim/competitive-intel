@@ -42,6 +42,7 @@ from langgraph.types import interrupt
 from server.config import ANTHROPIC_API_KEY, PRODUCT_NAME_CACHE_PATH
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.domain_modeling_node import query_fingerprint, TAXONOMY_DIR
+from server.graph.query_intake_overrides import load_overrides, store_overrides
 from server.utils.slug import ProductIdResolver
 
 logger = logging.getLogger(__name__)
@@ -103,6 +104,14 @@ def human_review_node(state: DomainAnalysisState) -> dict:
     draft = intake_output.get("draft_competitor_discovery_input", {}) or {}
     taxonomy_choice = _find_cached_taxonomy(query_fingerprint(draft))
 
+    # 현재 raw_query 에 저장된 사용자 정정 필드 목록 — 프런트 '정정 해제' 버튼 tooltip 용.
+    raw_query_for_ov = intake_output.get("raw_query") or state.get("raw_query", "")
+    try:
+        override_fields = sorted(load_overrides(raw_query_for_ov).keys())
+    except Exception as exc:  # noqa: BLE001 — 비치명적
+        logger.debug("override_fields 조회 실패: %s", exc)
+        override_fields = []
+
     # ── interrupt() ─────────────────────────────────────────────────────────
     # 프런트엔드가 폼을 수정하고 완료를 누를 때까지 여기서 중단한다.
     # interrupt()가 반환한 값 = Express가 Command(resume=...) 로 넘긴 edited_form
@@ -113,10 +122,26 @@ def human_review_node(state: DomainAnalysisState) -> dict:
     logger.info("human_review_node: interrupt() 호출 — 사용자 검토 대기 (taxonomy_choice=%s)",
                 taxonomy_choice)
 
-    edited_form: dict = interrupt({**intake_output, "taxonomy_choice": taxonomy_choice})
+    edited_form: dict = interrupt({
+        **intake_output,
+        "taxonomy_choice": taxonomy_choice,
+        "override_fields": override_fields,
+    })
 
     # ── 재개 후 처리 ─────────────────────────────────────────────────────────
     logger.info("human_review_node: 사용자 승인 수신, product_id 생성 시작")
+
+    # 사용자가 바꾼 draft 필드를 raw_query 키 오버라이드로 영속화(비치명적).
+    # 다음 실행에서 query_intake 가 캐시 히트해도 이 정정이 다시 반영된다.
+    try:
+        store_overrides(
+            raw_query=intake_output.get("raw_query") or state.get("raw_query", ""),
+            presented_draft=intake_output.get("draft_competitor_discovery_input") or {},
+            edited_form=edited_form,
+            logger=logger,
+        )
+    except Exception as exc:  # noqa: BLE001 — 정정 저장 실패는 파이프라인을 막지 않는다
+        logger.warning("query_intake 오버라이드 저장 실패(무시): %s", exc)
 
     # own_product.product_id 생성 (temperature=0 API 호출)
     resolver = ProductIdResolver(

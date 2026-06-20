@@ -171,6 +171,32 @@ router.post('/approve', async (req, res) => {
   }
 });
 
+// ── POST /api/overrides/clear ─────────────────────────────────────────────────
+// human_review 에서 저장된 query_intake 정정 오버라이드를 해제한다.
+//   body: { raw_query: string, field?: string }  field 미지정 시 전체 해제.
+router.post('/overrides/clear', async (req, res) => {
+  const { raw_query, field } = req.body || {};
+  if (!raw_query || typeof raw_query !== 'string') {
+    return res.status(400).json({ error: 'raw_query가 필요합니다.' });
+  }
+  try {
+    const r = await fetch(`${PYTHON_SERVER_URL}/overrides/clear`, {
+      method:  'POST',
+      headers: { 'Content-Type': 'application/json' },
+      body:    JSON.stringify({ raw_query, field: field ?? null }),
+    });
+    if (!r.ok) {
+      const text = await r.text().catch(() => '');
+      return res.status(500).json({ error: 'Python 서버 오류', detail: text });
+    }
+    return res.json(await r.json());
+  } catch (err) {
+    return res.status(502).json({
+      error: 'Python LangGraph 서버에 연결할 수 없습니다.', detail: err.message,
+    });
+  }
+});
+
 // ── GET /api/progress/:threadId ──────────────────────────────────────────────
 // Python FastAPI /progress/{thread_id} 를 프록시한다.
 // 프런트엔드가 1~2초 간격으로 폴링해 현재 파이프라인 단계를 표시한다.
