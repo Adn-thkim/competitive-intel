@@ -124,7 +124,10 @@ _TIER_ADDITIONAL         = 3
 _FETCH_AGENT_ID        = "official_content_fetch"
 _FETCH_CACHE_TTL_HOURS = get_ttl_hours("official_content_fetch_hours", 720)  # cache_ttls.yaml
 _FETCH_TIMEOUT         = (3, 10)      # (connect, read) — 코드베이스 requests 규약
-_FETCH_USER_AGENT      = "Mozilla/5.0 (compatible; OfficialContentCollector/1.0)"
+# 브라우저 UA로 정렬(community_collection_node._BROWSER_UA 와 동일) — WAF/CDN 봇 차단(403)
+# 위양성 방지 및 정적 fetch의 requires_dynamic_render 오분류 감소.
+_FETCH_USER_AGENT      = ("Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+                          "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36")
 _FETCH_MAX_WORKERS     = 5
 _FULLTEXT_CAP          = 50_000       # 전문 안전 상한 (LLM 입력 상한과 무관)
 _PDF_MAX_PAGES         = 50
@@ -137,6 +140,9 @@ _FETCH_CACHE_CONTEXT = {
     "fulltext_cap": _FULLTEXT_CAP,
     "pdf_max_pages": _PDF_MAX_PAGES,
     "extractor": "trafilatura-markdown+bs4-fallback",
+    # UA를 키에 포함 — UA 변경 시 옛 봇 UA로 캐시된 fetch_status(특히 봇차단발
+    # requires_dynamic_render/fetch_failed)가 자동 무효화되어 새 UA로 재페치된다.
+    "user_agent": _FETCH_USER_AGENT,
 }
 
 # ── Step 1.5: 발췌 상수 (§5-2a, FE-D9) ───────────────────────────────────────

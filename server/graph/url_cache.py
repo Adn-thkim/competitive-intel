@@ -72,23 +72,29 @@ def _norm_query(query: str) -> str:
 
 # ── 공개 API: HTTP 검증 결과 캐시 ───────────────────────────────────────────────
 
-def get_http_validation(url: str) -> tuple[int | None, str | None] | None:
+def get_http_validation(
+    url: str, ua: str | None = None
+) -> tuple[int | None, str | None] | None:
     """URL HTTP 검증 결과 조회. 히트 시 (status, final_url), 미스 시 None.
 
     status=None(검증 실패)도 캐시된 히트로 (None, final_url) 을 돌려준다(미스 아님).
+    ua 를 키에 포함 — UA 변경 시 옛 UA로 캐시된 검증 결과(봇차단 403/타임아웃 위양성
+    포함)가 자동 무효화되어 새 UA로 재검증된다.
     """
     out = load_agent_output(
-        agent_id=_HTTP_AGENT, cache_input={"url": url.strip()},
+        agent_id=_HTTP_AGENT, cache_input={"url": url.strip(), "ua": ua},
         context=_HTTP_CTX, ttl_hours=_http_ttl_hours())
     if not isinstance(out, dict):
         return None
     return (out.get("status"), out.get("final_url"))
 
 
-def set_http_validation(url: str, status: int | None, final_url: str | None) -> None:
-    """URL HTTP 검증 결과를 캐시에 저장한다(실패 status=None 포함)."""
+def set_http_validation(
+    url: str, status: int | None, final_url: str | None, ua: str | None = None
+) -> None:
+    """URL HTTP 검증 결과를 캐시에 저장한다(실패 status=None 포함). ua 를 키에 포함."""
     store_agent_output(
-        agent_id=_HTTP_AGENT, cache_input={"url": url.strip()},
+        agent_id=_HTTP_AGENT, cache_input={"url": url.strip(), "ua": ua},
         context=_HTTP_CTX, output={"status": status, "final_url": final_url})
 
 
