@@ -72,6 +72,10 @@ def executive_summary_node(state: DomainAnalysisState) -> dict:
     if not is_report_active(state, REPORT_TYPE):
         return make_skip_result(REPORT_TYPE, started_at)
 
+    # 사용자가 feature_selection 에서 선택한 리포트만 생성(reaction_insight·marketing_social 동일 게이트).
+    if REPORT_TYPE not in (state.get("selected_purposes") or []):
+        return make_skip_result(REPORT_TYPE, started_at)
+
     # TODO (6개 상류 리포트 산출 형식 확정 후 구현):
     # 1. report_outputs["comparison_matrix"|"reaction_insight"|"marketing_social"|
     #    "battlecard"|"positioning_map"|"market_context_swot"]의 1줄 결론 추출
