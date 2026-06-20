@@ -73,8 +73,11 @@ logger = logging.getLogger(__name__)
 _HTTP_CONNECT_TIMEOUT = 3
 _HTTP_READ_TIMEOUT    = 5
 _HTTP_TIMEOUT         = (_HTTP_CONNECT_TIMEOUT, _HTTP_READ_TIMEOUT)
+# 브라우저 UA로 정렬(community_collection_node._BROWSER_UA 와 동일) — WAF/CDN 봇 차단(403)
+# 위양성 방지. SPA 루트(예: toss.im/)가 봇 UA에 403을 주어 재검증을 실패시키던 문제 대응.
 _USER_AGENT = (
-    "Mozilla/5.0 (compatible; OfficialSourceResolverBot/1.0)"
+    "Mozilla/5.0 (Macintosh; Intel Mac OS X 10_15_7) "
+    "AppleWebKit/537.36 (KHTML, like Gecko) Chrome/124.0 Safari/537.36"
 )
 _MAX_WORKERS = 8   # 병렬 HTTP 검증 스레드 수
 
@@ -429,11 +432,11 @@ def _validate_url_cached(url: str) -> tuple[int | None, str | None]:
     E-2 캐시 적용 wrapper. URL → (status, final_url) 1h TTL 캐시.
     캐시 미스 시 _validate_url 실행 후 결과를 저장한다.
     """
-    cached = get_http_validation(url)
+    cached = get_http_validation(url, ua=_USER_AGENT)
     if cached is not None:
         return cached
     result = _validate_url(url)
-    set_http_validation(url, result[0], result[1])
+    set_http_validation(url, result[0], result[1], ua=_USER_AGENT)
     return result
 
 
@@ -1357,11 +1360,24 @@ def _revalidate_cached_source(cached: dict) -> bool:
     stype = cached.get("source_type")
 
     if stype == "official":
-        url = cached.get("primary_url") or ""
-        if not url:
-            return False
-        status, _ = _validate_url_cached(url)
-        return bool(status and 200 <= status < 400)
+        # 엔트리 단위 부분 검증 (750a4a6 복수 공식 도메인 도입 후 정합).
+        # primary 단일 생사로 8-URL/3-도메인 엔트리 전체를 폐기하면, 봇차단(403)·타임아웃
+        # 위양성 1건이 살아있는 나머지 공식 도메인까지 연좌 삭제한다(예: toss.im/ 위양성 →
+        # tossbank.com 페이지 7개 동반 폐기). official_urls 중 1건이라도 도달 가능하면 엔트리를
+        # 유지하고, primary가 죽었으면 살아있는 URL을 primary로 승격한다.
+        primary = cached.get("primary_url") or ""
+        if primary:
+            status, _ = _validate_url_cached(primary)
+            if status and 200 <= status < 400:
+                return True
+        for u in (cached.get("official_urls") or []):
+            if not u or u == primary:
+                continue
+            status, final = _validate_url_cached(u)
+            if status and 200 <= status < 400:
+                cached["primary_url"] = final or u   # 안정 URL로 primary 승격
+                return True
+        return False
 
     if stype == "reference":
         for ref in cached.get("reference_sources", []):
