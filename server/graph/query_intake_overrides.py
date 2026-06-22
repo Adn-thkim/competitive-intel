@@ -47,17 +47,40 @@ _DRAFT_FIELDS: tuple[str, ...] = (
 _LOCK = threading.Lock()
 
 
-def diff_draft(presented_draft: dict, edited_form: dict) -> dict[str, Any]:
-    """제시된 draft 대비 사용자가 실제로 바꾼 필드만 추출한다.
+def _normalize(value: Any) -> Any:
+    """비교용 정규화 — 리스트는 순서·항목 공백 무관, 문자열은 앞뒤 공백 제거.
 
-    presented_draft : human_review 에 제시된 draft(= LLM 출력 + 기존 오버라이드 병합본).
-    edited_form     : 사용자가 폼에서 수정해 resume 로 돌려준 값(draft 필드 최상위).
+    순서만 바뀐 리스트나 공백만 다른 문자열이 '정정'으로 오인되지 않게 한다.
+    """
+    if isinstance(value, list):
+        return sorted(
+            json.dumps(_normalize(v), ensure_ascii=False, sort_keys=True) for v in value
+        )
+    if isinstance(value, dict):
+        return {k: _normalize(v) for k, v in value.items()}
+    if isinstance(value, str):
+        return value.strip()
+    return value
+
+
+def _is_changed(edited_value: Any, base_value: Any) -> bool:
+    """순서·공백 무관 비교로 edited 가 base(원본)와 실질적으로 다른지 판정."""
+    return _normalize(edited_value) != _normalize(base_value)
+
+
+def diff_draft(base_draft: dict, edited_form: dict) -> dict[str, Any]:
+    """RAW 원본 draft 대비 사용자가 실제로 바꾼 필드만 추출한다(순서·공백 무관).
+
+    base_draft  : override 적용 *이전* 의 RAW LLM draft(정정 판정 기준선).
+                  기존 override 병합본이 아니라 RAW 를 기준으로 삼아야, 원본과 같은 값이
+                  정정으로 잘못 저장되거나 직전 정정을 덮어쓰는 것을 막을 수 있다.
+    edited_form : 사용자가 폼에서 수정해 resume 로 돌려준 값(draft 필드 최상위).
     """
     changed: dict[str, Any] = {}
     for field in _DRAFT_FIELDS:
         if field not in edited_form:
             continue
-        if edited_form[field] != presented_draft.get(field):
+        if _is_changed(edited_form[field], base_draft.get(field)):
             changed[field] = copy.deepcopy(edited_form[field])
     return changed
 
@@ -77,35 +100,47 @@ def load_overrides(raw_query: str) -> dict[str, Any]:
 
 def store_overrides(
     raw_query: str,
-    presented_draft: dict,
+    raw_draft: dict,
     edited_form: dict,
     logger: logging.Logger | None = None,
 ) -> dict[str, Any]:
-    """이번 세션 변경분(diff)을 기존 오버라이드에 누적 병합 후 저장. 병합된 dict 반환.
+    """edited_form 을 RAW 원본 draft 와 비교해 '진짜 정정'만 저장한다.
 
-    변경이 없으면 파일을 건드리지 않는다.
+    - edited != 원본 → 정정 → 저장
+    - edited == 원본 → 정정 아님 → 해당 필드 override 해제(되돌림 자동 클리어)
+    - 리스트는 순서·공백 무관 비교(가짜 정정 방지)
+    - edited_form 에 없는 필드는 기존 override 를 그대로 유지
+
+    변경이 없으면 파일을 건드리지 않는다. 최종 override dict 를 반환한다.
     """
-    session_diff = diff_draft(presented_draft, edited_form)
-    if not session_diff:
-        return load_overrides(raw_query)
+    corrections = diff_draft(raw_draft, edited_form)          # edited != 원본 인 필드
+    submitted = {f for f in _DRAFT_FIELDS if f in edited_form}
 
     path = _path(raw_query)
     with _LOCK:
         existing = load_overrides(raw_query)
-        merged = {**existing, **session_diff}
-        entry = {
-            "raw_query": raw_query,
-            "updated_at": datetime.now(timezone.utc).isoformat(),
-            "overrides": merged,
-        }
-        _write_atomic(path, entry)
+        # 미제출 필드는 기존 유지 + 제출+정정 필드 반영 → 제출+원본일치 필드는 자동 해제
+        overrides = {f: v for f, v in existing.items() if f not in submitted}
+        overrides.update(corrections)
+
+        if overrides == existing:
+            return existing  # 변경 없음 → 파일 미변경
+
+        if overrides:
+            _write_atomic(path, {
+                "raw_query": raw_query,
+                "updated_at": datetime.now(timezone.utc).isoformat(),
+                "overrides": overrides,
+            })
+        else:
+            _unlink(path)  # 모든 정정이 원본으로 환원됨 → 파일 제거
 
     if logger:
         logger.info(
-            "query_intake override 저장: raw_query=%r, 변경필드=%s",
-            raw_query, sorted(session_diff.keys()),
+            "query_intake override 갱신: raw_query=%r, override필드=%s",
+            raw_query, sorted(overrides.keys()),
         )
-    return merged
+    return overrides
 
 
 def clear_overrides(

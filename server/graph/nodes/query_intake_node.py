@@ -22,6 +22,7 @@ CompetitorDiscoveryAgent 입력 초안(draft_competitor_discovery_input)을
   입력 품질과 사용 편의성을 동시에 확보한다.
 """
 
+import copy
 import json
 import logging
 from datetime import datetime, timezone
@@ -132,10 +133,24 @@ def query_intake_node(state: DomainAnalysisState) -> dict:
     # human_review 에서 사용자가 바꾼 draft 필드를 raw_query 키로 보관해 둔 것을
     # 다시 적용한다(override 우선). LLM 캐시와 분리돼 prompt/schema/model 변경에도 보존.
     overrides = load_overrides(raw_query)
+    # override 적용 *이전* 의 RAW LLM draft 를 보존한다 — store_overrides 가 이 RAW 를
+    # 기준선으로 정정을 판정해, 원본과 같은 값이 정정으로 잘못 저장되는 것을 막는다.
+    raw_draft = output.get("draft_competitor_discovery_input") or {}
+    output["draft_competitor_discovery_input_raw"] = copy.deepcopy(raw_draft)
     if overrides:
-        output["draft_competitor_discovery_input"] = apply_overrides(
-            output.get("draft_competitor_discovery_input") or {}, overrides
-        )
+        merged = apply_overrides(raw_draft, overrides)
+        output["draft_competitor_discovery_input"] = merged
+        # 폼은 display_fields 로 렌더되므로, 정정이 화면에 보이도록 display_fields 의 value 도
+        # override 적용본으로 동기화한다(폼=정정값 → 사용자가 안 건드리고 확인해도 정정 보존).
+        for f in output.get("display_fields") or []:
+            path = f.get("field_path", "")
+            if path.startswith("own_product."):
+                op = merged.get("own_product") or {}
+                key = path[len("own_product."):]
+                if key in op:
+                    f["value"] = op[key]
+            elif path in merged:
+                f["value"] = merged[path]
         logger.info("query_intake_node: 사용자 오버라이드 %d개 필드 병합 (%s)",
                     len(overrides), sorted(overrides.keys()))
 
