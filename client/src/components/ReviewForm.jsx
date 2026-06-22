@@ -22,6 +22,22 @@ function buildInitialValues(displayFields) {
 }
 
 /**
+ * draft 구조(중첩 own_product 포함)에서 display_fields 키 기준 { field_path: value } 변환.
+ * 정정 해제 시 폼 값을 RAW 원본(draft_competitor_discovery_input_raw)으로 되돌리는 데 사용.
+ */
+function valuesFromDraft(displayFields, draft) {
+  return Object.fromEntries(
+    displayFields.map(f => {
+      const p = f.field_path;
+      const v = p.startsWith('own_product.')
+        ? (draft?.own_product || {})[p.replace('own_product.', '')]
+        : draft?.[p];
+      return [p, v ?? (Array.isArray(f.value) ? [] : '')];
+    })
+  );
+}
+
+/**
  * 폼 values → draft_competitor_discovery_input 구조로 변환
  * (own_product.* 키를 own_product 객체로 중첩)
  */
@@ -147,6 +163,9 @@ export default function ReviewForm({ intakeResult, onApproved, onReset }) {
       const data = await res.json();
       if (!res.ok) throw new Error(data.error || `서버 오류 (HTTP ${res.status})`);
       setOverrideFields(data.remaining_fields ?? []);
+      // 정정 해제 → 화면의 폼 값도 RAW 원본으로 즉시 복원(서버 왕복 없이).
+      const rawDraft = interruptValue?.draft_competitor_discovery_input_raw;
+      if (rawDraft) setValues(valuesFromDraft(displayFields, rawDraft));
     } catch (err) {
       setApiError(err.message);
     } finally {

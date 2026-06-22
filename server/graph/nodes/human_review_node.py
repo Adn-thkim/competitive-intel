@@ -138,7 +138,8 @@ def human_review_node(state: DomainAnalysisState) -> dict:
     try:
         store_overrides(
             raw_query=intake_output.get("raw_query") or state.get("raw_query", ""),
-            presented_draft=intake_output.get("draft_competitor_discovery_input") or {},
+            raw_draft=(intake_output.get("draft_competitor_discovery_input_raw")
+                       or intake_output.get("draft_competitor_discovery_input") or {}),
             edited_form=edited_form,
             logger=logger,
         )
