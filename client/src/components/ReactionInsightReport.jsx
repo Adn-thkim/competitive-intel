@@ -212,15 +212,21 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       <div className="flex flex-wrap gap-2 mb-2 text-[11px] text-gray-500">
         {candidates.filter(cid => meta[cid]).map(cid => {
           const counts = meta[cid]?.channel_counts ?? {};
-          // 표본 0인 채널은 표기하지 않음 (예: 블로그 미수집 시 'YT · 커뮤니티'만)
-          const parts = [
-            ['YT', counts.youtube], ['커뮤니티', counts.community], ['블로그', counts.blog],
-          ].filter(([, n]) => (n ?? 0) > 0);
+          // 표본 0인 채널은 표기하지 않음. 커뮤니티는 본문/댓글로 분리 표시(split 있을 때).
+          const parts = [];
+          if ((counts.youtube ?? 0) > 0) parts.push(`YT ${counts.youtube}`);
+          if ((counts.community ?? 0) > 0) {
+            const hasSplit = counts.community_body != null || counts.community_comment != null;
+            parts.push(hasSplit
+              ? `커뮤니티 본문 ${counts.community_body ?? 0} · 댓글 ${counts.community_comment ?? 0}`
+              : `커뮤니티 ${counts.community}`);
+          }
+          if ((counts.blog ?? 0) > 0) parts.push(`블로그 ${counts.blog}`);
           return (
             <span key={cid} className="px-2 py-1 rounded-lg bg-gray-50 border border-gray-100">
               <b className="text-gray-700">{nameOf[cid] ?? cid}</b>
               {' '}표본 {meta[cid]?.sample_size ?? 0}건
-              {parts.length > 0 && <> ({parts.map(([l, n]) => `${l} ${n}`).join(' · ')})</>}
+              {parts.length > 0 && <> ({parts.join(' · ')})</>}
             </span>
           );
         })}

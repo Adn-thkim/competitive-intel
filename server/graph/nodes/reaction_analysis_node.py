@@ -36,17 +36,24 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
+from pathlib import Path
 
 from server.config import (
     AGENTS_DIR,
     REACTION_ABSA_CHUNK_CHARS,
     REACTION_ABSA_CHUNK_CHARS_MIN,
     REACTION_ABSA_CHUNK_TIMEOUT,
-    REACTION_ABSA_MAX_ITEMS,
+    REACTION_ABSA_MAX_ITEMS_COMMUNITY,
+    REACTION_ABSA_MAX_ITEMS_YOUTUBE,
     REACTION_ABSA_PARALLEL,
+    REACTION_RELEVANCE_BATCH,
+    REACTION_RELEVANCE_ENGINE,
+    REACTION_RELEVANCE_FILL,
+    REACTION_RELEVANCE_MODEL,
 )
 from server.graph.agent_cache import (
     load_agent_output,
@@ -131,7 +138,13 @@ _CHANNELS = ("youtube", "community", "blog")
 
 
 def _count_by_channel(items: list[dict]) -> dict[str, int]:
-    return {ch: sum(1 for it in items if it.get("channel") == ch) for ch in _CHANNELS}
+    out = {ch: sum(1 for it in items if it.get("channel") == ch) for ch in _CHANNELS}
+    # community 를 본문/댓글로 분리(표본 chip 표시용). "community" 총계는 가중치 호환 위해 유지.
+    out["community_body"] = sum(
+        1 for it in items if it.get("channel") == "community" and not it.get("is_comment"))
+    out["community_comment"] = sum(
+        1 for it in items if it.get("channel") == "community" and it.get("is_comment"))
+    return out
 
 
 def _unique_urls_by_channel(items: list[dict]) -> dict[str, int]:
@@ -176,6 +189,7 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
                           f"https://www.youtube.com/watch?v={c.get('video_id', '')}",
             "posted_at":  c.get("published_at", ""),
             "text":       text,
+            "is_reply":   bool(c.get("is_reply")),   # RP-D1 관련성 태깅의 대댓글 맥락용
             # YR-D4 — CH-D3 스레드 원자 chunk 경계가 소비. 대댓글은 부모와 동일 thread_id.
             # thread_id 미배선(구 데이터) 시 댓글별 고유값으로 폴백(각 댓글=1 스레드).
             "thread_id":  c.get("thread_id") or f"yt:{key}",
@@ -203,6 +217,28 @@ def build_absa_inputs(state: dict) -> dict[str, list[dict]]:
                 # YR-D4 — 비유튜브는 스레드 개념 없음: 게시글 1건=원자 단위(고유 thread_id).
                 "thread_id":  p.get("url") or f"{channel}:{key}",
             })
+
+    # community_comments → channel="community" (youtube 스키마: thread_id/is_reply 보존).
+    # 댓글 1건=item 1건. 대댓글은 부모(최상위 댓글)와 같은 thread_id → 스레드 원자 chunk +
+    # 관련성 태깅 부모 맥락 결합이 youtube 와 동일하게 동작. (COMMUNITY_COLLECT_COMMENTS off → 빈 리스트)
+    for c in state.get("community_comments") or []:
+        cid = c.get("candidate_id", "")
+        text = (c.get("text") or "").strip()
+        if not cid or not text:
+            continue
+        key = _norm(text)[:200]
+        if key in seen.setdefault(cid, set()):
+            continue
+        seen[cid].add(key)
+        items.setdefault(cid, []).append({
+            "channel":    "community",
+            "is_comment": True,                      # 본문 vs 댓글 구분(표본/funnel 분리용)
+            "source_url": c.get("source_url", ""),
+            "posted_at":  c.get("posted_at", ""),
+            "text":       text,
+            "is_reply":   bool(c.get("is_reply")),
+            "thread_id":  c.get("thread_id") or f"community:{key}",
+        })
 
     return items
 
@@ -266,6 +302,19 @@ def reaction_analysis_node(
     if not inputs:
         return {"agent_steps": [_step("skipped", started_at)]}
 
+    # 오프라인 재현용 state 슬라이스 덤프. scripts/absa_replay.py 가 이 파일로 그래프 없이
+    # reaction_analysis 를 반복 실행한다. 두 가지 트리거(둘 중 하나라도 켜지면 덤프):
+    #   1) 환경변수 REACTION_ABSA_DUMP_DIR — 단, Express 가 spawn 한 Python 에 전달돼야 함.
+    #   2) 파일 센티넬 data/debug/.dump_on (CWD 기준) — 터미널·환경변수와 무관해 견고.
+    _dump_dir = os.getenv("REACTION_ABSA_DUMP_DIR")
+    if not _dump_dir and Path("data/debug/.dump_on").exists():
+        _dump_dir = "data/debug"
+    logger.warning("reaction_analysis: dump_dir=%s (env=%s, sentinel=%s)",
+                   _dump_dir or "(미설정)", os.getenv("REACTION_ABSA_DUMP_DIR") or "-",
+                   Path("data/debug/.dump_on").exists())
+    if _dump_dir:
+        _dump_replay_state(dict(state), _dump_dir)
+
     aspects = _aspect_ids(dict(state))
     if not aspects:
         return _error_out(started_at,
@@ -289,30 +338,33 @@ def reaction_analysis_node(
     )
 
     errors: list[dict] = []
+    fail_records: list[dict] = []   # chunk 실패 원인 집계용 (cid·cause·items)
     reaction_analysis: dict[str, dict] = {}
     name_by_cid = {
         p.get("candidate_id", ""): p.get("product_name", "")
         for p in state.get("product_profiles") or []
     }
 
+    # ── 0) 관련성 태깅 (RP-D1, 선택) — _relevant 설정 → 컷 우선순위(RP-D3)에 사용 ──
+    # REACTION_RELEVANCE_ENGINE=off(기본)면 건너뛰어 기존 동작 유지. cli/api 면 Haiku 분류.
+    if REACTION_RELEVANCE_ENGINE != "off":
+        try:
+            from server.graph.relevance_tagger import tag_relevance
+            for cid in inputs:
+                tag_relevance(inputs[cid], aspects, engine=REACTION_RELEVANCE_ENGINE,
+                              model=REACTION_RELEVANCE_MODEL, batch=REACTION_RELEVANCE_BATCH,
+                              logger=logger)
+        except Exception as exc:  # noqa: BLE001 — 태깅 실패가 분석을 막지 않도록
+            logger.warning("relevance 태깅 실패 — 최신순 컷으로 진행: %s", str(exc)[:200])
+
     # ── 1) candidate별 스레드 정렬·chunk 분할 + 평탄화 작업목록 (CH-D3·D4) ─────
     chunks_by_cid: dict[str, tuple[list[dict], list[list[dict]]]] = {}
+    intake_by_cid: dict[str, dict[str, int]] = {}   # 활용/탈락 funnel 집계용
     tasks: list[tuple[str, int, list[dict]]] = []
     for cid in sorted(inputs):
-        threads = _group_sort_threads(inputs[cid])
-        # 안전 상한 (CH-D2) — 정상 운영 미도달. 스레드 단위로 누적해 초과분 폐기.
-        kept_threads: list[list[dict]] = []
-        cnt = 0
-        for th in threads:
-            if kept_threads and cnt + len(th) > REACTION_ABSA_MAX_ITEMS:
-                logger.warning("reaction_analysis[%s]: MAX_ITEMS=%d 초과 — 이후 스레드 폐기",
-                               cid, REACTION_ABSA_MAX_ITEMS)
-                break
-            kept_threads.append(th)
-            cnt += len(th)
-        chunks = _split_threads(kept_threads, REACTION_ABSA_CHUNK_CHARS,
-                                REACTION_ABSA_CHUNK_CHARS_MIN)
-        items_sorted = [it for ch in chunks for it in ch]
+        # Option A — youtube/community 를 독립 예산으로 분리 컷 후 합친다(병합은 candidate 단위).
+        items_sorted, chunks, intake = _channel_cut(cid, inputs[cid])
+        intake_by_cid[cid] = intake
         chunks_by_cid[cid] = (items_sorted, chunks)
         for i, chunk in enumerate(chunks):
             tasks.append((cid, i, chunk))
@@ -351,6 +403,7 @@ def reaction_analysis_node(
         return analyzer.call_with_schema(prompt, output_schema)
 
     if misses:
+        items_by_key = {(cid, i): len(chunk) for cid, i, chunk in misses}
         with ThreadPoolExecutor(
             max_workers=min(len(misses), REACTION_ABSA_PARALLEL)
         ) as pool:
@@ -371,6 +424,12 @@ def reaction_analysis_node(
                                  f"{type(exc).__name__}: {str(exc)[:200]}",
                         "timestamp": datetime.now(timezone.utc).isoformat(),
                     })
+                    fail_records.append({
+                        "cid":   cid,
+                        "cause": _classify_chunk_failure(exc),
+                        "items": items_by_key.get((cid, i), 0),
+                    })
+        _log_chunk_failure_summary(fail_records)
 
     # ── 4) candidate별 종합 (메인 스레드) (CH-D7·D8·D9·D10) ───────────────────
     for cid, (items_sorted, chunks) in chunks_by_cid.items():
@@ -398,6 +457,20 @@ def reaction_analysis_node(
             logger.warning("reaction_analysis: %s chunk %d/%d 실패 — 댓글 %d건 누락",
                            cid, n - len(succeeded), n, len(items_sorted) - analyzed)
 
+    # candidate별 활용/탈락 funnel (사용자 요청 — 우선순위 변경 검토용). 전 candidate 출력.
+    logger.warning("reaction_analysis 활용/탈락 집계 (candidate별)")
+    for cid, (items_sorted, chunks) in chunks_by_cid.items():
+        succeeded = [i for i in range(len(chunks)) if (cid, i) in results]
+        analyzed = sum(len(chunks[i]) for i in succeeded)
+        ik = intake_by_cid.get(cid, {})
+        logger.warning(
+            "  · %s — 필터통과 %d · MAX_ITEMS컷 폐기 %d · 분석활용 %d "
+            "(YT kept %d · 커뮤 kept %d[본문 %d · 댓글 %d]) · chunk실패누락 %d",
+            cid, ik.get("filtered", 0), ik.get("cut_dropped", 0), analyzed,
+            ik.get("yt_kept", 0), ik.get("comm_kept", 0),
+            ik.get("comm_body_kept", 0), ik.get("comm_comment_kept", 0),
+            len(items_sorted) - analyzed)
+
     step = _step("completed", started_at)
     if errors:
         step["error_message"] = f"{len(errors)}건 부분 실패"
@@ -409,6 +482,108 @@ def reaction_analysis_node(
     if errors:
         out["errors"] = errors
     return out
+
+
+def _channel_cut(cid: str, items: list[dict]) -> tuple[list[dict], list[list[dict]], dict]:
+    """채널(youtube/community)별 독립 MAX_ITEMS 컷 + chunk 분할 후 합친다 (Option A).
+
+    youtube 와 그 외(community/blog)를 분리해 각자 예산으로 스레드 원자 컷 → chunk 분할 →
+    두 채널 chunk 를 이어붙여 반환. 한 chunk 는 단일 채널만 담는다(스레드가 채널 내 단위).
+    이로써 단일 풀에서 youtube 가 community 를 밀어내던 문제를 해소한다.
+
+    반환: (items_sorted[모든 kept item], chunks[youtube chunk + community chunk], intake[funnel])
+    """
+    by_chan = (
+        ("youtube",   [it for it in items if it.get("channel") == "youtube"],
+         REACTION_ABSA_MAX_ITEMS_YOUTUBE),
+        ("community", [it for it in items if it.get("channel") != "youtube"],
+         REACTION_ABSA_MAX_ITEMS_COMMUNITY),
+    )
+    chunks: list[list[dict]] = []
+    intake = {"filtered": 0, "kept": 0, "cut_dropped": 0, "yt_kept": 0, "comm_kept": 0,
+              "comm_body_kept": 0, "comm_comment_kept": 0}
+    for chan, chan_items, budget in by_chan:
+        if not chan_items:
+            continue
+        threads = _group_sort_threads(chan_items)
+        # RP-D3 관련 우선 정렬 + 잔여 충전: 관련 태그(_relevant) 포함 스레드를 앞으로(안정
+        # 정렬이라 최신순 보존), 비관련은 뒤로 → 예산을 관련 우선 채우고 남으면 비관련(최신)
+        # 으로 충전. 태깅 비활성(_relevant 없음)이면 전부 비관련 → 기존 최신순 컷과 동일.
+        threads.sort(key=lambda th: 0 if any(it.get("_relevant") for it in th) else 1)
+        # relevant_only(REACTION_RELEVANCE_FILL=false): 관련 스레드만 분석(비관련 충전 안 함)
+        # → ABSA 입력·비용 절감. 관련이 하나도 없으면(태깅 off 등) 전체 유지(최신순 폴백).
+        if not REACTION_RELEVANCE_FILL:
+            rel_threads = [th for th in threads if any(it.get("_relevant") for it in th)]
+            if rel_threads:
+                threads = rel_threads
+        ft = sum(len(th) for th in threads)
+        kept_threads: list[list[dict]] = []
+        cnt = 0
+        for th in threads:
+            if kept_threads and cnt + len(th) > budget:
+                logger.warning("reaction_analysis[%s]: %s MAX_ITEMS=%d 초과 — 이후 스레드 폐기",
+                               cid, chan, budget)
+                break
+            kept_threads.append(th)
+            cnt += len(th)
+        intake["filtered"] += ft
+        intake["kept"] += cnt
+        intake["cut_dropped"] += ft - cnt
+        intake["yt_kept" if chan == "youtube" else "comm_kept"] = cnt
+        if chan == "community":                 # 본문/댓글 분리(funnel 표시용)
+            kept_items = [it for th in kept_threads for it in th]
+            intake["comm_body_kept"] = sum(1 for it in kept_items if not it.get("is_comment"))
+            intake["comm_comment_kept"] = sum(1 for it in kept_items if it.get("is_comment"))
+        chunks.extend(_split_threads(kept_threads, REACTION_ABSA_CHUNK_CHARS,
+                                     REACTION_ABSA_CHUNK_CHARS_MIN))
+    items_sorted = [it for ch in chunks for it in ch]
+    return items_sorted, chunks, intake
+
+
+def _dump_replay_state(state: dict, dump_dir: str) -> None:
+    """오프라인 ABSA 재현용 state 슬라이스를 덤프한다(reaction_analysis_node 가 읽는 키만)."""
+    keys = ("selected_purposes", "selected_comments", "community_posts",
+            "blog_posts", "collected_videos", "domain_taxonomy", "product_profiles")
+    try:
+        d = Path(dump_dir)
+        d.mkdir(parents=True, exist_ok=True)
+        path = d / "reaction_state.json"
+        path.write_text(
+            json.dumps({k: state.get(k) for k in keys}, ensure_ascii=False, indent=2),
+            encoding="utf-8")
+        logger.warning("reaction_analysis: 재현용 state 덤프 → %s", path)
+    except Exception as exc:  # noqa: BLE001
+        logger.warning("reaction_analysis: 재현용 덤프 실패: %s", exc)
+
+
+def _classify_chunk_failure(exc: Exception) -> str:
+    """chunk 실패 예외를 콘솔 집계용 원인 라벨로 분류한다(사용자 요청)."""
+    msg = str(exc).lower()
+    if "timeout" in msg or "타임아웃" in msg:
+        return f"CLI 타임아웃({REACTION_ABSA_CHUNK_TIMEOUT}s 초과) — 청크 과대/병렬 경쟁"
+    if "returncode=1" in msg or "비정상 종료" in msg:
+        return "CLI 비정상 종료(returncode=1) — 프롬프트 과대(토큰 초과) 의심"
+    if "schema" in msg or "validation" in msg:
+        return "스키마 검증 실패 — LLM 출력 형식 불일치"
+    if "json" in msg or "parse" in msg:
+        return "JSON 파싱 실패 — LLM 출력 비정형"
+    return f"기타: {type(exc).__name__}"
+
+
+def _log_chunk_failure_summary(fail_records: list[dict]) -> None:
+    """chunk 실패를 원인별로 집계해 콘솔에 출력한다(총량 + 원인별 chunk·누락 댓글)."""
+    if not fail_records:
+        return
+    by_cause: dict[str, dict[str, int]] = {}
+    for r in fail_records:
+        agg = by_cause.setdefault(r["cause"], {"chunks": 0, "items": 0})
+        agg["chunks"] += 1
+        agg["items"] += int(r.get("items", 0))
+    tot_items = sum(int(r.get("items", 0)) for r in fail_records)
+    logger.warning("reaction_analysis: chunk 실패 원인 집계 — 총 %d chunk · %d 댓글 누락",
+                   len(fail_records), tot_items)
+    for cause, agg in sorted(by_cause.items(), key=lambda kv: -kv[1]["chunks"]):
+        logger.warning("  · %s — %d chunk · %d 댓글", cause, agg["chunks"], agg["items"])
 
 
 def _step(status: str, started_at: str, error_message: str = "") -> AgentStep:
