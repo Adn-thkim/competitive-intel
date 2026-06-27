@@ -52,3 +52,5 @@ data/reports/
 scripts/out/
 git/
 * 2.*
+scripts/migrate_cache_sharding.py
+scripts/verify_step0_with_cache.py
