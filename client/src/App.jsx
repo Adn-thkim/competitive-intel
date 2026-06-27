@@ -56,6 +56,24 @@ export default function App() {
         if (!res.ok) return;
         const data = await res.json();
         if (data?.state) setLiveState(data.state);
+
+        // 비동기 리포트 단계 완료/오류 처리 (async_invoke_design.md AI-D7)
+        const js = data?.job_status;
+        if (js?.status === 'done') {
+          const finalData = { thread_id: threadId, is_interrupted: false, state: data.state };
+          setAnalysisRunning(false);   // 폴링 종료
+          if (extractCriticalError(finalData)) {
+            setCriticalError(extractCriticalError(finalData));
+            setPage('critical_error');
+          } else {
+            setApproveResult(finalData);
+            setPage('result');
+          }
+        } else if (js?.status === 'error') {
+          setAnalysisRunning(false);
+          setCriticalError(js.error || '리포트 생성 중 오류가 발생했습니다.');
+          setPage('critical_error');
+        }
       } catch {
         /* 일시적 폴링 실패는 무시 — 다음 주기에 재시도 */
       }
@@ -63,10 +81,11 @@ export default function App() {
     return () => clearInterval(timer);
   }, [analysisRunning, threadId, approveResult]);
 
-  // 첫 리포트(comparison_matrix) 완성 시점에 결과 페이지로 전환
+  // 첫 리포트가 보이는 즉시 결과 페이지로 전환(점진 렌더). 리포트 종류 무관(예: reaction_insight 단독).
   useEffect(() => {
     if (analysisRunning && page === 'feature_selection'
-        && liveState?.report_outputs?.comparison_matrix) {
+        && liveState?.report_outputs
+        && Object.keys(liveState.report_outputs).length > 0) {
       setPage('result');
     }
   }, [analysisRunning, page, liveState]);

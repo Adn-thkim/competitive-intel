@@ -146,7 +146,9 @@ router.post('/intake', async (req, res) => {
 
 router.post('/approve', async (req, res) => {
   // form_data(interrupt #1 폼 검토) 또는 resume(interrupt #2 경쟁사 선택) 중 하나 필수
-  const { thread_id, form_data, resume } = req.body || {};
+  // background=true(리포트 단계 = feature_selection 제출)면 Python 이 백그라운드 실행 후
+  // 즉시 ack(status:"running") 반환 → 프런트가 /api/state 의 job_status 로 폴링(유실 방지).
+  const { thread_id, form_data, resume, background } = req.body || {};
   const resumePayload = form_data ?? resume;
 
   if (!thread_id || typeof thread_id !== 'string') {
@@ -160,6 +162,7 @@ router.post('/approve', async (req, res) => {
     const result = await callInvoke({
       thread_id,
       resume: resumePayload,
+      background: background === true,
     });
 
     return res.json(result);

@@ -607,6 +607,8 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
         headers: { 'Content-Type': 'application/json' },
         body: JSON.stringify({
           thread_id: threadId,
+          // 리포트 단계는 백그라운드 실행 + 즉시 ack — App 의 /api/state 폴링이 완료/오류 처리.
+          background: true,
           resume: {
             // v0.10: 키 이름 selected_purposes 유지(server state.py 호환), 값은 report_type 목록
             selected_purposes:    deriveSelectedReportTypes(),
@@ -621,11 +623,13 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
         throw new Error(data?.error ?? `서버 오류 (HTTP ${res.status})`);
       }
 
-      onApproved(data);
+      // 백그라운드 ack(status:"running")면 폴링이 완료/오류를 처리한다.
+      // submitting 을 유지해 로딩 상태를 보존하고, 페이지 전환은 App 이 수행한다.
+      if (data.status === 'running') return;
+      onApproved(data);   // 동기로 끝난 경우(하위호환)
     } catch (err) {
       setError(err.message ?? '알 수 없는 오류가 발생했습니다.');
       onFailed?.();   // 폴링 중지 (분석 시작 실패)
-    } finally {
       setSubmitting(false);
     }
   }

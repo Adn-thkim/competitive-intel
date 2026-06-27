@@ -37,6 +37,8 @@ interrupt 흐름
 """
 
 import logging
+import threading
+from datetime import datetime, timezone
 from typing import Any
 
 from fastapi import FastAPI, HTTPException
@@ -48,6 +50,34 @@ from server.graph.graph import compiled_graph
 from server.graph.progress_store import clear_progress, get_progress
 
 logger = logging.getLogger(__name__)
+
+# ── 비동기 리포트 단계 작업 레지스트리 (async_invoke_design.md AI-D2) ──────────────
+# 리포트 생성 resume 을 백그라운드 스레드로 돌릴 때의 상태를 보관한다(메모리).
+# {thread_id: {"status": "running"|"done"|"error", "error": str|None, ...}}
+_JOBS: dict[str, dict] = {}
+_JOBS_LOCK = threading.Lock()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _set_job(thread_id: str, status: str, error: str | None = None) -> None:
+    with _JOBS_LOCK:
+        job = _JOBS.setdefault(thread_id, {})
+        job["status"] = status
+        if status == "running":
+            job["started_at"] = _now_iso()
+            job["error"] = None
+        else:
+            job["finished_at"] = _now_iso()
+            job["error"] = error
+
+
+def _get_job(thread_id: str) -> dict | None:
+    with _JOBS_LOCK:
+        job = _JOBS.get(thread_id)
+        return dict(job) if job else None
 
 app = FastAPI(
     title="YouTube Analysis LangGraph Server",
@@ -70,6 +100,7 @@ class InvokeRequest(BaseModel):
     thread_id: str
     raw_query: str | None = None   # 신규 시작 시 필수
     resume: Any = None             # interrupt 재개 시 필수 (edited_form dict)
+    background: bool = False        # true + resume → 백그라운드 실행 후 즉시 ack (AI-D1)
 
 
 class InvokeResponse(BaseModel):
@@ -78,6 +109,23 @@ class InvokeResponse(BaseModel):
     interrupt_value: Any           # interrupt() 호출 시 전달된 값 (query_intake_output)
     next_nodes:      list[str]
     state:           dict[str, Any]
+    status:          str = "completed"   # "interrupted" | "completed" | "running"(백그라운드 ack)
+
+
+def _run_resume(thread_id: str, resume: Any) -> None:
+    """리포트 단계 resume 을 백그라운드 스레드에서 실행한다(AI-D4).
+
+    결과는 MemorySaver 체크포인트에 기록되어 /state 로 조회되고, 완료/실패는 _JOBS 에 남는다.
+    """
+    config = {"configurable": {"thread_id": thread_id}}
+    try:
+        compiled_graph.invoke(Command(resume=resume), config=config)
+        _set_job(thread_id, "done")
+    except Exception as exc:  # noqa: BLE001 — 백그라운드 예외를 _JOBS 로 가시화(삼켜짐 방지)
+        logger.exception("async resume 실패 (thread_id=%s)", thread_id)
+        _set_job(thread_id, "error", str(exc))
+    finally:
+        clear_progress(thread_id)
 
 
 # ── 엔드포인트 ─────────────────────────────────────────────────────────────────
@@ -102,6 +150,23 @@ def invoke_graph(req: InvokeRequest) -> InvokeResponse:
     이는 C-1 per-candidate 진행 이벤트가 실시간으로 UI에 흘러가는 전제 조건이다.
     """
     config = {"configurable": {"thread_id": req.thread_id}}
+
+    # ── 비동기(백그라운드) 분기 — 리포트 단계 resume 만 (AI-D3) ───────────────────
+    # background=true + resume 이면 그래프를 데몬 스레드에서 돌리고 즉시 ack 를 반환한다.
+    # 프런트는 /state 의 job_status 로 완료/오류를 폴링한다(긴 HTTP 유실 방지).
+    if req.resume is not None and req.background:
+        with _JOBS_LOCK:
+            if (_JOBS.get(req.thread_id) or {}).get("status") == "running":
+                raise HTTPException(status_code=409, detail="이미 실행 중인 작업입니다.")
+        _set_job(req.thread_id, "running")
+        threading.Thread(
+            target=_run_resume, args=(req.thread_id, req.resume), daemon=True
+        ).start()
+        logger.info("invoke: 백그라운드 재개 시작 (thread_id=%s)", req.thread_id)
+        return InvokeResponse(
+            thread_id=req.thread_id, is_interrupted=False, interrupt_value=None,
+            next_nodes=[], state={}, status="running",
+        )
 
     try:
         if req.resume is not None:
@@ -160,6 +225,7 @@ def invoke_graph(req: InvokeRequest) -> InvokeResponse:
         interrupt_value=interrupt_value,
         next_nodes=list(graph_state.next),
         state=dict(graph_state.values),
+        status="interrupted" if is_interrupted else "completed",
     )
 
 
@@ -220,9 +286,10 @@ async def get_graph_state(thread_id: str) -> dict:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
     return {
-        "thread_id": thread_id,
-        "state":     dict(graph_state.values),
-        "next":      list(graph_state.next),
+        "thread_id":  thread_id,
+        "state":      dict(graph_state.values),
+        "next":       list(graph_state.next),
+        "job_status": _get_job(thread_id),   # 백그라운드 실행 상태(running/done/error) — AI-D5
     }
 
 
