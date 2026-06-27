@@ -588,13 +588,20 @@ def query_fingerprint(fields: dict) -> str:
     competition_axes 는 competitor_discovery(human_review 이후) 산출이라 interrupt#1
     시점에 알 수 없다. 따라서 그 시점에 확정된 query_intake 수준 필드만으로 지문을
     만든다(도메인·문제정의·타깃·핵심가치·자사상품명). full input_fingerprint 와 별개.
+
+    리스트 필드(target_user·core_value_props)는 **순서·앞뒤 공백에 무관**하도록 정규화
+    후 정렬해 해싱한다 — 사용자가 항목 순서만 바꾸거나 query_intake LLM이 동일 내용을
+    다른 순서로 재생성해도 "동일 입력" 판정이 깨지지 않게 한다.
     """
+    def _norm_list(xs: list) -> list:
+        return sorted((str(x).strip() for x in (xs or [])))
+
     payload = {
-        "domain_name":       fields.get("domain_name", ""),
-        "problem_statement": fields.get("problem_statement", ""),
-        "target_user":       fields.get("target_user", []),
-        "core_value_props":  fields.get("core_value_props", []),
-        "own_product_name":  (fields.get("own_product") or {}).get("name", ""),
+        "domain_name":       (fields.get("domain_name") or "").strip(),
+        "problem_statement": (fields.get("problem_statement") or "").strip(),
+        "target_user":       _norm_list(fields.get("target_user")),
+        "core_value_props":  _norm_list(fields.get("core_value_props")),
+        "own_product_name":  ((fields.get("own_product") or {}).get("name") or "").strip(),
     }
     return _fingerprint(payload)
 
