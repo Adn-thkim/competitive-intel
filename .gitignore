@@ -47,3 +47,8 @@ backup/
 # 개인 작업 예정 메모(GitHub Issues/Projects에서 관리하는 것이 표준)
 docs/To Do List.md
 data/measurement/
+data/debug/
+data/reports/
+scripts/out/
+git/
+* 2.*
