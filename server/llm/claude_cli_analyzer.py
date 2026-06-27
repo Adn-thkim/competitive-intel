@@ -270,9 +270,14 @@ class ClaudeCodeCliAnalyzer:
             )
 
         if result.returncode != 0:
+            # stderr 가 비는 경우가 많아(레이트·사용량 한도 메시지는 stdout 으로 옴)
+            # 진짜 사유 식별을 위해 stdout 도 함께 노출한다.
+            _err = (result.stderr or "").strip()
+            _out = (result.stdout or "").strip()
             raise RuntimeError(
                 f"Claude CLI 비정상 종료 (returncode={result.returncode}):\n"
-                f"{result.stderr.strip()}"
+                f"stderr: {_err or '(비어 있음)'}\n"
+                f"stdout: {_out[:500] or '(비어 있음)'}"
             )
 
         return result.stdout
