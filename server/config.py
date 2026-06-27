@@ -92,16 +92,38 @@ FEATURE_MAPPING_LLM_TIMEOUT = int(
 
 # reaction_analysis chunking 설정 (reaction_analysis_chunking_design.md — CONFIRMED).
 # candidate 전량 댓글을 스레드 원자 단위 chunk 로 분할해 candidate×chunk 를 병렬 호출한다.
-# CHUNK_CHARS: chunk 1개의 누적 text 상한(자). 신한SOL 실측 캘리브레이션(1016건≈201K자가
-#   600초 성공) 기준 CHUNK_TIMEOUT=300s·safety 0.6 → 60,000자(최대 candidate chunk 수 ~3).
-# CHUNK_CHARS_MIN: 마지막 잔여를 제외한 chunk 의 하한. 고정 오버헤드(O≈3.9K자) 분할 손실 방지.
+# CHUNK_CHARS: chunk 1개의 누적 text 상한(자). 초기 단일호출 캘리브레이션(1016건≈201K자가
+#   600초 성공)으로 60,000 을 잡았으나, 실제 PARALLEL 동시 호출 시 호출들이 API·CPU 를
+#   경쟁해 단위 처리량이 떨어져 60K chunk 가 300s 를 넘겨 대량 timeout 했다(2026-06-20 실측).
+#   → 20,000(rev6) 에서도 chunk 1개 출력(tuple JSON)이 모델 출력 토큰 상한을 넘겨 잘림
+#   (스키마 검증 실패: ~7.8K자 지점 truncation)이 발생. chunk 당 댓글 수를 더 낮춰 출력량을
+#   상한 안에 들이기 위해 12,000 으로 하향(2026-06-20 rev7).
+# CHUNK_CHARS_MIN: 마지막 잔여를 제외한 chunk 의 하한(< CHUNK_CHARS). 고정 오버헤드 분할 손실 방지.
 # CHUNK_TIMEOUT: chunk 1회 CLI 호출 timeout. PARALLEL: 평탄화 병렬 풀 상한(무제한 금지).
-# MAX_ITEMS: candidate당 입력 하드 상한(비정상 폭주 방지, 정상 운영 미도달).
-REACTION_ABSA_CHUNK_CHARS     = int(os.getenv("REACTION_ABSA_CHUNK_CHARS", "60000"))
-REACTION_ABSA_CHUNK_CHARS_MIN = int(os.getenv("REACTION_ABSA_CHUNK_CHARS_MIN", "20000"))
-REACTION_ABSA_CHUNK_TIMEOUT   = int(os.getenv("REACTION_ABSA_CHUNK_TIMEOUT", "300"))
-REACTION_ABSA_PARALLEL        = int(os.getenv("REACTION_ABSA_PARALLEL", "4"))
-REACTION_ABSA_MAX_ITEMS       = int(os.getenv("REACTION_ABSA_MAX_ITEMS", "5000"))
+#   PARALLEL 4→2 로 하향(B. 동시 호출 간 경쟁 완화 → 각 호출 단위 처리량 회복).
+# MAX_ITEMS: candidate당 입력 하드 상한. 전량(5000)은 reaction_analysis wall-clock 이 길어
+#   동기 /invoke 30분 한도를 넘겨 리포트 전달 실패를 유발 → 1500 으로 하향(rev7). 단 이는
+#   _group_sort_threads 최신 스레드 우선 표본(전량 아님)이다.
+REACTION_ABSA_CHUNK_CHARS     = int(os.getenv("REACTION_ABSA_CHUNK_CHARS", "12000"))
+REACTION_ABSA_CHUNK_CHARS_MIN = int(os.getenv("REACTION_ABSA_CHUNK_CHARS_MIN", "8000"))
+REACTION_ABSA_CHUNK_TIMEOUT   = int(os.getenv("REACTION_ABSA_CHUNK_TIMEOUT", "600"))
+REACTION_ABSA_PARALLEL        = int(os.getenv("REACTION_ABSA_PARALLEL", "2"))
+REACTION_ABSA_MAX_ITEMS       = int(os.getenv("REACTION_ABSA_MAX_ITEMS", "1500"))
+# 채널별 독립 예산(Option A — youtube/community 를 분리 컷 후 병합). 기본값은 MAX_ITEMS.
+# youtube 가 단일 풀에서 community 를 밀어내던 문제(커뮤니티 분석활용 16건)를 해소한다.
+REACTION_ABSA_MAX_ITEMS_YOUTUBE   = int(os.getenv("REACTION_ABSA_MAX_ITEMS_YOUTUBE",
+                                                  str(REACTION_ABSA_MAX_ITEMS)))
+REACTION_ABSA_MAX_ITEMS_COMMUNITY = int(os.getenv("REACTION_ABSA_MAX_ITEMS_COMMUNITY",
+                                                  str(REACTION_ABSA_MAX_ITEMS)))
+
+# 관련성 태깅(RP-D1) — ABSA 앞단에서 Haiku 가 "카드 반응 aspect / none" 을 태깅해
+# 컷 우선순위(RP-D3)에 사용. off=비활성(기존 최신순 컷), cli=구독, api=토큰 과금(haiku).
+REACTION_RELEVANCE_ENGINE = os.getenv("REACTION_RELEVANCE_ENGINE", "api")   # off|cli|api
+REACTION_RELEVANCE_MODEL  = os.getenv("REACTION_RELEVANCE_MODEL", "claude-haiku-4-5-20251001")  # 빈값=엔진별 기본
+REACTION_RELEVANCE_BATCH  = int(os.getenv("REACTION_RELEVANCE_BATCH", "20"))
+# 컷 충전 정책(RP-D3): true=관련 우선 + 비관련 최신으로 예산까지 충전(같은 비용·유효 손실 0).
+# false=관련만 분석(비관련 충전 안 함 → ABSA 입력·비용 절감, 단 태깅 false-negative 유효는 손실).
+REACTION_RELEVANCE_FILL   = os.getenv("REACTION_RELEVANCE_FILL", "false").lower() == "true"
 
 # FeatureUrlMapperAgent 병렬 처리 설정.
 # v0.10 이후: 이 노드는 report_config의 active 리포트 단위로 병렬 LLM 호출한다.
