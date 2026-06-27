@@ -168,9 +168,12 @@ COMMUNITY_SITES_FIXED: dict[str, str] = {
 }
 # CE-D1·D7 — broad query 페이지네이션 상한 (실측: Brave 깊이 한계 = 6페이지 포화)
 COMMUNITY_BRAVE_MAX_PAGES   = int(os.getenv("COMMUNITY_BRAVE_MAX_PAGES", "6"))
-# §3 선별 상한 — 사이트당/candidate당 (round-robin 사이트 다양성 우선)
-COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "10"))
-COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "40"))
+# §3 선별 상한 — 사이트당/candidate당 (round-robin 사이트 다양성 우선).
+# **0 = 무제한(캡 제거)** — 발견된 커뮤니티 URL 전량 수집. 기본 0 으로 캡 제거(2026-06-25):
+# youtube 단일풀 크라우드아웃 해소 + 채널 독립 예산(community MAX_ITEMS)으로 공급 확대.
+# (실패 URL 은 매 실행 재시도되므로, 추후 네거티브 캐시로 dead URL skip 권장.)
+COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "0"))
+COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "0"))
 # §3-4 — 문장 경계 chunking (요약·단순 절단 금지. 게시글 1건 = ABSA item 1~3건)
 COMMUNITY_CHUNK_CHARS = int(os.getenv("COMMUNITY_CHUNK_CHARS", "3000"))
 COMMUNITY_MAX_CHUNKS  = int(os.getenv("COMMUNITY_MAX_CHUNKS", "3"))

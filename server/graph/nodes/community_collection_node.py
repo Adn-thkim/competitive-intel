@@ -461,17 +461,19 @@ def select_community_pool(state: dict) -> dict[str, list[dict]]:
                 u.get("published_at", ""), u["url"]))
             site_urls.reverse()
 
-        # round-robin — 사이트 다양성 우선
+        # round-robin — 사이트 다양성 우선. 캡 0 = 무제한(캡 제거 → 전량 수집).
+        per_cand = COMMUNITY_URLS_PER_CANDIDATE or 10 ** 9
+        per_site = COMMUNITY_URLS_PER_SITE or 10 ** 9
         chosen: list[dict] = []
         idx = {site: 0 for site in by_site}
         sites_order = sorted(by_site)
-        while len(chosen) < COMMUNITY_URLS_PER_CANDIDATE:
+        while len(chosen) < per_cand:
             progressed = False
             for site in sites_order:
-                if len(chosen) >= COMMUNITY_URLS_PER_CANDIDATE:
+                if len(chosen) >= per_cand:
                     break
                 i = idx[site]
-                if i < min(COMMUNITY_URLS_PER_SITE, len(by_site[site])):
+                if i < min(per_site, len(by_site[site])):
                     chosen.append(by_site[site][i])
                     idx[site] = i + 1
                     progressed = True
