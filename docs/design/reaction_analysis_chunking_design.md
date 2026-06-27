@@ -1,7 +1,7 @@
 # reaction_analysis chunking 설계 — 스레드 원자 분할 + 평탄화 병렬 호출
 
 > - **상태**: CONFIRMED — 전 결정 항목(Q1~Q5) 확정 (2026-06-18)
-> - **작성일**: 2026-06-18 (rev2: 스레드 원자 경계·평탄화 병렬 / rev3: CHUNK_CHARS·TIMEOUT 실측 / rev4: analyzed_size(Q3) / rev5: Q2·Q4·Q5 확정 — 전 항목 확정)
+> - **작성일**: 2026-06-18 (rev2: 스레드 원자 경계·평탄화 병렬 / rev3: CHUNK_CHARS·TIMEOUT 실측 / rev4: analyzed_size(Q3) / rev5: Q2·Q4·Q5 확정 — 전 항목 확정 / **rev6(2026-06-20): 운영 재보정** — 대댓글 전량 수집(candidate당 ~5000건)으로 PARALLEL 동시 호출 시 호출 간 API·CPU 경쟁이 드러나, 단일호출 기준 캘리브레이션값 `CHUNK_CHARS=60,000·PARALLEL=4` 가 300s 를 넘겨 대량 timeout. → `CHUNK_CHARS 60,000→20,000`(A)·`PARALLEL 4→2`(B)·`CHUNK_CHARS_MIN 20,000→8,000`(MIN<CHARS 유지)으로 하향. `MAX_ITEMS=5000` 전량 정책은 유지(§4-3·Q1·Q5 의 60,000/4 는 단일호출 가정의 역사값으로, 본 rev6 가 supersede) / **rev7(2026-06-25): 처리량·예산 재보정** — (1) `CHUNK_CHARS 20,000→12,000`: 20K도 chunk 1개 출력(tuple JSON)이 모델 출력 토큰 상한을 넘겨 잘림(스키마 검증 실패), chunk당 댓글 수를 더 낮춰 출력량을 상한 내로. (2) `CHUNK_TIMEOUT 300→600`: 잔여 밀집 chunk timeout 완화. (3) `MAX_ITEMS 5000→1500`: 전량은 wall-clock 이 길어 동기 `/invoke` 30분 한도 초과로 리포트 전달 실패 → 하향(최신 스레드 우선 표본). (4) **채널 분리 예산 신설** `MAX_ITEMS_YOUTUBE`·`MAX_ITEMS_COMMUNITY`(Option A, 기본 MAX_ITEMS): youtube/community 를 독립 컷 후 병합해 youtube 가 community 를 밀어내던 크라우드아웃 해소)
 > - **시리즈**: reaction_insight 계열 후속 — 대용량 입력 CLI 타임아웃 해소 + wall-clock 단축
 > - **선행 문서**:
 >   - `docs/design/reaction_insight_node_design.md` (RI-D5 어댑터=CLI · RI-D7 채널 가중 · RI-D6 루브릭)
@@ -9,7 +9,7 @@
 >   - `docs/design/youtube_reply_collection_design.md` (대댓글+parent 수집 — 본 설계 CH-D3 thread_id 의존)
 >   - `docs/design/comparison_matrix_node_design.md` (CM-D1 코드/LLM 분리 · CM-D5 degrade)
 > - **대상 파일**: `server/graph/nodes/reaction_analysis_node.py` (수정),
->   `server/config.py` (`REACTION_ABSA_CHUNK_CHARS=60000`·`REACTION_ABSA_CHUNK_CHARS_MIN=20000`·`REACTION_ABSA_CHUNK_TIMEOUT=300`·`REACTION_ABSA_MAX_ITEMS`·`REACTION_ABSA_PARALLEL=4` 추가)
+>   `server/config.py` (`REACTION_ABSA_CHUNK_CHARS=12000`·`REACTION_ABSA_CHUNK_CHARS_MIN=8000`·`REACTION_ABSA_CHUNK_TIMEOUT=600`·`REACTION_ABSA_MAX_ITEMS=1500`·`REACTION_ABSA_PARALLEL=2`·`REACTION_ABSA_MAX_ITEMS_YOUTUBE/COMMUNITY=MAX_ITEMS` — rev7 재보정값)
 > - **무변경 확인 파일**: `server/graph/nodes/reaction_insight_node.py`, `agents/reaction_analysis/*`
 
 ---
@@ -353,11 +353,12 @@ for cid, (items_all, chunks) in chunks_by_cid.items():
 
 | ID | 항목 | 선택지 | 권장 |
 |---|---|---|---|
-| ~~Q1~~ ✅확정 | chunk 크기·timeout·하한 | — | **CHUNK_CHARS=60,000 · CHUNK_TIMEOUT=300s · 하한=20,000** (신한SOL 실측 캘리브레이션, §4-3 근거) |
+| ~~Q1~~ ✅확정 | chunk 크기·timeout·하한 | — | **CHUNK_CHARS=12,000 · CHUNK_TIMEOUT=600s · 하한=8,000** (rev7; 20,000은 출력 토큰 상한 초과 JSON 잘림 → 12,000 으로 하향, timeout 600s. 원 60,000/20,000·300s 는 supersede) |
 | ~~Q2~~ ✅확정 | suggestions 노출/상한 | — | **aspect별 top-N(N=3)** — `reaction_insight_node.build_suggestions`에서 구현(무수정 예외, §9) |
 | ~~Q3~~ ✅확정 | `sample_size` 부분 실패 의미 | — | **sample_size=수집 전량 + `analyzed_size`(성공 chunk item 합) 추가** (§5-3) |
 | ~~Q4~~ ✅확정 | 부분 누락 표식 | — | **`failed_chunks`·`missing_items` 필드 추가** (§6 CH-D10) |
-| ~~Q5~~ ✅확정 | `REACTION_ABSA_PARALLEL` 기본값 | — | **4** (기존 LLM 병렬 상수 정합; 계정 동시한도 확인 시 조정) |
+| ~~Q5~~ ✅확정 | `REACTION_ABSA_PARALLEL` 기본값 | — | **2** (rev6; 동시 호출 간 경쟁 완화. 원값 4 는 단일호출 처리량 가정) |
+| 채널예산 | youtube/community MAX_ITEMS | — | **분리 예산 `MAX_ITEMS_YOUTUBE`·`MAX_ITEMS_COMMUNITY`(rev7, Option A)** — 독립 컷 후 병합. 기본 MAX_ITEMS=1500. youtube 크라우드아웃 해소 |
 
 > **모든 결정 항목(Q1~Q5) 확정 완료.** 구현 착수 가능.
 
@@ -366,8 +367,8 @@ for cid, (items_all, chunks) in chunks_by_cid.items():
 ## 11. 영향 파일·상태 키
 
 - **수정**: `server/graph/nodes/reaction_analysis_node.py` (평탄화·병렬·스레드 분할 헬퍼),
-  `server/config.py`(`REACTION_ABSA_CHUNK_CHARS=60000`·`CHUNK_CHARS_MIN=20000`·
-  `CHUNK_TIMEOUT=300`·`MAX_ITEMS`·`PARALLEL=4`, `CLI_TIMEOUT<30` 류 sanity 가드 동반).
+  `server/config.py`(`REACTION_ABSA_CHUNK_CHARS=12000`·`CHUNK_CHARS_MIN=8000`·
+  `CHUNK_TIMEOUT=600`·`MAX_ITEMS=1500`·`PARALLEL=2`·`MAX_ITEMS_YOUTUBE/COMMUNITY` — rev7 재보정).
 - **제거(고아)**: `_sample_items`·`_MAX_ITEMS_PER_CANDIDATE`.
 - **상태 키**: `state["reaction_analysis"]` 기존 키 불변(CH-D1) + `analyzed_size`·
   `failed_chunks`·`missing_items` 추가(CH-D9·CH-D10, 하류 무시 가능 필드). 신규 상태 키 없음.
