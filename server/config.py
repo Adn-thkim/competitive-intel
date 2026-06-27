@@ -196,6 +196,10 @@ COMMUNITY_BRAVE_MAX_PAGES   = int(os.getenv("COMMUNITY_BRAVE_MAX_PAGES", "6"))
 # (실패 URL 은 매 실행 재시도되므로, 추후 네거티브 캐시로 dead URL skip 권장.)
 COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "0"))
 COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "0"))
+# 댓글+대댓글 수집 on/off (기본 on). on 이면 본문 외에 댓글을 youtube 스키마
+# ({thread_id, is_reply, parent_id, text})로 수집해 동일 노이즈·관련성·ABSA 파이프라인에 투입한다.
+# (Playwright reply-pairing PoC 검증 후 본구현 — scripts/community_reply_pairing_poc.py)
+COMMUNITY_COLLECT_COMMENTS = os.getenv("COMMUNITY_COLLECT_COMMENTS", "true").lower() == "true"
 # §3-4 — 문장 경계 chunking (요약·단순 절단 금지. 게시글 1건 = ABSA item 1~3건)
 COMMUNITY_CHUNK_CHARS = int(os.getenv("COMMUNITY_CHUNK_CHARS", "3000"))
 COMMUNITY_MAX_CHUNKS  = int(os.getenv("COMMUNITY_MAX_CHUNKS", "3"))

@@ -289,6 +289,7 @@ from concurrent.futures import ThreadPoolExecutor as _Pool
 from server.cache_ttl import get_ttl_hours
 from server.config import (
     COMMUNITY_CHUNK_CHARS,
+    COMMUNITY_COLLECT_COMMENTS,
     COMMUNITY_MAX_CHUNKS,
     COMMUNITY_SITES_FIXED,
     COMMUNITY_URLS_PER_CANDIDATE,
@@ -317,6 +318,46 @@ _NAV_SIGNS = ("본문 바로가기", "메뉴 바로가기")
 _FETCH_AGENT_ID_V14  = "community_content_fetch"
 _FETCH_CACHE_CTX_V14 = {"agent_id": _FETCH_AGENT_ID_V14, "v": 1}
 _FETCH_CACHE_TTL_H   = get_ttl_hours("community_fetch_hours", 720)  # cache_ttls.yaml
+
+# 댓글+대댓글 캐시(배치 스크래퍼 scripts/collect_community_comments.py 가 적재) — URL 키.
+# 노드는 **캐시 읽기만** 한다(서버에 Playwright/브라우저 미투입 = 위협 최소화).
+_COMMENT_AGENT_ID  = "community_comments"
+_COMMENT_CACHE_CTX = {"agent_id": _COMMENT_AGENT_ID, "v": 1}
+
+
+def _load_cached_comments(posts: list[dict], logger: logging.Logger) -> list[dict]:
+    """COMMUNITY_COLLECT_COMMENTS on 시, 수집된 URL 의 댓글 캐시를 읽어 youtube 스키마로
+    스탬프한다(candidate_id 부여 · thread_id 를 URL 네임스페이스로 격리). 캐시 미스는 건너뛴다.
+    Playwright 미투입(캐시 읽기 전용) — 미수집 URL 은 자연히 빈 결과."""
+    cand_by_url: dict[str, str] = {}
+    for p in posts:                       # URL → 첫 post 의 candidate_id
+        url = p.get("url", "")
+        if url and url not in cand_by_url:
+            cand_by_url[url] = p.get("candidate_id", "")
+    comments: list[dict] = []
+    for url, cid in cand_by_url.items():
+        cached = load_agent_output(agent_id=_COMMENT_AGENT_ID, cache_input={"url": url},
+                                   context=_COMMENT_CACHE_CTX, ttl_hours=_FETCH_CACHE_TTL_H,
+                                   logger=logger)
+        if not cached:
+            continue
+        for it in cached.get("items") or []:
+            local = it.get("thread_id", "")
+            par = it.get("parent_id")
+            comments.append({
+                "candidate_id": cid,
+                "source_url":   url,
+                "channel":      "community",
+                "thread_id":    f"{url}::{local}",                  # URL 네임스페이스(충돌 방지)
+                "parent_id":    (f"{url}::{par}" if par else None),
+                "is_reply":     bool(it.get("is_reply")),
+                "text":         (it.get("text") or "").strip(),
+                "posted_at":    it.get("posted_at", ""),
+            })
+    if comments:
+        logger.info("community 댓글 캐시 로드: %d건 (URL %d개)", len(comments),
+                    sum(1 for u in cand_by_url if any(c["source_url"] == u for c in comments)))
+    return comments
 # 문장 경계 분할 — 한국어 종결어미·구두점 뒤 공백
 _SENTENCE_SPLIT_RE = _re.compile(r"(?<=[.!?…다요죠임함됨])\s+")
 
@@ -599,6 +640,14 @@ def community_collection_node(
     out: dict = {"community_posts": posts, "agent_steps": [step]}
     if errors:
         out["errors"] = errors
+
+    # 댓글+대댓글 — 캐시 읽기 전용(플래그 on 기본). 실패는 비치명(본문 수집은 영향 없음).
+    if COMMUNITY_COLLECT_COMMENTS:
+        try:
+            out["community_comments"] = _load_cached_comments(posts, logger)
+        except Exception as exc:  # noqa: BLE001
+            logger.warning("community 댓글 로드 실패(비치명): %s", exc)
+            out["community_comments"] = []
     return out
 
 

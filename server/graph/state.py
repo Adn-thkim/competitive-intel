@@ -420,6 +420,7 @@ class DomainAnalysisState(TypedDict, total=False):
     collected_videos:          list[dict[str, Any]]
     selected_comments:         list[dict[str, Any]]
     community_posts:           list[dict[str, Any]]
+    community_comments:        list[dict[str, Any]]  # 댓글+대댓글 (youtube 스키마, 캐시 로드)
     blog_posts:                list[dict[str, Any]]
     app_store_reviews:         list[dict[str, Any]]
     reaction_analysis:         dict[str, Any]
