@@ -115,6 +115,12 @@ REACTION_ABSA_MAX_ITEMS_YOUTUBE   = int(os.getenv("REACTION_ABSA_MAX_ITEMS_YOUTU
                                                   str(REACTION_ABSA_MAX_ITEMS)))
 REACTION_ABSA_MAX_ITEMS_COMMUNITY = int(os.getenv("REACTION_ABSA_MAX_ITEMS_COMMUNITY",
                                                   str(REACTION_ABSA_MAX_ITEMS)))
+# 2-패스 폴백 — chunk 가 CLI 타임아웃나면 sub-chunk(이 문자 예산)로 1회 분할 재시도 후
+# tuple 을 합쳐 전체 청크 키로 저장(다음 실행 적중). CHUNK_CHARS 전역 축소(캐시 무효화) 대신
+# 실패 청크만 구제하는 안전망. on/off + sub 크기 조정 가능.
+REACTION_ABSA_SUBCHUNK_CHARS      = int(os.getenv("REACTION_ABSA_SUBCHUNK_CHARS", "6000"))
+REACTION_ABSA_SUBSPLIT_ON_TIMEOUT = os.getenv(
+    "REACTION_ABSA_SUBSPLIT_ON_TIMEOUT", "true").lower() == "true"
 
 # 관련성 태깅(RP-D1) — ABSA 앞단에서 Haiku 가 "카드 반응 aspect / none" 을 태깅해
 # 컷 우선순위(RP-D3)에 사용. off=비활성(기존 최신순 컷), cli=구독, api=토큰 과금(haiku).

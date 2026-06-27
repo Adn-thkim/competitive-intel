@@ -50,6 +50,8 @@ from server.config import (
     REACTION_ABSA_MAX_ITEMS_COMMUNITY,
     REACTION_ABSA_MAX_ITEMS_YOUTUBE,
     REACTION_ABSA_PARALLEL,
+    REACTION_ABSA_SUBCHUNK_CHARS,
+    REACTION_ABSA_SUBSPLIT_ON_TIMEOUT,
     REACTION_RELEVANCE_BATCH,
     REACTION_RELEVANCE_ENGINE,
     REACTION_RELEVANCE_FILL,
@@ -404,6 +406,8 @@ def reaction_analysis_node(
 
     if misses:
         items_by_key = {(cid, i): len(chunk) for cid, i, chunk in misses}
+        chunk_by_key = {(cid, i): chunk for cid, i, chunk in misses}
+        timeout_retry: list[tuple[str, int]] = []   # 타임아웃 → 2-패스 sub-분할 대상
         with ThreadPoolExecutor(
             max_workers=min(len(misses), REACTION_ABSA_PARALLEL)
         ) as pool:
@@ -418,6 +422,10 @@ def reaction_analysis_node(
                         agent_id=_LLM_AGENT_ID, cache_input=cache_inputs[(cid, i)],
                         context=context, output=out_i, logger=logger)
                 except Exception as exc:  # noqa: BLE001 — chunk 단위 부분 실패 (CH-D10)
+                    # 타임아웃이면 2-패스 sub-분할 폴백 대상으로 보류(최종 실패 기록 X).
+                    if REACTION_ABSA_SUBSPLIT_ON_TIMEOUT and _is_timeout_failure(exc):
+                        timeout_retry.append((cid, i))
+                        continue
                     errors.append({
                         "node": "reaction_analysis_node",
                         "error": f"candidate={cid}/chunk={i}: "
@@ -429,6 +437,40 @@ def reaction_analysis_node(
                         "cause": _classify_chunk_failure(exc),
                         "items": items_by_key.get((cid, i), 0),
                     })
+
+        # ── 3-1) 2-패스 폴백: 타임아웃 청크를 sub-분할 재시도(메인 스레드, 순차) ──────
+        #   sub 전부 성공 시에만 전체 청크 키로 저장(불완전 캐시 방지). 저장엔 candidate_id 포함
+        #   (스키마 required=[candidate_id,tuples]). sub 도 타임아웃나면 부분 결과만 사용(미저장).
+        for cid, i in timeout_retry:
+            chunk = chunk_by_key[(cid, i)]
+            subs = _split_for_retry(chunk, REACTION_ABSA_SUBCHUNK_CHARS)
+            merged: list[dict] = []
+            complete = True
+            for sub in subs:
+                try:
+                    merged.extend(_call_chunk(cid, sub).get("tuples", []))
+                except Exception as exc:  # noqa: BLE001 — sub 실패 → 부분/미저장
+                    complete = False
+                    errors.append({
+                        "node": "reaction_analysis_node",
+                        "error": f"candidate={cid}/chunk={i}(sub): "
+                                 f"{type(exc).__name__}: {str(exc)[:200]}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+            results[(cid, i)] = merged
+            if complete:
+                store_agent_output(
+                    agent_id=_LLM_AGENT_ID, cache_input=cache_inputs[(cid, i)],
+                    context=context, output={"candidate_id": cid, "tuples": merged},
+                    logger=logger)
+            logger.warning(
+                "reaction_analysis: %s chunk %d 타임아웃 → sub-분할 %d개 복구 "
+                "(tuple %d · %s)", cid, i, len(subs), len(merged),
+                "캐시 저장" if complete else "부분(미저장)")
+            if not complete:                          # 부분 실패는 원인 집계에 반영
+                fail_records.append({
+                    "cid": cid, "cause": "sub-분할 후에도 일부 타임아웃",
+                    "items": items_by_key.get((cid, i), 0)})
         _log_chunk_failure_summary(fail_records)
 
     # ── 4) candidate별 종합 (메인 스레드) (CH-D7·D8·D9·D10) ───────────────────
@@ -554,6 +596,30 @@ def _dump_replay_state(state: dict, dump_dir: str) -> None:
         logger.warning("reaction_analysis: 재현용 state 덤프 → %s", path)
     except Exception as exc:  # noqa: BLE001
         logger.warning("reaction_analysis: 재현용 덤프 실패: %s", exc)
+
+
+def _is_timeout_failure(exc: Exception) -> bool:
+    """chunk 실패가 CLI 타임아웃인지 판정한다(2-패스 sub-분할 폴백 트리거)."""
+    msg = str(exc).lower()
+    return "timeout" in msg or "타임아웃" in msg
+
+
+def _split_for_retry(chunk: list[dict], sub_chars: int) -> list[list[dict]]:
+    """타임아웃 청크를 sub_chars 문자 예산으로 평탄 분할한다(2-패스 폴백용).
+    item 단위 절단 — ABSA 는 item 별 독립 추출이라 분할로 잃는 맥락이 없다."""
+    out: list[list[dict]] = []
+    cur: list[dict] = []
+    chars = 0
+    for it in chunk:
+        n = len(it.get("text", ""))
+        if cur and chars + n > sub_chars:
+            out.append(cur)
+            cur, chars = [], 0
+        cur.append(it)
+        chars += n
+    if cur:
+        out.append(cur)
+    return out
 
 
 def _classify_chunk_failure(exc: Exception) -> str:
