@@ -36,6 +36,8 @@ interrupt 흐름
     uvicorn server.graph.api:app --host 127.0.0.1 --port 8001
 """
 
+import hashlib
+import json
 import logging
 import threading
 from datetime import datetime, timezone
@@ -46,6 +48,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from langgraph.types import Command
 from pydantic import BaseModel
 
+from server.config import REPORT_SNAPSHOT_DIR, REPORT_SNAPSHOT_ENABLED
 from server.graph.graph import compiled_graph
 from server.graph.progress_store import clear_progress, get_progress
 
@@ -78,6 +81,72 @@ def _get_job(thread_id: str) -> dict | None:
     with _JOBS_LOCK:
         job = _JOBS.get(thread_id)
         return dict(job) if job else None
+
+
+# ── 리포트 스냅샷 덤프 ────────────────────────────────────────────────────────
+# 체크포인터가 MemorySaver 라 프로세스가 죽으면 report_outputs 가 사라진다.
+# 리포트가 만들어진 시점의 엔벨로프를 파일로 남겨 목업 제작·회귀 테스트·오프라인
+# 열람에 재사용한다.
+#
+# 저장 시점: /invoke 반환 직전, /state 조회 시. 프런트가 2초 주기로 /state 를
+#           폴링하므로 별도 트리거 없이 항상 최신본이 유지된다.
+# 중복 쓰기 방지: 직전에 쓴 내용의 해시를 기억해 변경이 있을 때만 디스크에 쓴다.
+#
+# 함께 저장하는 필드
+#   report_outputs   — 리포트 본체 (ComparisonMatrixReport / ReactionInsightReport 입력)
+#   product_profiles — candidate_id → 상품명 매핑 (candidateNames prop)
+#   own_product      — 자사 식별 (ownProductId prop)
+_REPORT_SNAPSHOT_HASHES: dict[str, str] = {}
+_SNAPSHOT_LOCK = threading.Lock()
+
+
+def _dump_report_snapshot(thread_id: str, values: dict) -> None:
+    """report_outputs 가 있으면 data/reports/{thread_id}.json 으로 저장한다.
+
+    실패해도 API 응답에는 영향을 주지 않는다(로그만 남긴다).
+    """
+    if not REPORT_SNAPSHOT_ENABLED:
+        return
+
+    reports = values.get("report_outputs") or {}
+    if not reports:
+        return
+
+    try:
+        # saved_at 은 해시 대상에서 제외한다 — 포함하면 매 폴링마다 해시가 달라져
+        # 중복 기록 방지가 무력화된다.
+        content = {
+            "thread_id":        thread_id,
+            "project_id":       values.get("project_id"),
+            "raw_query":        values.get("raw_query"),
+            "report_outputs":   reports,
+            "product_profiles": values.get("product_profiles") or [],
+            "own_product":      values.get("own_product") or {},
+        }
+        canonical = json.dumps(content, ensure_ascii=False, sort_keys=True, default=str)
+
+        digest = hashlib.sha256(canonical.encode("utf-8")).hexdigest()
+        with _SNAPSHOT_LOCK:
+            if _REPORT_SNAPSHOT_HASHES.get(thread_id) == digest:
+                return                      # 변경 없음 — 폴링마다 재기록하지 않는다
+            _REPORT_SNAPSHOT_HASHES[thread_id] = digest
+
+        body = json.dumps({"saved_at": _now_iso(), **content},
+                          ensure_ascii=False, indent=2, default=str)
+
+        REPORT_SNAPSHOT_DIR.mkdir(parents=True, exist_ok=True)
+        path = REPORT_SNAPSHOT_DIR / f"{thread_id}.json"
+        tmp  = path.with_suffix(".json.tmp")
+        tmp.write_text(body, encoding="utf-8")
+        tmp.replace(path)                   # 원자적 교체 — 부분 기록 파일이 남지 않는다
+
+        logger.info(
+            "리포트 스냅샷 저장 (thread_id=%s, reports=%s, path=%s)",
+            thread_id, sorted(reports.keys()), path,
+        )
+    except Exception:   # noqa: BLE001 — 스냅샷 실패가 API 응답을 막지 않도록 삼킨다
+        logger.exception("리포트 스냅샷 저장 실패 (thread_id=%s)", thread_id)
+
 
 app = FastAPI(
     title="YouTube Analysis LangGraph Server",
@@ -171,8 +240,10 @@ def invoke_graph(req: InvokeRequest) -> InvokeResponse:
     try:
         if req.resume is not None:
             # ── interrupt 재개 ───────────────────────────────────────────────
+            print(f"[invoke] 동기 재개 요청 수신 thread={req.thread_id} resume={req.resume!r}", flush=True)
             logger.info("invoke: 재개 요청 (thread_id=%s)", req.thread_id)
             compiled_graph.invoke(Command(resume=req.resume), config=config)
+            print(f"[invoke] 동기 재개 invoke 반환 thread={req.thread_id}", flush=True)
 
         else:
             # ── 신규 시작 ────────────────────────────────────────────────────
@@ -219,12 +290,15 @@ def invoke_graph(req: InvokeRequest) -> InvokeResponse:
                 interrupt_value = task.interrupts[0].value
                 break
 
+    state_values = dict(graph_state.values)
+    _dump_report_snapshot(req.thread_id, state_values)
+
     return InvokeResponse(
         thread_id=req.thread_id,
         is_interrupted=is_interrupted,
         interrupt_value=interrupt_value,
         next_nodes=list(graph_state.next),
-        state=dict(graph_state.values),
+        state=state_values,
         status="interrupted" if is_interrupted else "completed",
     )
 
@@ -285,9 +359,12 @@ async def get_graph_state(thread_id: str) -> dict:
     except Exception as exc:
         raise HTTPException(status_code=404, detail=str(exc)) from exc
 
+    state_values = dict(graph_state.values)
+    _dump_report_snapshot(thread_id, state_values)   # 리포트 생성 시 자동 저장
+
     return {
         "thread_id":  thread_id,
-        "state":      dict(graph_state.values),
+        "state":      state_values,
         "next":       list(graph_state.next),
         "job_status": _get_job(thread_id),   # 백그라운드 실행 상태(running/done/error) — AI-D5
     }

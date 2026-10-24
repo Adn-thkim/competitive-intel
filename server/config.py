@@ -55,6 +55,17 @@ OFFICIAL_SOURCE_STORE_PATH = CACHE_DIR / "official_sources.json"
 # raw_query 만으로 키를 잡아 prompt/schema/model 변경에도 정정이 유실되지 않는다.
 QUERY_INTAKE_OVERRIDES_DIR = BASE_DIR / "data" / "overrides" / "query_intake"
 
+# ── 리포트 스냅샷 ────────────────────────────────────────────────────────────
+# 체크포인터가 MemorySaver(인메모리)라 프로세스 종료와 함께 report_outputs 가
+# 사라진다. 목업 화면 제작·회귀 테스트·오프라인 열람을 위해 리포트가 생성된
+# 시점의 엔벨로프를 파일로 남긴다.
+#
+# 저장 위치: competitive-intel/data/reports/{thread_id}.json
+# 끄려면 .env 에 REPORT_SNAPSHOT=0
+REPORT_SNAPSHOT_DIR     = Path(os.getenv("REPORT_SNAPSHOT_DIR",
+                                         str(BASE_DIR / "data" / "reports")))
+REPORT_SNAPSHOT_ENABLED = os.getenv("REPORT_SNAPSHOT", "1").lower() not in ("0", "false", "no")
+
 # OfficialSourceStore TTL (일 단위).
 # 한 번 검증된 상품 공식 URL은 이 기간 동안 재탐색 없이 재사용된다.
 # 캐시 hit 시에도 HTTP 재검증 1회를 수행하므로 죽은 링크는 자동으로 폐기된다.
