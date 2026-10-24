@@ -61,6 +61,7 @@ from pathlib import Path
 import jsonschema
 
 from server.config import AGENTS_DIR, BASE_DIR
+from server.cache_ttl import get_ttl_hours
 from server.graph.agent_cache import (
     load_agent_output,
     make_cache_context,
@@ -118,7 +119,7 @@ logger = logging.getLogger(__name__)
 # ── 설정 상수 ─────────────────────────────────────────────────────────────────
 TAXONOMY_DIR          = BASE_DIR / "data" / "taxonomy"
 DOMAINS_REGISTRY_PATH = TAXONOMY_DIR / "domains.json"
-TAXONOMY_TTL_HOURS    = 168    # 7일
+TAXONOMY_TTL_HOURS    = get_ttl_hours("taxonomy_hours", 168)  # cache_ttls.yaml (기본 720h)
 
 # v0.10 D4 확정 — report_config 7종 enum (output.schema.json과 정합)
 REPORT_TYPES = (

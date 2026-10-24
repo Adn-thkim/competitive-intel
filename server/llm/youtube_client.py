@@ -168,12 +168,13 @@ def youtube_search_videos(
         raise YouTubeApiUnavailable("YOUTUBE_API_KEY 환경변수 미설정")
 
     # ── 캐시 조회 ───────────────────────────────────────────────────────────
+    # published_after 는 **키에서 제외**(TTL 로만 유효성 관리) — 주 롤오버로 값이 바뀌어도 같은 쿼리는
+    # 캐시 히트해 재검색이 발생하지 않는다(개발 단계 재현성). API 호출엔 여전히 published_after 를 넘긴다.
     cache_input = {
         "query":           query,
         "region_code":     region_code,
-        "published_after": published_after,
     }
-    cache_context = {"agent_id": "youtube_search", "v": 3}
+    cache_context = {"agent_id": "youtube_search", "v": 4}   # v:3→4 (키 스키마 변경 — published_after 제외)
     cached = load_agent_output(
         agent_id="youtube_search",
         cache_input=cache_input,

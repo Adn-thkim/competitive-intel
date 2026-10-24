@@ -39,6 +39,7 @@ from server.config import (
     YOUTUBE_MIN_VIEW_COUNT,
     YOUTUBE_MIN_COMMENT_COUNT,
     YOUTUBE_REGION_CODE,
+    YOUTUBE_PUBLISHED_AFTER,
 )
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
@@ -135,11 +136,18 @@ def url_discovery_youtube_reactions_node(
             }],
         }
 
-    # publishedAfter: 최근 _PUBLISHED_AFTER_YEARS년 이내 (RFC 3339).
-    # ISO 주 시작(월요일 00:00 UTC)으로 절사 → 같은 주 재실행 시 캐시 키 동일.
-    cutoff = datetime.now(timezone.utc) - timedelta(days=365 * _PUBLISHED_AFTER_YEARS)
-    week_start = cutoff - timedelta(days=cutoff.weekday())
-    published_after = week_start.strftime("%Y-%m-%dT00:00:00Z")
+    # publishedAfter: 고정값(config) 우선 — 검색 캐시 재현성. 빈값이면 롤링(최근 _PUBLISHED_AFTER_YEARS년).
+    # 롤링 주 경계 = **월요일 05:00 KST**: KST 로 5h 당겨 요일 계산 → 월 05:00 KST 이전이면 이전 주로 간주.
+    # 값은 2년 전 동일 주(월요일) 날짜 → 같은 분석주 내내 캐시 키 동일, 경계에서만 롤오버.
+    if YOUTUBE_PUBLISHED_AFTER:
+        published_after = YOUTUBE_PUBLISHED_AFTER
+    else:
+        _kst = timezone(timedelta(hours=9))
+        _base = datetime.now(_kst) - timedelta(hours=5)
+        _monday = _base.date() - timedelta(days=_base.weekday())
+        _cutoff = _monday - timedelta(days=365 * _PUBLISHED_AFTER_YEARS)
+        _cutoff -= timedelta(days=_cutoff.weekday())
+        published_after = _cutoff.strftime("%Y-%m-%dT00:00:00Z")
 
     # ── YouTube API 호출 (병렬, quota_skip graceful) ─────────────────────────
     logger.info(

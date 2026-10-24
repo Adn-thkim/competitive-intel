@@ -1,24 +1,31 @@
 # ──────────────────────────────────────────────────────────────────────────────
 # cache_ttls.yaml — 캐시 TTL 일괄 관리 (2026-06-19 신설)
 # ──────────────────────────────────────────────────────────────────────────────
-# competitor_selection 이후 노드/모듈이 쓰는 캐시 TTL을 한 곳에서 관리한다.
+# 노드/모듈이 쓰는 캐시 TTL을 한 곳에서 관리한다(앞단 taxonomy·official_source_store 포함).
 # 읽기: server/cache_ttl.py 의 get_ttl_hours("<key>", fallback) / get_ttl_minutes(...).
 # 우선순위: 환경변수(노드별 기존 ENV) > 본 yaml(defaults) > 코드 fallback.
 #
-# 단위: *_hours = 시간, *_minutes = 분.  현재 일괄 30일 정책 (720h / 43200m).
+# 단위: *_hours = 시간, *_minutes = 분.  현재 일괄 300일 정책 (7200h / 432000m).
+# (2026-07-18 개발 일정 지연 대응: 기존 30일 정책 대비 전 항목 10배 상향)
 # 항목별로 조정 시 이 파일만 수정하면 된다(코드 변경 불필요).
 # ──────────────────────────────────────────────────────────────────────────────
 defaults:
   # ── 파일 캐시 (재실행/재시작에도 유지) ──
-  brave_search_hours:           720   # url_discovery_brave 파일 캐시 (feature_url_mapper._brave_search)
-  youtube_hours:                720   # youtube_client (comments/search/statistics 등)
-  official_content_fetch_hours: 720   # official_content_collection 공식 페이지 fetch
-  community_fetch_hours:        720   # community_collection 본문/댓글 fetch
-  feature_url_mapper_hours:     720   # feature_url_mapper 노드 캐시 (4개 노드 공통)
-  relevance_tag_hours:          720   # relevance_tagger per-item 라벨 (텍스트 불변 → 장기)
-  owned_channel_hours:          720   # url_discovery_owned_channels
-  blog_rss_hours:               720   # blog_rss_collection (휴면)
+  taxonomy_hours:               7200   # domain_modeling taxonomy 캐시 (이전 하드코딩 168h)
+  official_source_store_hours:  7200   # official_source_store 검증 URL 재사용 (이전 30일=720h)
+  brave_search_hours:           7200   # url_discovery_brave 파일 캐시 (feature_url_mapper._brave_search)
+  youtube_hours:                7200   # youtube_client (comments/search/statistics 등)
+  official_content_fetch_hours: 7200   # official_content_collection 공식 페이지 fetch
+  community_fetch_hours:        7200   # community_collection 본문/댓글 fetch
+  community_fetch_negative_hours: 7200  # community_collection fetch 실패 음성 캐시 (반복 재시도 지연 방지)
+  reaction_community_gate_hours: 7200   # reaction_community_gate_node 게시글 도메인 게이트 (신 노드)
+  reaction_video_gate_hours:    7200   # reaction_video_gate_node 영상 도메인 게이트 (커뮤니티 gate 와 대칭)
+  reaction_prescreen_hours:     7200   # reaction_prescreen_node 스레드 프리스크린(배치별 캐시)
+  feature_url_mapper_hours:     7200   # feature_url_mapper 노드 캐시 (4개 노드 공통)
+  relevance_tag_hours:          7200   # relevance_tagger per-item 라벨 (텍스트 불변 → 장기)
+  owned_channel_hours:          7200   # url_discovery_owned_channels
+  blog_rss_hours:               7200   # blog_rss_collection (휴면)
 
   # ── 인메모리 캐시 (서버 재시작 시 소멸 — 파일 캐시 전환은 Future_Improvements 5번) ──
-  brave_result_hours:           720   # url_cache E-1 (official_source_resolver 인메모리)
-  http_validation_minutes:    43200   # url_cache E-2 (URL 재검증 생략 — 30일)
+  brave_result_hours:           7200   # url_cache E-1 (official_source_resolver 인메모리)
+  http_validation_minutes:    432000   # url_cache E-2 (URL 재검증 생략 — 300일)
