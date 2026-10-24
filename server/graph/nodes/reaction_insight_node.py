@@ -35,6 +35,7 @@ from __future__ import annotations
 import hashlib
 import json
 import logging
+import re
 from collections import defaultdict
 from datetime import datetime, timezone
 
@@ -93,32 +94,122 @@ def build_aspect_matrix(reaction_analysis: dict) -> dict:
     return {a: matrix[a] for a in sorted(matrix)}
 
 
-def select_top_quotes(reaction_analysis: dict, per_bucket: int = 1,
+# ── 대표 quote 품질 선별 헬퍼 (결정론 — RI-Q1) ───────────────────────────────
+# 비속어: 하드 제외가 아니라 마스킹 + 랭킹 감점 (강한 부정 의견을 보존하기 위함).
+_PROFANITY = (
+    "씨발", "시발", "씨바", "시바", "쓰발", "ㅅㅂ", "ㅄ", "병신", "븅신",
+    "존나", "ㅈㄴ", "좆", "지랄", "ㅈㄹ", "개새끼", "개색끼", "새끼", "썅",
+    "꺼져", "닥쳐", "엿같", "좆같", "개같", "등신", "머저리", "한심",
+    "fuck", "shit", "bitch", "asshole",
+)
+# 영양가(구체성) 신호 — 수치·단위·비교·인과·조건이 있으면 정보량이 높다고 본다.
+_SUBSTANCE_PATS = (
+    re.compile(r"\d"),
+    re.compile(r"%|원|개월|년|회|배|분|시간|일|건|장"),
+    re.compile(r"보다|대비|비해|보단|에 ?비하"),
+    re.compile(r"때문|덕분|라서|어서|니까|므로"),
+    re.compile(r"경우|할 ?때|면 |면,|면\."),
+)
+# 스팸·광고성 — 링크·연락처·홍보 유도. 대표 인용에서 제외.
+_SPAM_PAT = re.compile(r"https?://|www\.|카톡|텔레그램|디엠으로|문의는|010[- ]?\d{3,4}")
+
+
+def _mask_profanity(text: str) -> tuple[str, int]:
+    """비속어를 '첫 글자 + *' 로 마스킹하고 (마스킹 텍스트, 적중 수) 반환."""
+    masked, hits = text, 0
+    for w in _PROFANITY:
+        start = 0
+        while True:
+            i = masked.find(w, start)
+            if i < 0:
+                break
+            hits += 1
+            masked = masked[:i] + w[0] + "*" * (len(w) - 1) + masked[i + len(w):]
+            start = i + len(w)
+    return masked, hits
+
+
+def _substance_score(text: str) -> int:
+    return sum(1 for p in _SUBSTANCE_PATS if p.search(text))
+
+
+def _length_score(text: str) -> float:
+    n = len(text.strip())
+    if n < 15:
+        return -1.0            # 너무 짧음 — 정보량 부족
+    if n > 220:
+        return -0.5            # 과도하게 길음 — 본문 복붙·주제 이탈 위험
+    return 1.0
+
+
+def _norm_quote(text: str) -> str:
+    """중복 판정용 정규화 — 영문 소문자화 + 한글/영숫자만 남김."""
+    return re.sub(r"[^0-9a-z가-힣]", "", text.lower())
+
+
+def _score_quote(t: dict) -> tuple[float, str] | None:
+    """quote 품질 점수 + 마스킹 텍스트. 스팸이면 None(제외)."""
+    q = t.get("quote", "") or ""
+    if _SPAM_PAT.search(q):
+        return None
+    masked, prof = _mask_profanity(q)
+    score = (
+        int(t.get("intensity", 1) or 1) * 1.0
+        + CHANNEL_WEIGHTS.get(t.get("channel", ""), 1.0) * 0.5
+        + _substance_score(q) * 1.0
+        + _length_score(q) * 0.5
+        - prof * 0.7
+    )
+    return score, masked
+
+
+def select_top_quotes(reaction_analysis: dict, per_bucket: int = 3,
                       exclude_urls: frozenset[str] = frozenset()) -> list[dict]:
-    """aspect × 극성(pos/neg)별 대표 quote — intensity·채널 가중 상위 (결정론).
+    """aspect × candidate × 극성(pos/neg)별 대표 quote 최대 N건 — 품질 선별 (결정론).
+
+    선별 기준(RI-Q1, 사용자 확정): 비속어 마스킹+감점 · 영양가(구체성·길이) 가점 ·
+    강도·채널 가중 · 스팸 제외 · 중복(유사) 제거. 셀(aspect×candidate) 클릭 시
+    그 셀의 긍/부정 대표 N건을 보여주기 위해 candidate_id 를 버킷 키에 포함한다.
 
     v0.14 CE-D10 — exclude_urls(snippet_only 출처)는 대표 인용 후보에서 제외.
-    스니펫 발췌 quote 는 문장 중간 절단·맥락 부재로 리포트 인용 부적격.
     집계(build_aspect_matrix·timeline)에는 본 필터를 적용하지 않는다 (100% 반영).
     """
-    buckets: dict[tuple[str, str], list[dict]] = defaultdict(list)
+    buckets: dict[tuple[str, str, str], list[dict]] = defaultdict(list)
     for cid in sorted(reaction_analysis):
         for t in reaction_analysis[cid].get("tuples", []):
             if t["polarity"] == "neutral":
                 continue
             if t.get("source_url", "") in exclude_urls:
                 continue
-            buckets[(t["aspect"], t["polarity"])].append({**t, "candidate_id": cid})
+            buckets[(t["aspect"], cid, t["polarity"])].append(t)
+
     quotes: list[dict] = []
     for key in sorted(buckets):
-        ranked = sorted(buckets[key], key=lambda t: (
-            -int(t.get("intensity", 1) or 1),
-            -CHANNEL_WEIGHTS.get(t.get("channel", ""), 1.0),
-            t.get("quote", "")))
-        for t in ranked[:per_bucket]:
+        aspect, cid, polarity = key
+        # 점수화 (스팸 제외) → 점수↓·텍스트 결정론 정렬
+        scored: list[tuple[float, str, dict]] = []
+        for t in buckets[key]:
+            res = _score_quote(t)
+            if res is None:
+                continue
+            score, masked = res
+            scored.append((score, masked, t))
+        scored.sort(key=lambda x: (-x[0], x[1]))
+
+        chosen, seen = [], set()
+        for _score, masked, t in scored:
+            norm = _norm_quote(masked)[:40]     # 중복/유사 제거 (앞 40자 정규화 기준)
+            if norm and norm in seen:
+                continue
+            seen.add(norm)
+            chosen.append((masked, t))
+            if len(chosen) >= per_bucket:
+                break
+
+        for masked, t in chosen:
             quotes.append({
-                "aspect": t["aspect"], "polarity": t["polarity"],
-                "quote": t["quote"], "candidate_id": t["candidate_id"],
+                "aspect": aspect, "polarity": polarity,
+                "quote": masked, "candidate_id": cid,
                 "channel": t["channel"], "source_url": t["source_url"],
                 "posted_at": t.get("posted_at", ""),
                 "intensity": int(t.get("intensity", 1) or 1),
@@ -161,20 +252,33 @@ def build_suggestions(reaction_analysis: dict,
 
 
 def build_timeline(reaction_analysis: dict) -> dict:
-    """candidate별 월별(YYYY-MM) tuple 수·평균 sentiment — 시점 분리 뷰.
+    """candidate별 월별(YYYY-MM) 반응 분포 — 시점 분리 뷰.
 
-    v0.13.2 — 전체 합산에서 candidate별 분리로 변경 (UI 드롭다운 필터 요건).
-    구조: {candidate_id: {YYYY-MM: {"count", "avg_sentiment"}}} (posted_at 보유분만)
+    v0.13.2 — candidate별 분리. v0.14.x — 긍정/부정 건수 추가(분기 다이버징 바 요건).
+    구조: {candidate_id: {YYYY-MM: {"count", "avg_sentiment", "positive", "negative",
+          "by_aspect": {aspect_id: {"positive", "negative"}}}}} (posted_at 보유분만).
+          프런트가 월 단위로 표시하고, 호버 시 by_aspect 로 항목별 긍/부정을 보여준다.
     """
     out: dict[str, dict] = {}
     for cid in sorted(reaction_analysis):
         by_month: dict[str, list[float]] = defaultdict(list)
+        pn: dict[str, dict] = defaultdict(lambda: {"positive": 0, "negative": 0})
+        asp: dict[str, dict] = defaultdict(dict)   # month -> aspect -> {positive, negative}
         for t in reaction_analysis[cid].get("tuples", []):
             month = (t.get("posted_at") or "")[:7]
-            if len(month) == 7:
-                by_month[month].append(float(_POL_SIGN.get(t["polarity"], 0)))
+            if len(month) != 7:
+                continue
+            pol = t["polarity"]
+            by_month[month].append(float(_POL_SIGN.get(pol, 0)))
+            if pol not in ("positive", "negative"):
+                continue
+            pn[month][pol] += 1
+            cell = asp[month].setdefault(t.get("aspect", ""), {"positive": 0, "negative": 0})
+            cell[pol] += 1
         out[cid] = {
-            m: {"count": len(v), "avg_sentiment": round(sum(v) / len(v), 3)}
+            m: {"count": len(v), "avg_sentiment": round(sum(v) / len(v), 3),
+                "positive": pn[m]["positive"], "negative": pn[m]["negative"],
+                "by_aspect": asp[m]}
             for m, v in sorted(by_month.items())
         }
     return out
