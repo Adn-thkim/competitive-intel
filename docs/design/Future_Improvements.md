@@ -295,6 +295,58 @@ reaction_insight의 aspect별 제안 뷰 구현 후, suggestion 커버리지 실
 
 ---
 
+## 8. 반응 unit `polarity=neutral` 세분 — 사실 전달 vs 감정 중립 의견
+
+### 배경
+현행 추출 스키마의 `polarity ∈ {positive, negative, neutral}`에서 **neutral 이 이질적인 것들을 한 덩어리로** 묶는다:
+- (a) 단순 사실 전달 — "토스 트래블은 마스터카드다"
+- (b) 일반 조언·리스크 대비·습관
+- (c) 비교 없는 정보
+- (d) **감정은 중립이나 실질 관찰·비교·조건부 경험** — "환전은 되는데 결제 지역이 제한적이더라"
+
+(a~c)는 리포트 무가치(net 기여 없음)지만, (d)는 **정보성 인사이트**(자사 약점·조건 힌트)를 담을 수 있어 구분 가치가 있다.
+
+### 개선안 (택1)
+- **방안 A**: `polarity` 를 `neutral_factual`(스펙·정보) / `neutral_experiential`(관찰·비교·조건부 경험) 로 세분.
+- **방안 B**: `is_experience: bool` 플래그 추가 — 경험/비교 내용이면 True(기존 polarity 유지, 비파괴).
+
+방안 B 가 비파괴적(기존 3-값 유지 + 필드 1개)이라 이행 위험이 낮다.
+
+### 재검토 트리거
+- (T1) 리포트에서 neutral unit 이 전체의 유의미 비율(예: >20%)을 차지해 "버리기 아까운" 관찰이 다량 존재
+- (T2) 자사 약점 인사이트가 pos/neg 만으로 부족하다는 사용자 피드백
+- (T3) top-N 컷의 "카드-가치" 정답 지표를 (d) 포함으로 넓혀야 정확도 측정이 맞는 경우
+
+### 검토 시점
+- reaction_insight 리포트 실사용 후 neutral 분포 실측 1회 시점. 스키마 변경이라 extract 캐시 무효화 동반 — 재추출 계획과 묶어 진행.
+
+### 유의
+- `_SYS` P3(태도 없으면 neutral) 규칙에 (d) 판정 기준 추가 필요. 프롬프트·스키마 동시 변경 → A/B(기존 vs 세분) 품질 검증 필수.
+
+---
+
+## 9. reaction_review(#5) 축 수정 UI — 라벨 병합·재배정
+
+### 배경 (2026-08)
+`reaction_review_node`(#5 interrupt)는 현재 **확인 전용**이다(`payload.editable=false`, resume 값 미소비, 노드는 통과만). 프런트도 `ReactionAxisReviewPage`가 축·비율을 **보여주기만** 한다. 그러나 상향식 군집(cluster_terms→normalize→super_cluster_v2)이 만든 축은 완벽하지 않아, 실사용/데모에서 (a) 하위 라벨 병합(동의 라벨이 갈라진 경우), (b) `sub_cluster→super_aspect` 재배정(오분류), (c) super_aspect 라벨 개명 요구가 생긴다.
+
+### 개선안 (재검토 시 적용 — 3파트)
+1. **프런트(편집 UI)**: 검토 화면에 편집 모드 추가 — 하위 라벨 병합(다중 선택→대표 라벨), 하위→상위 재배정(드롭다운), super_aspect 개명. 결과를 **편집 연산 목록**(`{merge:[...], reassign:{sub:super}, rename:{old:new}}`)으로 `/api/approve`의 resume 값에 실어 전달.
+2. **백엔드(reaction_review_node)**: resume 값(편집 연산)을 소비 → 현재 축(`reaction_axis.super_to_sub`)에 오버레이 적용 → `reaction_axis_store`에 **version 증가**로 저장(`reaction_axis.version` 필드 이미 존재). 비파괴 원칙 유지(원 clustered는 보존, 축만 갱신).
+3. **재배정 실행**: 편집된 고정 축으로 **Phase B만 재실행**(map_questions·assign_perspective 등 배정 단계). 전면 재군집 불필요 — 축은 사람이 확정했으므로 도출(Phase A)은 건너뛴다.
+
+### 캐시·비용 정합
+- 축이 바뀌면 `map_questions`·`super_cluster_v2`의 캐시는 **system_prompt에 축(super_labels)이 포함**되어 지문이 바뀌므로 해당분만 자동 미스(재배정 재계산). `perspective`·`question_type`은 축과 무관이라 **캐시 유지**(§8-6 증분 캐시와 정합). 즉 편집 반영은 배정 일부만 재호출한다.
+- 편집 없이 확인만 하면 종전대로 0-추가비용 통과.
+
+### 재검토 트리거
+- 군집 품질 불만이 반복되거나, 데모에서 수작업 보정이 필요할 때. 그 전까지는 확인 전용 유지(편집은 opt-in).
+
+### 검토 시점
+- reaction_insight 리포트 실사용 후 축 오분류 실측 1회 시점. 프런트 편집 UI + 노드 resume 소비 + Phase B 재실행을 한 묶음으로 진행.
+
+---
+
 ## 변경 이력
 
 | 일자 | 변경 |
@@ -306,3 +358,5 @@ reaction_insight의 aspect별 제안 뷰 구현 후, suggestion 커버리지 실
 | 2026-06-07 | 5번 항목 (인메모리 Brave 캐시 파일 전환) 신설 — Brave 월 크레딧 소진 사고 후속 |
 | 2026-06-07 | 6번 항목 (모회사·계열 브랜드 채널 탐지 확장) 신설 — owned_channels 실사 미발견 3건 원인 분석 후속 |
 | 2026-06-18 | 7번 항목 (일반 suggestion 포착 — prefilter suggestion 패턴 면제) 신설 — aspect 무관 제안 미지원, 3계층 변경 보류 |
+| 2026-08 | 8번 항목 (반응 unit neutral 세분 — 사실 전달 vs 감정 중립 의견) 신설 — top-N 카드-가치 지표 정밀화 논의 후속 |
+| 2026-08 | 9번 항목 (reaction_review#5 축 수정 UI — 라벨 병합·재배정) 신설 — 현재 확인 전용, Phase B 재실행 기반 편집 확장안 |

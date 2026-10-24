@@ -169,3 +169,79 @@ class TestChannelSplit:
         urls = [p["url"] for p in posts]
         assert any("blog.example.com" in u for u in urls)
         assert all("c.example.com" not in u for u in urls)
+
+
+class _Resp:
+    def __init__(self, status_code=200, text=""):
+        self.status_code = status_code
+        self.text = text
+
+
+@pytest.fixture
+def _isolated_cache(tmp_path, monkeypatch):
+    """음성 캐시를 tmp 디렉터리로 격리 (실제 data/cache 미오염)."""
+    import server.graph.agent_cache as ac
+    monkeypatch.setattr(ac, "AGENT_OUTPUT_CACHE_DIR", tmp_path)
+    return tmp_path
+
+
+class TestNegativeCache:
+    """fetch 실패 음성 캐시 — 영구·반복 실패 URL 의 매-실행 재시도 지연 방지."""
+
+    def test_http_error_caches_and_skips_retry(self, _isolated_cache, monkeypatch):
+        """http_4xx 1차 실패 → 음성 캐시 → 2차는 네트워크 없이 from_cache 스킵."""
+        calls = {"get": 0}
+
+        def fake_get(url, **kw):
+            calls["get"] += 1
+            return _Resp(status_code=404)
+
+        monkeypatch.setattr(cc.requests, "get", fake_get)
+        url = "https://c.example.com/dead-post"
+
+        r1 = cc._fetch_community_content(url)
+        assert calls["get"] == 1
+        assert r1["fetch_status"] == "http_404"
+        assert r1["from_cache"] is False
+
+        r2 = cc._fetch_community_content(url)
+        assert calls["get"] == 1                  # 재시도 없음 (음성 캐시 히트)
+        assert r2["fetch_status"] == "http_404"
+        assert r2["from_cache"] is True           # → _collect_one 의 1s sleep 도 스킵
+
+    def test_fetch_exception_caches_and_skips_retry(self, _isolated_cache, monkeypatch):
+        """네트워크 예외 1차 실패 → 음성 캐시 → 2차 스킵."""
+        calls = {"get": 0}
+
+        def boom(url, **kw):
+            calls["get"] += 1
+            raise ConnectionError("boom")
+
+        monkeypatch.setattr(cc.requests, "get", boom)
+        url = "https://c.example.com/timeout-post"
+
+        r1 = cc._fetch_community_content(url)
+        assert calls["get"] == 1
+        assert r1["fetch_status"].startswith("fetch_failed")
+        assert r1["from_cache"] is False
+
+        r2 = cc._fetch_community_content(url)
+        assert calls["get"] == 1                  # 재시도 없음
+        assert r2["from_cache"] is True
+
+    def test_ttl_expiry_retries(self, _isolated_cache, monkeypatch):
+        """음성 캐시 TTL 만료 시 다시 네트워크 재시도(자연 복구 경로)."""
+        calls = {"get": 0}
+
+        def fake_get(url, **kw):
+            calls["get"] += 1
+            return _Resp(status_code=404)
+
+        monkeypatch.setattr(cc.requests, "get", fake_get)
+        monkeypatch.setattr(cc, "_FETCH_NEG_TTL_H", 0)   # 즉시 만료
+        url = "https://c.example.com/transient"
+
+        cc._fetch_community_content(url)
+        r2 = cc._fetch_community_content(url)
+        assert calls["get"] == 2                  # TTL=0 → 만료 → 재시도
+        assert r2["from_cache"] is False

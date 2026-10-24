@@ -112,6 +112,14 @@ from server.graph.nodes.youtube_reaction_collection_node import youtube_reaction
 from server.graph.nodes.community_collection_node import community_collection_node
 from server.graph.nodes.reaction_analysis_node import reaction_analysis_node
 from server.graph.nodes.reaction_insight_node import reaction_insight_node
+# 신 반응 파이프라인 (통합계획 §4 — 구 reaction_absa 경로와 병행, 신 키에만 기록)
+from server.graph.nodes.reaction_video_gate_node import reaction_video_gate_node
+from server.graph.nodes.reaction_community_gate_node import reaction_community_gate_node
+from server.graph.nodes.reaction_prescreen_node import reaction_prescreen_node
+from server.graph.nodes.reaction_extract_node import reaction_extract_node
+from server.graph.nodes.reaction_cluster_node import reaction_cluster_node
+from server.graph.nodes.reaction_review_node import reaction_review_node
+from server.graph.nodes.reaction_report_node import reaction_report_node
 from server.graph.nodes.youtube_channel_metadata_collection_node import (
     youtube_channel_metadata_collection_node,
 )
@@ -187,6 +195,26 @@ def _ab_join_node(state: DomainAnalysisState) -> dict:
     return {}
 
 
+def _timed(fn, name):
+    """노드 실행을 감싸 **소요 시간·토큰(Δusage)을 터미널에 출력**(최소 침습 계측).
+    usage 누적은 CLI 어댑터 공통(get_usage). 반응 노드는 순차 실행이라 Δ가 그 노드 몫에 근사하나,
+    동시 실행되는 타 리포트 분기(comparison_matrix·marketing_social) 호출이 섞일 수 있다(대략치)."""
+    import functools
+    import time as _time
+    from server.llm.claude_cli_analyzer import get_usage, format_usage
+
+    @functools.wraps(fn)
+    def _w(state, config=None):
+        t0 = _time.time()
+        u0 = get_usage()
+        out = fn(state, config)
+        u1 = get_usage()
+        delta = {k: u1[k] - u0.get(k, 0) for k in u1}
+        print(f"[timing] reaction/{name}: {_time.time() - t0:.1f}s · {format_usage(delta)}", flush=True)
+        return out
+    return _w
+
+
 def build_graph() -> object:
     """
     StateGraph를 조립하고 MemorySaver 체크포인터로 컴파일해 반환한다.
@@ -231,8 +259,18 @@ def build_graph() -> object:
     #   'reaction_analysis' 는 state 키(ABSA 산출)로 선점되어 있다 (구설계 §6-7 충돌).
     builder.add_node("youtube_reaction_collection",  youtube_reaction_collection_node)
     builder.add_node("community_collection",         community_collection_node)
-    builder.add_node("reaction_absa",                reaction_analysis_node)
-    builder.add_node("reaction_insight",             reaction_insight_node)
+    # 구 반응 경로(reaction_absa→reaction_insight) — 2026-08 비활성(토큰·429 주원인, 신 경로로 대체).
+    #   되돌리려면 아래 2줄 + 하단 '구 경로' 엣지 블록 주석을 해제한다. 노드 정의·import 는 보존.
+    # builder.add_node("reaction_absa",                reaction_analysis_node)
+    # builder.add_node("reaction_insight",             reaction_insight_node)
+    # 신 반응 파이프라인 5종 + 검토(#5) + 신 리포트 (§4). _timed 로 노드별 소요시간·토큰 터미널 출력.
+    builder.add_node("reaction_video_gate",          _timed(reaction_video_gate_node, "gate"))
+    builder.add_node("reaction_community_gate",      _timed(reaction_community_gate_node, "community_gate"))
+    builder.add_node("reaction_prescreen",           _timed(reaction_prescreen_node, "prescreen"))
+    builder.add_node("reaction_extract",             _timed(reaction_extract_node, "extract"))
+    builder.add_node("reaction_cluster",             _timed(reaction_cluster_node, "cluster"))
+    builder.add_node("reaction_review",              reaction_review_node)
+    builder.add_node("reaction_report",              _timed(reaction_report_node, "report"))
 
     # 2026-06-11 — blog_collection_node 분리(미배선/휴면). 활성 파이프라인은 커뮤니티만
     # 수집한다. blog 계열을 별도 채널로 재수집하려면 아래 2줄을 해제한다.
@@ -355,10 +393,24 @@ def build_graph() -> object:
     #    youtube_query_planner 는 폐기 — 검색·선별이 상류(url_discovery 체인)에 흡수됨.
     builder.add_edge("feature_selection",           "youtube_reaction_collection")
     builder.add_edge("feature_selection",           "community_collection")
-    builder.add_edge(["youtube_reaction_collection", "community_collection"],
-                     "reaction_absa")               # list-fan-in barrier (2채널)
-    builder.add_edge("reaction_absa",               "reaction_insight")
-    builder.add_edge("reaction_insight",            END)
+    # 구 경로(비활성 2026-08) — 되돌리려면 아래 3줄 + 상단 add_node 2줄 주석 해제.
+    # builder.add_edge(["youtube_reaction_collection", "community_collection"],
+    #                  "reaction_absa")               # list-fan-in barrier (2채널)
+    # builder.add_edge("reaction_absa",               "reaction_insight")
+    # builder.add_edge("reaction_insight",            END)
+    # ── 경로 2b: 신 반응 파이프라인 (§4 — 이제 단독 반응 경로) ──
+    #    동일 2채널 수집 fan-in 에서 시작. 게이트→프리스크린→추출→군집→검토(#5)→신 리포트.
+    #    신 노드는 신 키(reaction_*)에만 기록 → 구 경로와 무충돌. 되돌리려면 이 블록만 제거.
+    #    유튜브: 수집 → 영상게이트 → 프리스크린.  커뮤니티: 수집 → 커뮤니티게이트(신·조립까지).
+    #    두 채널 threads 산출 후 [prescreen, community_gate] fan-in → extract("읽어 추출만").
+    builder.add_edge("youtube_reaction_collection", "reaction_video_gate")   # 영상만 필요
+    builder.add_edge("reaction_video_gate",         "reaction_prescreen")
+    builder.add_edge("community_collection",        "reaction_community_gate")  # 신 커뮤니티 게이트
+    builder.add_edge(["reaction_prescreen", "reaction_community_gate"], "reaction_extract")  # 2채널 fan-in
+    builder.add_edge("reaction_extract",            "reaction_cluster")
+    builder.add_edge("reaction_cluster",            "reaction_review")   # human_review#5(확인 전용)
+    builder.add_edge("reaction_review",             "reaction_report")
+    builder.add_edge("reaction_report",             END)
     # ── 경로 3: 운영 채널 수집 2종 → marketing_social (v1.0 §6-6a, MS-D2·MS-D12) ──
     #    pr_release_collection 은 구현돼 있으나 1차 미배선 — MS-D12 (2026-06-07 사용자:
     #    PR URL 이 수집 의도와 불일치, 리포트는 presence-only 표기만).
@@ -481,13 +533,19 @@ try:
         ("feature_selection",           "official_content_collection"),
         ("official_content_collection", "comparison_matrix"),
     ])
-    # v0.13 — reaction 경로 (수집 2종 fan-out + list-fan-in → ABSA → 리포트)
+    # 2026-08 — 신 반응 경로 (수집 2종 fan-in → gate→prescreen→extract→cluster→review→report)
+    #           구 reaction_absa→reaction_insight 는 비활성.
     _e7 = all(p in _edge_pairs for p in [
         ("feature_selection",            "youtube_reaction_collection"),
         ("feature_selection",            "community_collection"),
-        ("youtube_reaction_collection",  "reaction_absa"),
-        ("community_collection",         "reaction_absa"),
-        ("reaction_absa",                "reaction_insight"),
+        ("youtube_reaction_collection",  "reaction_video_gate"),
+        ("reaction_video_gate",          "reaction_prescreen"),
+        ("community_collection",         "reaction_community_gate"),
+        ("reaction_prescreen",           "reaction_extract"),
+        ("reaction_community_gate",      "reaction_extract"),
+        ("reaction_extract",             "reaction_cluster"),
+        ("reaction_cluster",             "reaction_review"),
+        ("reaction_review",              "reaction_report"),
     ])
     # v1.0 §6-6a — marketing_social 경로 (수집 2종 fan-out + list-fan-in → 리포트)
     _e8 = all(p in _edge_pairs for p in [
@@ -502,7 +560,7 @@ try:
         print(
             "[graph.py] ✅ v1.0 토폴로지 확인 — "
             "… feature_selection → {official→comparison_matrix ∥ "
-            "(youtube·community)→reaction_analysis→reaction_insight ∥ "
+            "(youtube·community)→gate→prescreen→extract→cluster→review→report ∥ "
             "(channel_meta·blog_rss)→marketing_social}",
             flush=True,
         )

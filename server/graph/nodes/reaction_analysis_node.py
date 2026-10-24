@@ -271,6 +271,7 @@ def sanitize_tuples(tuples: list[dict], items: list[dict],
     반환: (정제 tuple 목록, 제거 건수)
     """
     valid_urls = {it["source_url"] for it in items}
+    url2channel = {it["source_url"]: it.get("channel", "") for it in items}  # source_url→channel
     corpus = _norm(" ".join(it["text"] for it in items))
     kept: list[dict] = []
     dropped = 0
@@ -281,6 +282,9 @@ def sanitize_tuples(tuples: list[dict], items: list[dict],
                 or _norm(t["quote"]) not in corpus:
             dropped += 1
             continue
+        # channel 태그 부여(youtube/community/blog). source_url 은 이미 unit 에 있어
+        # (youtube=영상 watch URL·community=게시글 URL) 영상·게시글 식별은 그대로 가능.
+        t["channel"] = url2channel.get(t.get("source_url"), "")
         kept.append(t)
     return kept, dropped
 

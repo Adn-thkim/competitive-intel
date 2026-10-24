@@ -310,14 +310,26 @@ _MOBILE_UA  = ("Mozilla/5.0 (iPhone; CPU iPhone OS 17_0 like Mac OS X) "
 _DC_VIEW_RE = _re.compile(
     r"gall\.dcinside\.com/(?:mgallery/|mini/)?board/view/?\?id=([^&]+)&no=(\d+)")
 _DC_PATH_RE = _re.compile(r"gall\.dcinside\.com/board/([^/?]+)/(\d+)")
+# 이미 모바일 URL(m.dcinside.com/board/{gall}/{no})로 수집된 게시글도 인식 —
+# 기존 정규식은 gall.dcinside.com 만 매칭해 m.dcinside URL 이 데스크톱 UA 로 요청되어
+# 목록·공지 보일러플레이트가 유입되던 문제(m 22% vs gall 4% 추출실패) 수리.
+_DC_MOBILE_RE = _re.compile(r"m\.dcinside\.com/board/([^/?]+)/(\d+)")
 
 _ERROR_PAGE_SIGNS = ("찾을 수 없", "없는 게시물", "삭제된 게시물", "삭제되었",
-                     "존재하지 않는")
+                     "존재하지 않는", "취소된 게시물", "종결된 게시물")
 _NAV_SIGNS = ("본문 바로가기", "메뉴 바로가기")
 
 _FETCH_AGENT_ID_V14  = "community_content_fetch"
 _FETCH_CACHE_CTX_V14 = {"agent_id": _FETCH_AGENT_ID_V14, "v": 1}
 _FETCH_CACHE_TTL_H   = get_ttl_hours("community_fetch_hours", 720)  # cache_ttls.yaml
+
+# 실패 fetch 음성 캐시(negative cache) — 영구·반복 실패 URL(http_404·extract_failed 등)이
+# 매 실행 네트워크 재시도(+1s rate limit)를 강제해 지연을 누적시키는 문제를 막는다.
+# 단일 TTL: 일시 실패도 TTL(기본 720h) 경과 후 자연 재시도된다. 실패는 본문 0건이라
+# 하류(ABSA/relevance) item 집합에 영향이 없어 캐시 정합성을 깨지 않는다.
+_FETCH_NEG_AGENT_ID  = "community_fetch_negative"
+_FETCH_NEG_CACHE_CTX = {"agent_id": _FETCH_NEG_AGENT_ID, "v": 1}
+_FETCH_NEG_TTL_H     = get_ttl_hours("community_fetch_negative_hours", 720)  # cache_ttls.yaml
 
 # 댓글+대댓글 캐시(배치 스크래퍼 scripts/collect_community_comments.py 가 적재) — URL 키.
 # 노드는 **캐시 읽기만** 한다(서버에 Playwright/브라우저 미투입 = 위협 최소화).
@@ -351,7 +363,7 @@ def _load_cached_comments(posts: list[dict], logger: logging.Logger) -> list[dic
                 "thread_id":    f"{url}::{local}",                  # URL 네임스페이스(충돌 방지)
                 "parent_id":    (f"{url}::{par}" if par else None),
                 "is_reply":     bool(it.get("is_reply")),
-                "text":         (it.get("text") or "").strip(),
+                "text":         _clean_comment_text(it.get("text") or ""),  # 스캐폴딩 정제(read-time)
                 "posted_at":    it.get("posted_at", ""),
             })
     if comments:
@@ -363,11 +375,181 @@ _SENTENCE_SPLIT_RE = _re.compile(r"(?<=[.!?…다요죠임함됨])\s+")
 
 
 def _fetch_target_v14(url: str) -> tuple[str, str]:
-    """fetch 대상 URL·UA 결정. dcinside 는 모바일 변환 + 모바일 UA (CE-D7 실측)."""
-    m = _DC_VIEW_RE.search(url) or _DC_PATH_RE.search(url)
+    """fetch 대상 URL·UA 결정. dcinside(gall·모바일 모두) 는 모바일 변환 + 모바일 UA.
+    ppomppu(www/m 모두) 는 모바일 URL 로 정규화 — .viAr 본문 컨테이너 일관 확보."""
+    m = _DC_VIEW_RE.search(url) or _DC_PATH_RE.search(url) or _DC_MOBILE_RE.search(url)
     if m:
         return f"https://m.dcinside.com/board/{m.group(1)}/{m.group(2)}", _MOBILE_UA
+    if "ppomppu.co.kr" in url:
+        mid, mno = _re.search(r"id=([^&]+)", url), _re.search(r"no=(\d+)", url)
+        if mid and mno:
+            return (f"https://m.ppomppu.co.kr/new/bbs_view.php?id={mid.group(1)}&no={mno.group(1)}",
+                    _BROWSER_UA)
     return url, _BROWSER_UA
+
+
+# ─── 사이트별 본문 셀렉터 추출 (dcinside·theqoo) ─────────────────────────────
+# trafilatura 제네릭 추출이 이 두 사이트에서 실제 게시글 본문 대신 목록·공지·
+# 갤러리소개를 뽑는 문제를 회피한다. 미지원 사이트·미검출 시 ("","") 반환 →
+# 호출부가 trafilatura 로 폴백. (실측 검증: .thum-txtin 이 m.dcinside 본문 컨테이너.)
+_SITE_SELECTORS = {
+    "dcinside.com": {
+        "body": [".thum-txtin", ".writing_view_box", ".write_div", ".gallview_contents",
+                 "div[itemprop='articleBody']"],
+        "comments": [".all-comment-lst .txt", ".cmt_txtbox", ".comment_box .usertxt"],
+    },
+    "theqoo.net": {
+        # .rd_body 컨테이너 전체 우선 — .xe_content 첫 노드만 잡으면 본문 꼬리가 잘린다
+        # (dry-run 실측: theqoo 3건 truncation). 댓글은 .fdb_lst 영역이라 섞이지 않음.
+        "body": [".rd_body", "article .rhymix_content", ".rd_body .xe_content", ".xe_content"],
+        "comments": [".fdb_lst_ul .xe_content", ".comment_content .xe_content"],
+    },
+    "ppomppu.co.kr": {
+        # .viAr = 게시글 본문 컨테이너(실측 --find). trafilatura favor_precision 이 짧은 본문을
+        # 버리고 댓글을 본문으로 오추출하던 문제 수리. 댓글은 community_comments(Playwright) 정본.
+        "body": [".viAr"],
+        "comments": [],
+    },
+}
+# 메타데이터만(날짜·IP·조회·추천·고정닉) 있는 텍스트 — 본문 아님.
+_META_ONLY_RE = _re.compile(r"^[\d\s.\-:()추천수조회고정닉ㆍ·|]+$")
+
+
+def _site_key(url: str) -> str:
+    host = urlparse(url).netloc.replace("m.", "").replace("www.", "")
+    for k in _SITE_SELECTORS:
+        if host.endswith(k):
+            return k
+    return ""
+
+
+def _extract_site_specific(html: str, url: str) -> tuple[str, str]:
+    """(본문, 댓글) 반환. 미지원/미검출 시 ("","") → trafilatura 폴백."""
+    key = _site_key(url)
+    if not key:
+        return "", ""
+    try:
+        from bs4 import BeautifulSoup  # 지연 import (선택 의존성)
+    except ImportError:
+        logger.debug("beautifulsoup4 미설치 → 사이트 셀렉터 추출 생략")
+        return "", ""
+    soup = BeautifulSoup(html, "html.parser")
+
+    def first_text(selectors: list[str], join_all: bool = False) -> str:
+        for sel in selectors:
+            nodes = soup.select(sel)
+            if not nodes:
+                continue
+            txt = ("\n".join(n.get_text(" ", strip=True) for n in nodes) if join_all
+                   else nodes[0].get_text("\n", strip=True)).strip()
+            # 컨테이너가 잡혔으면 길이 하한 없이 채택(초단문 본문 "뭐가 남" 보존).
+            # 단 메타데이터만이면 다음 후보.
+            if txt and not _META_ONLY_RE.match(txt):
+                return txt
+        return ""
+
+    body = first_text(_SITE_SELECTORS[key]["body"])
+    if not body:
+        return "", ""    # 본문 컨테이너 못 찾음 → 폴백
+    # dcinside 모바일 앱 서명 꼬리 제거("... - dc official App").
+    body = _re.sub(r"\s*[-–]\s*dc official App\s*$", "", body).strip()
+    return body, first_text(_SITE_SELECTORS[key]["comments"], join_all=True)
+
+
+# ─── 본문 부재(bodyless) 판별 — '추출 실패'와 구분 ───────────────────────────
+# 짤·gif·목록·초단문 글은 추출할 텍스트 자체가 없다(추출 실패 아님). 제목·브레드
+# 크럼·푸터 등 크롬을 제거한 실질 본문이 사실상 없으면 empty_body 로 표시한다.
+_CHROME_RE = _re.compile(
+    r"(\s*-\s*(?:포텐 터짐[^\n]*|FM\d+[^\n]*|유머/움짤/이슈|핫딜|치지직)\s*-\s*에펨코리아"
+    r"|에펨코리아\s*-\s*유머[^\n]*커뮤니티"
+    r"|©\s*에펨코리아[^\n]*|에펨코리아\s*\d+군 메뉴[^\n]*"     # 저작권 푸터·nav 메뉴
+    r"|\s*:\s*MLBPARK|사이트 이용 관련 문의 등은 mlbpark@donga\.com[^\n]*"
+    r"|-?\s*(?:마일모아 게시판|MileMoa\.com)\s*[-–]?"
+    r"|Please be advised that this site includes affiliate[^\n]*"
+    r"|\s*:\s*클리앙)")
+
+
+_URL_RE = _re.compile(r"https?://\S+")
+
+
+def _sub_urls(text: str) -> str:
+    """bare URL → '[링크]' 치환(전 사이트 일괄). 연속 링크는 하나로 축약.
+    이미지·참조 링크 문자열이 본문 텍스트를 오염시키는 것을 막되 '링크 공유' 맥락은
+    플레이스홀더로 남긴다. 이미지만 있는 짤 글은 치환 후 실질 텍스트가 0 → _collect_one
+    에서 empty_body(bodyless)로 자동 분류된다.
+    """
+    if not text:
+        return text
+    t = _URL_RE.sub("[링크]", text)
+    return _re.sub(r"(?:\[링크\]\s*){2,}", "[링크] ", t)   # 연속 링크 축약
+
+
+# OG 링크/영상 미리보기 카드: '[링크]\n<제목·설명 여러 줄>\n<출처도메인 줄>' 형태.
+# dcinside 가 공유 링크의 og:title/description/site 를 본문 텍스트로 렌더링한 것으로,
+# 작성자가 쓴 글이 아니다. 미리보기 블록을 제거하고 '[링크]' 표식만 남긴다.
+_EMBED_CARD_RE = _re.compile(
+    r"\[링크\]\n(?:[^\n]*\n)*?(?:www\.|m\.|n\.)?[\w-]+(?:\.[\w-]+)*"
+    r"\.(?:com|net|kr|org|io|tv)[ \t]*(?:\n|$)")
+
+
+def _strip_embed_cards(text: str) -> str:
+    """OG 링크/영상 미리보기 카드 텍스트 제거(_sub_urls 이후 호출)."""
+    return _EMBED_CARD_RE.sub("[링크]\n", text or "")
+
+
+def _real_body_len(body: str, title: str) -> int:
+    """크롬(제목·브레드크럼·푸터·HTML·URL·[링크] 표식) 제거 후 실질 본문 길이."""
+    b = body or ""
+    if title and b.startswith(title):
+        b = b[len(title):]
+    b = _CHROME_RE.sub("", b)
+    b = _re.sub(r"<[^>]+>|https?://\S+|\[링크\]", "", b)
+    return len(_re.sub(r"\s+", " ", b).strip())
+
+
+def _clean_body_text(body: str, title: str) -> str:
+    """본문 텍스트 정제(신규 수집분에도 적용) — 제목 접두 → 사이트 크롬 → HTML 태그 순.
+    (URL→[링크]·OG카드는 _fetch_community_content 에서 이미 처리. 댓글은 별도 필드라 [댓글]
+    병합 제거 불필요.) 순서 중요: 제목 접두(브레드크럼 포함)를 먼저 떼야 크롬이 정확히 걸림."""
+    b = body or ""
+    if title and b.startswith(title):
+        b = b[len(title):]
+    b = _CHROME_RE.sub("", b)
+    b = _re.sub(r"<[^>]+>", "", b)
+    return _re.sub(r"[ \t]*\n[ \t]*", "\n", b).strip()
+
+
+def _clean_comment_text(text: str) -> str:
+    """댓글 스캐폴딩('투표수 \\n 투표수 \\n 닉네임 \\n 내용 \\n 날짜') 제거 — 내용만.
+    스캐폴딩(첫 줄이 순수 숫자)이 아니면 원문 유지. read-time 적용으로 신규 수집분도 정제."""
+    toks = [l.strip() for l in (text or "").split("\n")]
+    if not (len(toks) >= 3 and _re.fullmatch(r"\d+", toks[0] or "")):
+        return (text or "").strip()
+    i = 0
+    while i < len(toks) and _re.fullmatch(r"\d+", toks[i] or ""):
+        i += 1
+    if i < len(toks):
+        i += 1
+    rest = toks[i:]
+    while rest and _re.fullmatch(r"\d{4}-\d{2}-\d{2}", rest[-1] or ""):
+        rest.pop()
+    return " ".join(x for x in rest if x).strip()
+
+
+def _store_neg(url: str, status: str) -> dict:
+    """fetch 실패를 음성 캐시에 저장하고 실패 dict 를 반환한다.
+
+    다음 실행에서 동일 URL 의 네트워크 재시도(+1s rate limit)를 _FETCH_NEG_TTL_H 동안
+    건너뛰게 해 반복 지연을 없앤다. from_cache 는 호출부(_collect_one)에서 sleep 스킵
+    판정에 쓰이므로 신규 실패는 False(이번 실행은 실제 네트워크를 탔음).
+    """
+    try:
+        store_agent_output(
+            agent_id=_FETCH_NEG_AGENT_ID, cache_input={"url": url},
+            context=_FETCH_NEG_CACHE_CTX, output={"fetch_status": status}, logger=logger)
+    except Exception as exc:  # noqa: BLE001
+        logger.debug("community fetch 음성 캐시 저장 실패: %s", exc)
+    return {"body": "", "comments": "", "fetch_status": status, "from_cache": False}
 
 
 def _fetch_community_content(url: str) -> dict:
@@ -386,6 +568,17 @@ def _fetch_community_content(url: str) -> dict:
     if cached is not None:
         return {**cached, "from_cache": True}
 
+    # 음성 캐시 조회 — TTL 내 직전 실패 URL 은 네트워크/추출 없이 즉시 실패 반환.
+    # from_cache=True → _collect_one 의 1s rate-limit sleep 도 자동 스킵된다.
+    neg = load_agent_output(
+        agent_id=_FETCH_NEG_AGENT_ID, cache_input={"url": url},
+        context=_FETCH_NEG_CACHE_CTX, ttl_hours=_FETCH_NEG_TTL_H, logger=logger,
+    )
+    if neg is not None:
+        return {"body": "", "comments": "",
+                "fetch_status": neg.get("fetch_status", "neg_cached"),
+                "from_cache": True}
+
     import trafilatura  # 지연 import
 
     target, ua = _fetch_target_v14(url)
@@ -393,26 +586,25 @@ def _fetch_community_content(url: str) -> dict:
         resp = requests.get(target, timeout=_FETCH_TIMEOUT,
                             headers={"User-Agent": ua})
     except Exception as exc:  # noqa: BLE001
-        return {"body": "", "comments": "",
-                "fetch_status": f"fetch_failed: {type(exc).__name__}",
-                "from_cache": False}
+        return _store_neg(url, f"fetch_failed: {type(exc).__name__}")
     if resp.status_code >= 400:
-        return {"body": "", "comments": "",
-                "fetch_status": f"http_{resp.status_code}", "from_cache": False}
+        return _store_neg(url, f"http_{resp.status_code}")
 
-    try:
-        doc = trafilatura.bare_extraction(
-            resp.text, include_comments=True, url=target, favor_precision=True)
-    except Exception as exc:  # noqa: BLE001
-        return {"body": "", "comments": "",
-                "fetch_status": f"extract_failed: {type(exc).__name__}",
-                "from_cache": False}
-    if doc is None:
-        return {"body": "", "comments": "", "fetch_status": "extract_failed",
-                "from_cache": False}
-
-    body = getattr(doc, "text", "") or (doc.get("text", "") if isinstance(doc, dict) else "")
-    comments = getattr(doc, "comments", "") or (doc.get("comments", "") if isinstance(doc, dict) else "")
+    # 사이트별 셀렉터 우선(dcinside/theqoo) — 성공 시 trafilatura 생략.
+    body, comments = _extract_site_specific(resp.text, url)
+    if not body:
+        try:
+            doc = trafilatura.bare_extraction(
+                resp.text, include_comments=True, url=target, favor_precision=True)
+        except Exception as exc:  # noqa: BLE001
+            return _store_neg(url, f"extract_failed: {type(exc).__name__}")
+        if doc is None:
+            return _store_neg(url, "extract_failed")
+        body = getattr(doc, "text", "") or (doc.get("text", "") if isinstance(doc, dict) else "")
+        comments = getattr(doc, "comments", "") or (doc.get("comments", "") if isinstance(doc, dict) else "")
+    # bare URL → [링크] 치환(전 사이트) → OG 링크/영상 미리보기 카드 텍스트 제거.
+    body = _strip_embed_cards(_sub_urls(body or ""))
+    comments = _sub_urls(comments or "")
     status = "ok"
     if any(s in body[:300] for s in _ERROR_PAGE_SIGNS):
         status = "error_page"
@@ -420,13 +612,15 @@ def _fetch_community_content(url: str) -> dict:
         status = "nav_contaminated"
 
     result = {"body": body or "", "comments": comments or "", "fetch_status": status}
-    if status == "ok":   # 실패류는 캐시하지 않음 (재시도 보존)
+    if status == "ok":
         try:
             store_agent_output(
                 agent_id=_FETCH_AGENT_ID_V14, cache_input={"url": url},
                 context=_FETCH_CACHE_CTX_V14, output=result, logger=logger)
         except Exception as exc:  # noqa: BLE001
             logger.debug("community fetch 캐시 저장 실패: %s", exc)
+    else:   # error_page·nav_contaminated 도 본문 0건 처리 — 음성 캐시로 재시도 지연 방지
+        _store_neg(url, status)
     return {**result, "from_cache": False}
 
 
@@ -565,15 +759,46 @@ def _collect_one(cid: str, rec: dict) -> tuple[list[dict], dict | None]:
     body     = result.get("body", "")
     comments = result.get("comments", "")
     status   = result.get("fetch_status", "fetch_failed")
+
+    # 본문 텍스트 정제(신규 수집분에도 적용) — 제목접두·크롬·HTML 제거. selector 사이트는 no-op.
+    if status == "ok":
+        body = _clean_body_text(body, base["title"])
+
+    # 본문 부재(bodyless) 판별 — '추출 실패'와 구분. 제목·크롬 제거 후 실질 본문 측정.
+    # 짤·gif·목록·초단문 글은 추출할 텍스트가 없을 뿐 추출에 실패한 게 아니다.
+    body_is_thin = False
+    if status == "ok":
+        real_len = _real_body_len(body, base["title"])
+        if real_len < 15:
+            body_is_thin = True            # 초단문 — 본문은 유지하되 플래그. 한 글자("ㅗ",
+                                           # "굳" 등)도 제목에 대한 감정 신호가 될 수 있어 보존.
+            if real_len < 1:               # 텍스트 완전 부재(짤·목록·푸터만) → empty_body 로 구분
+                body, status = "", "empty_body"
+
     # CE-D6 1단계 — 본문+댓글 결합 후 chunking (게시글 1건 = ABSA item 1~3건)
     combined = body if not comments else f"{body}\n\n[댓글]\n{comments}"
-    if status != "ok" or not combined.strip():
+
+    if status not in ("ok", "empty_body"):
+        # 추출/네트워크 실패 — 제외. 음성 캐시 히트(이미 아는 실패)는 조용히.
+        if result.get("from_cache"):
+            return [], None
         return [], {"node": "community_collection_node",
                     "error": f"{status}: {url[:80]}",
                     "timestamp": datetime.now(timezone.utc).isoformat()}
 
+    if not combined.strip():
+        # 본문·댓글 텍스트 모두 없음. empty_body 는 제목이 신호이므로 빈 레코드로 유지
+        # (게이트 title-override + 후속 댓글 수집이 판정·분석). ok 인데 빈 경우는 비정상 → 제외.
+        if status == "empty_body":
+            return [{**base, "body_excerpt": "", "fetch_status": "empty_body",
+                     "body_is_thin": True, "chunk_index": 0}], None
+        return ([], None) if result.get("from_cache") else ([], {
+            "node": "community_collection_node", "error": f"{status}: {url[:80]}",
+            "timestamp": datetime.now(timezone.utc).isoformat()})
+
     posts = [
-        {**base, "body_excerpt": chunk, "fetch_status": status, "chunk_index": i}
+        {**base, "body_excerpt": chunk, "fetch_status": status,
+         "body_is_thin": body_is_thin, "chunk_index": i}
         for i, chunk in enumerate(_chunk_text(combined))
     ]
     return posts, None

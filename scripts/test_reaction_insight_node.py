@@ -103,11 +103,15 @@ class TestAggregation:
         assert cell["tuple_count"] == 2
         assert cell["weighted_sentiment"] == round((3.0 - 0.9) / (3.0 + 0.9), 3)
 
-    def test_top_quotes_prefer_intensity_then_channel_weight(self):
+    def test_top_quotes_bucketed_by_candidate(self):
+        # RI-Q1 — 버킷 키에 candidate_id 포함 (셀 단위 표시). own_x·comp_a 분리.
         quotes = select_top_quotes(_base_state()["reaction_analysis"])
-        fee_pos = next(q for q in quotes
-                       if q["aspect"] == "fee" and q["polarity"] == "positive")
-        assert fee_pos["quote"] == "수수료 없어 좋아요"   # intensity 3 > 2
+        own_fee_pos = next(q for q in quotes if q["aspect"] == "fee"
+                           and q["candidate_id"] == "own_x" and q["polarity"] == "positive")
+        comp_fee_pos = next(q for q in quotes if q["aspect"] == "fee"
+                            and q["candidate_id"] == "comp_a" and q["polarity"] == "positive")
+        assert own_fee_pos["quote"] == "수수료 없어 좋아요"
+        assert comp_fee_pos["quote"] == "괜찮은 편"
 
     def test_suggestions_and_timeline(self):
         ra = _base_state()["reaction_analysis"]
@@ -194,3 +198,43 @@ class TestNode:
         state2["reaction_analysis"] = {}
         assert reaction_insight_node(state2, analyzer=FakeAnalyzer()) \
             ["agent_steps"][0]["status"] == "failed"
+
+
+# ─── 대표 quote 품질 선별 (RI-Q1) ─────────────────────────────────────────────
+
+class TestQuoteSelection:
+    def _ra(self, tuples):
+        return {"own_x": {"tuples": tuples}}
+
+    def test_max_three_per_cell_bucket(self):
+        # 한 (aspect, candidate, polarity) 버킷에 5건 → 최대 3건만
+        tuples = [_tuple("fee", "negative", 3, "youtube",
+                         quote=f"항목 {i} 에 대해 수수료가 2{i}% 라 너무 비싸다고 생각해요")
+                  for i in range(5)]
+        quotes = select_top_quotes(self._ra(tuples))
+        assert len(quotes) == 3
+
+    def test_profanity_masked_not_dropped(self):
+        tuples = [_tuple("fee", "negative", 3, "community",
+                         quote="이건 진짜 씨발 수수료가 너무 비싸서 못 쓰겠다 병신같은 정책")]
+        quotes = select_top_quotes(self._ra(tuples))
+        assert len(quotes) == 1                      # 비속어여도 제외 안 됨(보존)
+        assert "씨발" not in quotes[0]["quote"]       # 마스킹됨
+        assert "씨*" in quotes[0]["quote"]
+
+    def test_spam_excluded(self):
+        tuples = [
+            _tuple("fee", "positive", 2, "community", quote="http://promo.example.com 가입하면 혜택"),
+            _tuple("fee", "positive", 2, "community", quote="수수료가 1000원이라 합리적이라 생각함"),
+        ]
+        quotes = select_top_quotes(self._ra(tuples))
+        assert len(quotes) == 1
+        assert "http" not in quotes[0]["quote"]
+
+    def test_dedup_near_identical(self):
+        tuples = [
+            _tuple("fee", "negative", 2, "community", quote="수수료가 너무 비싸요 정말 별로"),
+            _tuple("fee", "negative", 2, "youtube",   quote="수수료가 너무 비싸요 정말 별로!!"),
+        ]
+        quotes = select_top_quotes(self._ra(tuples))
+        assert len(quotes) == 1                       # 사실상 동일 → 1건만

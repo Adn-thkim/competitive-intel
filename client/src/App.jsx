@@ -47,6 +47,38 @@ export default function App() {
   // 이후 리포트 키가 추가될 때마다 ResultView 의 탭이 점진 활성화된다.
   const [analysisRunning, setAnalysisRunning] = useState(false);
   const [liveState, setLiveState]             = useState(null);
+  // 반응 파이프라인 #5 검토 대기 여부 — true 면 ResultView 의 '고객 반응 인사이트' 탭에서 검토 화면을 띄운다.
+  const [reactionReviewPending, setReactionReviewPending] = useState(false);
+
+  // #5 검토 진입: 결과 화면(ResultView)으로 가되 반응 탭을 검토 상태로 표시(비교 매트릭스와 병존).
+  function enterReactionReview(stateObj) {
+    if (stateObj) setLiveState(stateObj);
+    setReactionReviewPending(true);
+    setAnalysisRunning(false);
+    setPage('result');
+  }
+
+  // #5 확인(동기 재개) 응답 처리 — 검토 종료 + 최종 state(reaction_report_output 포함) 반영.
+  function handleReactionApproved(data) {
+    if (extractCriticalError(data)) {
+      setReactionReviewPending(false);
+      setAnalysisRunning(false);
+      setCriticalError(extractCriticalError(data));
+      setPage('critical_error');
+      return;
+    }
+    // 재개했는데 여전히 #5 에 멈춰 있으면(is_interrupted) 리포트로 넘어가지 못한 것 —
+    // 빈 '준비 중' 데드엔드 대신 검토 화면을 다시 띄운다(원인 진단 가능하도록).
+    if (data?.is_interrupted) {
+      enterReactionReview(data.state);
+      return;
+    }
+    setReactionReviewPending(false);
+    setAnalysisRunning(false);
+    if (data?.state) setLiveState(data.state);
+    setApproveResult(data);
+    setPage('result');
+  }
 
   useEffect(() => {
     if (!analysisRunning || !threadId || approveResult) return undefined;
@@ -56,6 +88,13 @@ export default function App() {
         if (!res.ok) return;
         const data = await res.json();
         if (data?.state) setLiveState(data.state);
+
+        // 반응 파이프라인 #5 interrupt(reaction_axis_review) 감지 — /state 는 interrupt_value 를
+        // 안 주지만 next 에 'reaction_review' 가 있으면 그 지점에 멈춘 것. 결과 화면의 반응 탭에서 검토.
+        if (Array.isArray(data?.next) && data.next.includes('reaction_review')) {
+          enterReactionReview(data.state);    // 폴링 종료 + 반응 탭 검토 상태
+          return;
+        }
 
         // 비동기 리포트 단계 완료/오류 처리 (async_invoke_design.md AI-D7)
         const js = data?.job_status;
@@ -117,6 +156,8 @@ export default function App() {
     if (type === 'competitor_selection') return 'competitor_selection';
     if (type === 'url_retry')            return 'url_retry';
     if (type === 'feature_selection')    return 'feature_selection';
+    // interrupt #5(reaction_review): payload 는 review_type 키를 쓴다(type 아님).
+    if (data.interrupt_value?.review_type === 'reaction_axis_review') return 'reaction_axis_review';
     return 'review';   // interrupt #1: display_fields 기반
   }
 
@@ -124,6 +165,7 @@ export default function App() {
     if (data.thread_id) setThreadId(data.thread_id);
     setIntakeResult(data);
     const next = resolvePage(data);
+    if (next === 'reaction_axis_review') { enterReactionReview(data.state); return; }
     if (next === 'critical_error') {
       setCriticalError(extractCriticalError(data));
     } else if (next === 'result') {
@@ -136,6 +178,7 @@ export default function App() {
     setAnalysisRunning(false);   // 최종 응답 도착 — 폴링 종료
     setIntakeResult(data);
     const next = resolvePage(data);
+    if (next === 'reaction_axis_review') { enterReactionReview(data.state); return; }
     if (next === 'critical_error') {
       setCriticalError(extractCriticalError(data));
     } else if (next === 'result') {
@@ -152,6 +195,7 @@ export default function App() {
     setCriticalError(null);
     setAnalysisRunning(false);
     setLiveState(null);
+    setReactionReviewPending(false);
   }
 
   return (
@@ -201,6 +245,9 @@ export default function App() {
         <ResultView
           result={approveResult ?? (liveState ? { state: liveState } : null)}
           reportsRunning={analysisRunning && !approveResult}
+          reactionReviewPending={reactionReviewPending}
+          threadId={threadId}
+          onReactionApproved={handleReactionApproved}
           onReset={handleReset}
         />
       )}
