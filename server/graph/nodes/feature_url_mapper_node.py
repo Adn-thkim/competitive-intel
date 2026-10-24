@@ -1090,10 +1090,12 @@ def _error(started_at: str, message: str) -> dict:
 # Source-type 별 담당 report_type (5 통합 노드의 LLM 호출 정책).
 # 본 매핑은 5 system_prompt 의 report_type enum 과 정확히 일치해야 한다.
 _REPORT_TYPES_BY_SOURCE: dict[str, tuple[str, ...]] = {
-    "official":          ("comparison_matrix", "battlecard", "market_context_swot"),
+    # battlecard 비활성 (2026-08-25, 활용 계획 없음). 리포트 노드는 graph.py 에서 이미 주석 처리됨.
+    # 복구 시 아래 튜플에 "battlecard" 재추가 (official·owned_channels). taxonomy active 는 무변경.
+    "official":          ("comparison_matrix", "market_context_swot"),
     "blog_community":    ("reaction_insight",),
     "youtube_reactions": ("reaction_insight",),
-    "owned_channels":    ("marketing_social", "battlecard"),
+    "owned_channels":    ("marketing_social",),
     "macro":             ("market_context_swot",),
 }
 

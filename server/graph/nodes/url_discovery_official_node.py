@@ -61,6 +61,11 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+from server.config import (
+    OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED,
+    OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX,
+    OFFICIAL_MAX_URLS_PER_CANDIDATE,
+)
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
@@ -93,6 +98,11 @@ _MAX_WORKERS           = 5     # site: 검색·_check_url_status 공통 worker �
 _STATUS_OK_MIN         = 200
 _STATUS_OK_MAX         = 399
 
+# 상품명-비의존(공통 속성) feature — 상품명을 뺀 일반 변형 쿼리도 함께 발사한다.
+# 발급조건·카드구조 같은 속성은 상품명이 안 붙은 일반 페이지(예: 체크카드 발급조건)에
+# 있어, 상품명 쿼리만으로는 오답 페이지가 채택되는 문제를 보강한다(수집 점검 결과).
+_GENERIC_VARIANT_FEATURES = {"issuance_eligibility", "card_structure_type"}
+
 
 # ─── 헬퍼 ────────────────────────────────────────────────────────────────────
 
@@ -121,6 +131,60 @@ def _build_subpage_query(candidate_name: str, official_domain: str, subpage_keyw
         "트래블월렛 약관 site:travelwallet.com"
     """
     return f"{candidate_name} {subpage_keyword} site:{official_domain}"
+
+
+def _comparison_feature_labels(domain_taxonomy: dict, limit: int) -> list[str]:
+    """comparison_matrix feature_labels(한국어) → 동적 sub-page 키워드 (합집합 2차 패스).
+
+    domain_taxonomy.report_config.comparison_matrix.feature_labels 값들. 없으면 빈 리스트.
+    정적 7키워드가 놓치는 feature 페이지(라운지·충전·재환전·적립 등)를 site: 재쿼리로 회수한다.
+    하드코딩이 아니라 도메인별 taxonomy 에서 동적으로 읽으므로 도메인 변경에 자동 적응한다.
+    """
+    cm = (domain_taxonomy.get("report_config") or {}).get("comparison_matrix") or {}
+    labels = cm.get("feature_labels") or {}
+    out: list[str] = []
+    for v in labels.values():
+        s = str(v).strip()
+        if s and s not in out:
+            out.append(s)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _cap_official_urls(merged: list[dict], cap: int) -> list[dict]:
+    """candidate당 official URL 상한 — feature_mapping payload 비대화(timeout) 방지.
+
+    판단 기준(우선순위):
+      1) carry-through `official_source`(자사·경쟁사 공식 도메인 확정 URL)는 **무조건 유지**.
+         권위 페이지이자 downstream 리포트의 근간이므로 상한에서 제외 대상이 아니다.
+      2) `official_subpage` 는 **키워드 다양성 우선(greedy set-cover)** — 아직 안 뽑힌
+         subpage_category(=발견 키워드)를 먼저 1개씩 채워, 특정 feature 에 URL 이 쏠리지 않고
+         **여러 feature 가 최소 1개씩 커버**되도록 폭을 확보한다.
+      3) 남는 예산은 나머지 subpage 를 원래 순서(도달성 검증 통과 순)대로 채운다.
+    cap 이하이면 원본을 그대로 반환한다.
+    """
+    if cap <= 0 or len(merged) <= cap:
+        return merged
+    carry = [u for u in merged if u.get("origin") == "official_source"]
+    subs  = [u for u in merged if u.get("origin") != "official_source"]
+    kept: list[dict] = list(carry[:cap])
+    seen_cat: set[str] = set()
+    overflow: list[dict] = []
+    for u in subs:                                   # 1차: 키워드 다양성(greedy)
+        if len(kept) >= cap:
+            break
+        cat = u.get("subpage_category", "")
+        if cat not in seen_cat:
+            seen_cat.add(cat)
+            kept.append(u)
+        else:
+            overflow.append(u)
+    for u in overflow:                               # 2차: 남는 예산 순서대로
+        if len(kept) >= cap:
+            break
+        kept.append(u)
+    return kept[:cap]
 
 
 def _is_status_ok(status: int | None) -> bool:
@@ -224,6 +288,12 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
     # ── Step 3: site: 한정 검색 (candidate × domain × sub-page 키워드) ──────
     # (candidate_id, query, subpage_category) 작업 목록
     subpage_tasks: list[tuple[str, str, str]] = []
+    # 동적 2차 패스 키워드 (comparison_matrix feature_labels) — 정적과 합집합.
+    dynamic_kw = (
+        _comparison_feature_labels(domain_taxonomy, OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX)
+        if OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED else []
+    )
+    _static_set = set(_OFFICIAL_SUBPAGE_KEYWORDS)
     for cid, official_domains in domain_by_candidate.items():
         cand_name = name_map.get(cid) or name_map.get("own", "")
         if not cand_name:
@@ -232,6 +302,16 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
             for keyword in _OFFICIAL_SUBPAGE_KEYWORDS:
                 query = _build_subpage_query(cand_name, official_domain, keyword)
                 subpage_tasks.append((cid, query, keyword))
+            for keyword in dynamic_kw:                    # 동적 feature 라벨 (정적 중복 제외)
+                if keyword in _static_set:
+                    continue
+                query = _build_subpage_query(cand_name, official_domain, keyword)
+                subpage_tasks.append((cid, query, keyword))
+    if dynamic_kw:
+        logger.info(
+            "url_discovery_official_node: 동적 sub-page 키워드 %d종 추가 (정적 %d + 동적)",
+            len(dynamic_kw), len(_OFFICIAL_SUBPAGE_KEYWORDS),
+        )
 
     # source_hint="official" hint 가 있으면 site: 부착하여 추가 보강
     # (D33 옵션 a: domain_taxonomy 의 LLM 추천 hint 도 활용)
@@ -252,6 +332,19 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
                 for official_domain in sorted(official_domains):
                     subpage_tasks.append(
                         (cid, f"{base_query} site:{official_domain}", "hint"))
+
+            # 공통 속성 feature: 상품명을 뺀 일반 변형도 추가 (일반 페이지 보강)
+            if feature_id in _GENERIC_VARIANT_FEATURES:
+                generic_tmpl = " ".join(
+                    query_template.replace("{candidate_name}", "").split())
+                generic_query = _substitute_tokens(
+                    generic_tmpl, name_map, cand_name, own_product_name, domain_name)
+                if (generic_query and "{" not in generic_query
+                        and "site:" not in generic_query.lower()
+                        and generic_query != base_query):
+                    for official_domain in sorted(official_domains):
+                        subpage_tasks.append(
+                            (cid, f"{generic_query} site:{official_domain}", "hint"))
 
     # 동일 쿼리 dedup
     stage_dedup: dict[str, tuple[str, str, str]] = {}
@@ -342,7 +435,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
                 merged.append(u)
                 seen_urls.add(u["url"])
         if merged:
-            final_results[cid] = merged
+            capped = _cap_official_urls(merged, OFFICIAL_MAX_URLS_PER_CANDIDATE)
+            if len(capped) < len(merged):
+                logger.info(
+                    "url_discovery_official_node: %s URL 상한 적용 %d → %d (carry 유지 + 키워드 다양성)",
+                    cid, len(merged), len(capped),
+                )
+            final_results[cid] = capped
 
     total = sum(len(v) for v in final_results.values())
     logger.info(

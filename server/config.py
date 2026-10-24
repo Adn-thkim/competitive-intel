@@ -210,6 +210,14 @@ COMMUNITY_BRAVE_MAX_PAGES   = int(os.getenv("COMMUNITY_BRAVE_MAX_PAGES", "6"))
 # (실패 URL 은 매 실행 재시도되므로, 추후 네거티브 캐시로 dead URL skip 권장.)
 COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "0"))
 COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "0"))
+# ── official 동적 sub-page 키워드 (정적 7키워드 ∪ comparison_matrix feature_labels) ──
+# url_discovery_official 이 정적 키워드에 더해 domain_taxonomy 의 feature 라벨로 site: 재쿼리한다.
+# PoC 결과 라운지·충전·재환전·적립 등 정적이 놓치는 feature 페이지를 동적이 회수(합집합).
+OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED = os.getenv("OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED", "1") == "1"
+OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX     = int(os.getenv("OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX", "12"))
+# candidate당 official URL 상한 — 동적 키워드로 URL 이 급증해 feature_mapping LLM payload 가
+# 비대해지는 것(600s CLI timeout)을 방지. 우선순위: carry(official_source) > 키워드 다양성(coverage).
+OFFICIAL_MAX_URLS_PER_CANDIDATE     = int(os.getenv("OFFICIAL_MAX_URLS_PER_CANDIDATE", "20"))
 # 댓글+대댓글 수집 on/off (기본 on). on 이면 본문 외에 댓글을 youtube 스키마
 # ({thread_id, is_reply, parent_id, text})로 수집해 동일 노이즈·관련성·ABSA 파이프라인에 투입한다.
 # (Playwright reply-pairing PoC 검증 후 본구현 — scripts/community_reply_pairing_poc.py)
