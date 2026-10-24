@@ -28,10 +28,48 @@ import json
 import logging
 import os
 import subprocess
+import threading
 import jsonschema
 from pathlib import Path
 
 logger = logging.getLogger(__name__)
+
+# ── 토큰·비용·시간 계측(전 CLI 호출 공통 집계, 최소 침습) ─────────────────────────
+# 모든 LLM 호출이 이 어댑터를 거치므로 여기서 usage 를 누적한다. get_usage()/reset_usage()
+# 로 스냅샷·초기화. 성공 응답만 집계(429 등 실패는 usage 없음).
+_USAGE_LOCK = threading.Lock()
+_USAGE = {"calls": 0, "input_tokens": 0, "output_tokens": 0,
+          "cache_read_tokens": 0, "cache_creation_tokens": 0,
+          "cost_usd": 0.0, "cli_ms": 0}
+
+
+def _record_usage(wrapper: dict) -> None:
+    u = wrapper.get("usage") or {}
+    with _USAGE_LOCK:
+        _USAGE["calls"] += 1
+        _USAGE["input_tokens"] += int(u.get("input_tokens", 0) or 0)
+        _USAGE["output_tokens"] += int(u.get("output_tokens", 0) or 0)
+        _USAGE["cache_read_tokens"] += int(u.get("cache_read_input_tokens", 0) or 0)
+        _USAGE["cache_creation_tokens"] += int(u.get("cache_creation_input_tokens", 0) or 0)
+        _USAGE["cost_usd"] += float(wrapper.get("total_cost_usd", 0) or 0)
+        _USAGE["cli_ms"] += int(wrapper.get("duration_ms", 0) or 0)
+
+
+def get_usage() -> dict:
+    """현재까지 누적된 토큰·비용·시간 스냅샷(복사본)."""
+    with _USAGE_LOCK:
+        return dict(_USAGE)
+
+
+def reset_usage() -> None:
+    with _USAGE_LOCK:
+        for k in _USAGE:
+            _USAGE[k] = 0 if k != "cost_usd" else 0.0
+
+
+def format_usage(d: dict) -> str:
+    return (f"calls={d['calls']} · in={d['input_tokens']:,} out={d['output_tokens']:,} "
+            f"cache_read={d['cache_read_tokens']:,} · cost=${d['cost_usd']:.4f} · cli={d['cli_ms']/1000:.1f}s")
 
 
 class ClaudeCodeCliAnalyzer:
@@ -305,6 +343,7 @@ class ClaudeCodeCliAnalyzer:
                 f"subtype={wrapper.get('subtype')}"
             )
 
+        _record_usage(wrapper)   # 토큰·비용·시간 집계(성공 호출만)
         llm_text = wrapper["result"].strip()
 
         # 마크다운 코드 블록 제거

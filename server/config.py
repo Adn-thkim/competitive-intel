@@ -55,16 +55,24 @@ OFFICIAL_SOURCE_STORE_PATH = CACHE_DIR / "official_sources.json"
 # raw_query 만으로 키를 잡아 prompt/schema/model 변경에도 정정이 유실되지 않는다.
 QUERY_INTAKE_OVERRIDES_DIR = BASE_DIR / "data" / "overrides" / "query_intake"
 
+# ── 리포트 스냅샷 ────────────────────────────────────────────────────────────
+# 체크포인터가 MemorySaver(인메모리)라 프로세스 종료와 함께 report_outputs 가
+# 사라진다. 목업 화면 제작·회귀 테스트·오프라인 열람을 위해 리포트가 생성된
+# 시점의 엔벨로프를 파일로 남긴다.
+#
+# 저장 위치: competitive-intel/data/reports/{thread_id}.json
+# 끄려면 .env 에 REPORT_SNAPSHOT=0
+REPORT_SNAPSHOT_DIR     = Path(os.getenv("REPORT_SNAPSHOT_DIR",
+                                         str(BASE_DIR / "data" / "reports")))
+REPORT_SNAPSHOT_ENABLED = os.getenv("REPORT_SNAPSHOT", "1").lower() not in ("0", "false", "no")
+
 # OfficialSourceStore TTL (일 단위).
 # 한 번 검증된 상품 공식 URL은 이 기간 동안 재탐색 없이 재사용된다.
 # 캐시 hit 시에도 HTTP 재검증 1회를 수행하므로 죽은 링크는 자동으로 폐기된다.
-OFFICIAL_SOURCE_STORE_TTL_DAYS = int(os.getenv("OFFICIAL_SOURCE_STORE_TTL_DAYS", "30"))
-
-
-# ── 캐시 TTL ─────────────────────────────────────────────────────────────────
-# 분석 캐시 유효 기간(시간). 초과 시 재실행 및 덮어쓰기.
-# 기본값: 48시간
-ANALYSIS_CACHE_TTL_HOURS = int(os.getenv("ANALYSIS_CACHE_TTL_HOURS", "48"))
+# TTL 관리: cache_ttls.yaml(official_source_store_hours) → 일 단위로 환산. ENV 우선.
+OFFICIAL_SOURCE_STORE_TTL_DAYS = int(os.getenv(
+    "OFFICIAL_SOURCE_STORE_TTL_DAYS",
+    str(int(get_ttl_hours("official_source_store_hours", 720) / 24))))
 
 
 # ── Claude Code CLI 설정 ─────────────────────────────────────────────────────
@@ -240,6 +248,9 @@ YOUTUBE_MIN_VIEW_COUNT      = int(os.getenv("YOUTUBE_MIN_VIEW_COUNT", "1000"))
 YOUTUBE_MIN_COMMENT_COUNT   = int(os.getenv("YOUTUBE_MIN_COMMENT_COUNT", "10"))
 YOUTUBE_CACHE_TTL_HOURS     = int(os.getenv(
     "YOUTUBE_CACHE_TTL_HOURS", str(get_ttl_hours("youtube_hours", 720))))
+# 탐색 영상 세트 published_after. 값 지정 시 그대로 고정(재현성·전체 캐시 히트). 빈 문자열이면 롤링
+# 계산(최근 2년, 주 경계=월요일 05:00 KST). 기본=빈값(롤링). 특정 주 세트를 고정하려면 RFC3339 값 지정.
+YOUTUBE_PUBLISHED_AFTER     = os.getenv("YOUTUBE_PUBLISHED_AFTER", "")
 
 # OfficialSourceResolver Brave 탐색 결과 수 (쿼리당).
 # 후보 N개 × 2쿼리(한국어+영어) 기준 쿼터 소비:

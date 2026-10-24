@@ -78,16 +78,18 @@ def load_agent_output(
     output_schema: dict | None = None,
     logger: logging.Logger | None = None,
     ttl_hours: float | None = None,
+    shard_prefix: int = 0,
 ) -> dict | None:
     """
     agent 출력 캐시(엔트리 파일)를 조회한다.
 
     output_schema 주어지면 캐시된 output 을 검증하고 실패 시 미스 처리.
     ttl_hours 주어지면 entry 의 updated_at 기준 TTL 검사(초과 시 미스).
+    shard_prefix>0 이면 키 접두 N자를 하위 폴더로 두어 세분 샤딩(store 와 동일 값이어야 함).
     반환값은 호출자가 안전하게 수정하도록 deep copy.
     """
     cache_key = make_cache_key(agent_id, cache_input, context)
-    path = _entry_path(agent_id, cache_key)
+    path = _entry_path(agent_id, cache_key, shard_prefix)
 
     with _lock_for(path):
         entry = _read_entry(path)
@@ -137,10 +139,11 @@ def store_agent_output(
     context: dict,
     output: dict,
     logger: logging.Logger | None = None,
+    shard_prefix: int = 0,
 ) -> str:
-    """agent 출력을 엔트리 파일로 저장하고 cache key 반환."""
+    """agent 출력을 엔트리 파일로 저장하고 cache key 반환. shard_prefix 는 load 와 동일해야 한다."""
     cache_key = make_cache_key(agent_id, cache_input, context)
-    path = _entry_path(agent_id, cache_key)
+    path = _entry_path(agent_id, cache_key, shard_prefix)
     now = _now_iso()
 
     with _lock_for(path):
@@ -175,9 +178,14 @@ def _safe_name(name: str) -> str:
     return "".join(ch if ch.isalnum() or ch in ("_", "-") else "_" for ch in name)
 
 
-def _entry_path(agent_id: str, cache_key: str) -> Path:
+def _entry_path(agent_id: str, cache_key: str, shard_prefix: int = 0) -> Path:
     # cache_key 는 sha256 hex(64자) — 파일명으로 안전. agent_id 는 디렉터리.
-    return AGENT_OUTPUT_CACHE_DIR / _safe_name(agent_id) / f"{cache_key}.json"
+    # shard_prefix>0: 키 접두 N자를 하위 폴더로 삽입해 세분 샤딩(디렉터리당 파일 수 축소).
+    #   예) shard_prefix=2 → {agent_id}/{ab}/{full_key}.json. 기본 0 = 기존 평면 구조(다른 에이전트 불변).
+    base = AGENT_OUTPUT_CACHE_DIR / _safe_name(agent_id)
+    if shard_prefix > 0 and len(cache_key) >= shard_prefix:
+        base = base / cache_key[:shard_prefix]
+    return base / f"{cache_key}.json"
 
 
 def _read_entry(path: Path) -> dict | None:

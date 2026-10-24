@@ -1,6 +1,6 @@
 {
-  "domain_slug": "consumer_travel_card",
-  "domain_type": "consumer_fintech_travel_card",
+  "domain_slug": "travel_card_fintech",
+  "domain_type": "consumer_travel_card",
   "community_sites": [
     "milemoa.com"
   ],
@@ -14,20 +14,20 @@
         "exchange_rate_application_method",
         "atm_withdrawal_fee_benefit",
         "card_structure_type",
-        "issuance_eligibility",
-        "app_fx_management_convenience",
-        "travel_specific_benefits",
-        "re_exchange_fee_rate"
+        "reexchange_fee_rate",
+        "supported_currency_count",
+        "issuer_type",
+        "travel_specific_benefit"
       ],
       "feature_labels": {
-        "app_fx_management_convenience": "앱 기반 환전·잔액 관리 편의성",
+        "overseas_payment_fee_rate": "해외결제 수수료율",
+        "exchange_rate_application_method": "환율 적용 방식",
         "atm_withdrawal_fee_benefit": "해외 ATM 출금 수수료 혜택",
         "card_structure_type": "카드 구조 유형",
-        "exchange_rate_application_method": "환율 적용 방식",
-        "issuance_eligibility": "발급 조건 및 자격",
-        "overseas_payment_fee_rate": "해외결제 수수료율",
-        "re_exchange_fee_rate": "재환전 수수료율",
-        "travel_specific_benefits": "여행 특화 부가 혜택"
+        "reexchange_fee_rate": "재환전 수수료율",
+        "supported_currency_count": "지원 통화 수",
+        "issuer_type": "발급 주체 유형",
+        "travel_specific_benefit": "여행 특화 부가혜택"
       },
       "categories": [
         "Pricing",
@@ -45,12 +45,12 @@
         },
         {
           "feature_id": "overseas_payment_fee_rate",
-          "query": "{candidate_name} 해외결제 수수료 후기",
-          "source_hint": "blog_community"
+          "query": "{candidate_name} 해외결제 수수료율 공식 안내",
+          "source_hint": "official"
         },
         {
           "feature_id": "exchange_rate_application_method",
-          "query": "{candidate_name} 해외결제 환율 적용 방식 실시간 고시환율",
+          "query": "{candidate_name} 환율 적용 방식 실시간 고시환율",
           "source_hint": "official"
         },
         {
@@ -64,29 +64,24 @@
           "source_hint": "official"
         },
         {
-          "feature_id": "issuance_eligibility",
-          "query": "{candidate_name} 카드 발급 조건 자격 신청 방법",
+          "feature_id": "reexchange_fee_rate",
+          "query": "{candidate_name} 재환전 수수료 조건 안내",
           "source_hint": "official"
         },
         {
-          "feature_id": "app_fx_management_convenience",
-          "query": "{candidate_name} 앱 환전 충전 잔액 관리 기능",
+          "feature_id": "supported_currency_count",
+          "query": "{candidate_name} 지원 통화 종류 목록",
           "source_hint": "official"
         },
         {
-          "feature_id": "travel_specific_benefits",
-          "query": "{candidate_name} 여행 특화 혜택 보험 라운지 서비스",
+          "feature_id": "issuer_type",
+          "query": "{candidate_name} 발급 은행 핀테크 인터넷은행",
           "source_hint": "official"
         },
         {
-          "feature_id": "re_exchange_fee_rate",
-          "query": "{candidate_name} 재환전 수수료 우대율 조건",
+          "feature_id": "travel_specific_benefit",
+          "query": "{candidate_name} 여행 특화 혜택 공항 라운지 여행보험",
           "source_hint": "official"
-        },
-        {
-          "feature_id": "travel_specific_benefits",
-          "query": "{candidate_name} 여행 부가 혜택 실제 사용 후기",
-          "source_hint": "blog_community"
         }
       ],
       "action_lens": {
@@ -94,9 +89,10 @@
         "exchange_rate_application_method": "both",
         "atm_withdrawal_fee_benefit": "both",
         "card_structure_type": "product_dev",
-        "re_exchange_fee_rate": "product_dev",
-        "issuance_eligibility": "marketing",
-        "travel_benefit_extras": "both"
+        "reexchange_fee_rate": "both",
+        "supported_currency_count": "product_dev",
+        "issuer_type": "marketing",
+        "travel_specific_benefit": "marketing"
       }
     },
     "reaction_insight": {
@@ -104,22 +100,22 @@
       "active": true,
       "source_flow": "A",
       "features": [
-        "overseas_payment_convenience_perception",
-        "exchange_rate_fairness_perception",
-        "atm_withdrawal_experience",
-        "app_ux_quality_perception",
+        "overseas_payment_convenience",
+        "exchange_rate_perception",
+        "atm_experience",
+        "app_ux_quality",
         "card_lock_emergency_response",
-        "travel_benefit_satisfaction",
-        "customer_support_quality"
+        "reexchange_experience",
+        "travel_benefit_satisfaction"
       ],
       "feature_labels": {
-        "app_ux_quality_perception": "앱 UX 품질 인식",
-        "atm_withdrawal_experience": "ATM 출금 경험",
-        "card_lock_emergency_response": "분실·긴급 카드 잠금 경험",
-        "customer_support_quality": "고객 지원 품질",
-        "exchange_rate_fairness_perception": "환율 공정성 인식",
-        "overseas_payment_convenience_perception": "해외결제 편의성 체감",
-        "travel_benefit_satisfaction": "여행 부가 혜택 만족도"
+        "overseas_payment_convenience": "해외결제 편의성 체감",
+        "exchange_rate_perception": "환율 체감 만족도",
+        "atm_experience": "해외 ATM 이용 경험",
+        "app_ux_quality": "앱 UX 품질",
+        "card_lock_emergency_response": "분실 시 즉시 잠금 대응",
+        "reexchange_experience": "재환전 경험",
+        "travel_benefit_satisfaction": "여행 부가혜택 만족도"
       },
       "categories": [
         "Core Function Convenience",
@@ -128,129 +124,109 @@
         "App UX Quality",
         "Customer Support",
         "Additional Benefit Perception",
-        "Domain-specific"
+        "환전·충전 편의"
       ],
       "search_query_hints": [
         {
-          "feature_id": "overseas_payment_convenience_perception",
-          "query": "{candidate_name} 해외결제 사용 후기 편리함",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "overseas_payment_convenience_perception",
-          "query": "{candidate_name} 해외결제 실제 사용 영상 리뷰",
+          "feature_id": "overseas_payment_convenience",
+          "query": "{candidate_name} 해외결제 후기 사용 경험",
           "source_hint": "youtube_reactions"
         },
         {
-          "feature_id": "exchange_rate_fairness_perception",
-          "query": "{candidate_name} 환율 체감 실제로 이득인가 후기",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "exchange_rate_fairness_perception",
-          "query": "{candidate_name} 환율 비교 유튜브 리뷰",
+          "feature_id": "exchange_rate_perception",
+          "query": "{candidate_name} 환율 실제 적용 후기 리뷰",
           "source_hint": "youtube_reactions"
         },
         {
-          "feature_id": "atm_withdrawal_experience",
-          "query": "{candidate_name} 해외 ATM 출금 경험 후기 불편",
-          "source_hint": "blog_community"
+          "feature_id": "atm_experience",
+          "query": "{candidate_name} 해외 ATM 출금 경험 후기",
+          "source_hint": "youtube_reactions"
         },
         {
-          "feature_id": "app_ux_quality_perception",
-          "query": "{candidate_name} 앱 사용성 불편 개선 요청 후기",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "app_ux_quality_perception",
-          "query": "{candidate_name} 앱 리뷰 사용 영상",
+          "feature_id": "app_ux_quality",
+          "query": "{candidate_name} 앱 사용 편의성 리뷰",
           "source_hint": "youtube_reactions"
         },
         {
           "feature_id": "card_lock_emergency_response",
-          "query": "{candidate_name} 카드 분실 잠금 긴급 대응 후기",
-          "source_hint": "blog_community"
+          "query": "{candidate_name} 카드 분실 잠금 기능 후기",
+          "source_hint": "youtube_reactions"
+        },
+        {
+          "feature_id": "reexchange_experience",
+          "query": "{candidate_name} 재환전 후기 실제 사용기",
+          "source_hint": "youtube_reactions"
         },
         {
           "feature_id": "travel_benefit_satisfaction",
-          "query": "{candidate_name} 여행 혜택 실제 사용 후기 만족 불만",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "customer_support_quality",
-          "query": "{candidate_name} 고객센터 대응 후기 문제 해결",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "travel_benefit_satisfaction",
-          "query": "{candidate_name} 트래블카드 여행 혜택 유튜브 비교",
+          "query": "{candidate_name} 여행 혜택 라운지 보험 실사용 리뷰",
           "source_hint": "youtube_reactions"
         }
       ],
       "aspect_codebook": [
         {
           "aspect_id": "overseas_payment_convenience",
-          "definition": "해외 가맹점에서 카드 결제 시 불편함 없이 수수료 없이 처리되는 경험",
-          "domain_specific": false,
-          "label": "해외결제 편의성"
+          "label": "해외결제 편의성",
+          "definition": "해외 가맹점에서 카드를 사용할 때 결제 과정이 얼마나 간편하고 문제 없이 이루어지는가",
+          "domain_specific": false
         },
         {
           "aspect_id": "exchange_rate_fairness",
-          "definition": "실제 적용된 환율이 시장 환율 대비 유리하게 느껴지는지에 대한 사용자 인식",
-          "domain_specific": true,
-          "label": "환율 공정성 인식"
+          "label": "환율 체감 공정성",
+          "definition": "실제 적용된 환율이 시장 환율 대비 얼마나 유리하게 느껴지는가",
+          "domain_specific": true
         },
         {
-          "aspect_id": "atm_withdrawal_ux",
-          "definition": "해외 현지 ATM에서 현금 출금 시 수수료·한도·절차의 편의성",
-          "domain_specific": true,
-          "label": "ATM 출금 경험"
+          "aspect_id": "atm_usability",
+          "label": "해외 ATM 이용성",
+          "definition": "현지 ATM에서 현금 인출 시 수수료 및 작동 안정성에 대한 체감",
+          "domain_specific": true
         },
         {
           "aspect_id": "app_ux_quality",
-          "definition": "환전·충전·잔액 확인 등 앱 내 핵심 기능의 사용성 품질",
-          "domain_specific": false,
-          "label": "앱 UX 품질"
+          "label": "앱 UX 품질",
+          "definition": "환전·충전·내역 조회 등 앱 내 여행 관련 기능의 사용성 수준",
+          "domain_specific": false
         },
         {
-          "aspect_id": "emergency_card_lock",
-          "definition": "카드 분실·도난 시 앱을 통해 즉시 잠금 처리하는 기능의 신뢰도와 반응 속도",
-          "domain_specific": true,
-          "label": "긴급 카드 잠금"
+          "aspect_id": "emergency_response",
+          "label": "긴급 대응 편의성",
+          "definition": "카드 분실·도난 발생 시 앱을 통한 잠금 및 재발급 대응의 신속성과 편의성",
+          "domain_specific": false
+        },
+        {
+          "aspect_id": "reexchange_convenience",
+          "label": "재환전 편의성",
+          "definition": "여행 후 남은 외화를 원화로 재환전하는 과정의 수수료 및 편의성 체감",
+          "domain_specific": true
         },
         {
           "aspect_id": "pricing_perception",
-          "definition": "해외결제 수수료, ATM 수수료, 환전 비용 전반에 대해 사용자가 체감하는 절감 효과",
-          "domain_specific": false,
-          "label": "비용 체감"
+          "label": "비용 체감 만족도",
+          "definition": "해외결제·환전·ATM 등 전반적인 수수료 및 비용 수준에 대한 만족감",
+          "domain_specific": false
         },
         {
-          "aspect_id": "travel_benefit_value",
-          "definition": "여행 보험, 공항 라운지 등 여행 특화 혜택의 실질 가치에 대한 인식",
-          "domain_specific": true,
-          "label": "여행 부가 혜택 가치"
+          "aspect_id": "travel_benefit_perception",
+          "label": "여행 부가혜택 인식",
+          "definition": "공항 라운지, 여행보험 등 여행 특화 혜택의 실질적 유용성에 대한 인식",
+          "domain_specific": true
         },
         {
-          "aspect_id": "customer_support",
-          "definition": "문의·분실·오류 상황에서 고객 센터의 응답 속도와 문제 해결 능력",
-          "domain_specific": false,
-          "label": "고객 지원 품질"
-        },
-        {
-          "aspect_id": "fx_reload_convenience",
-          "definition": "앱 내 외화 환전 및 카드 충전 과정의 간편함과 속도",
-          "domain_specific": true,
-          "label": "환전·충전 편의성"
+          "aspect_id": "charge_top_up_ease",
+          "label": "충전·환전 간편성",
+          "definition": "앱 내에서 외화를 충전하거나 환전하는 과정의 속도와 직관성",
+          "domain_specific": true
         }
       ],
       "action_lens": {
-        "user_sentiment_overseas_fee": "both",
-        "user_sentiment_exchange_convenience": "both",
-        "user_sentiment_atm_experience": "product_dev",
-        "user_sentiment_app_ux": "product_dev",
-        "user_sentiment_card_lock_feature": "product_dev",
-        "user_sentiment_travel_benefits": "marketing",
-        "user_sentiment_customer_support": "product_dev"
+        "overseas_payment_convenience": "both",
+        "exchange_rate_perception": "both",
+        "atm_experience": "product_dev",
+        "app_ux_quality": "product_dev",
+        "card_lock_emergency_response": "product_dev",
+        "reexchange_experience": "both",
+        "travel_benefit_satisfaction": "marketing"
       }
     },
     "marketing_social": {
@@ -258,20 +234,18 @@
       "active": true,
       "source_flow": "A",
       "features": [
-        "owned_channel_posting_frequency",
-        "social_engagement_rate",
-        "content_keyword_topics",
-        "campaign_messaging_copy",
-        "influencer_collaboration_activity",
-        "peso_channel_coverage"
+        "official_sns_channel_operation",
+        "campaign_keyword_theme",
+        "travel_season_campaign",
+        "influencer_collaboration",
+        "owned_blog_press_release"
       ],
       "feature_labels": {
-        "campaign_messaging_copy": "캠페인 메시지·카피",
-        "content_keyword_topics": "콘텐츠 키워드 및 주제",
-        "influencer_collaboration_activity": "인플루언서 협업 활동",
-        "owned_channel_posting_frequency": "공식 채널 게시 빈도",
-        "peso_channel_coverage": "PESO 채널 커버리지",
-        "social_engagement_rate": "소셜 인게이지먼트율"
+        "official_sns_channel_operation": "공식 SNS 채널 운영 현황",
+        "campaign_keyword_theme": "캠페인 키워드·테마",
+        "travel_season_campaign": "여행 시즌 캠페인",
+        "influencer_collaboration": "인플루언서 협업 콘텐츠",
+        "owned_blog_press_release": "자사 블로그·보도자료"
       },
       "categories": [
         "PESO",
@@ -284,53 +258,42 @@
       ],
       "search_query_hints": [
         {
-          "feature_id": "owned_channel_posting_frequency",
-          "query": "{candidate_name} 공식 인스타그램 게시물 빈도 현황",
+          "feature_id": "official_sns_channel_operation",
+          "query": "{candidate_name} 공식 인스타그램 채널",
           "source_hint": "owned_channels"
         },
         {
-          "feature_id": "owned_channel_posting_frequency",
-          "query": "{candidate_name} 공식 유튜브 채널 업로드 빈도",
+          "feature_id": "official_sns_channel_operation",
+          "query": "{candidate_name} 공식 유튜브 채널 운영",
           "source_hint": "owned_channels"
         },
         {
-          "feature_id": "social_engagement_rate",
-          "query": "{candidate_name} 소셜미디어 인게이지먼트 반응",
+          "feature_id": "campaign_keyword_theme",
+          "query": "{candidate_name} 마케팅 캠페인 키워드 해외여행",
           "source_hint": "owned_channels"
         },
         {
-          "feature_id": "content_keyword_topics",
-          "query": "{candidate_name} 마케팅 콘텐츠 주요 키워드 해외결제 환전",
+          "feature_id": "travel_season_campaign",
+          "query": "{candidate_name} 여름 여행 시즌 프로모션 캠페인",
           "source_hint": "owned_channels"
         },
         {
-          "feature_id": "campaign_messaging_copy",
-          "query": "{candidate_name} 광고 캠페인 카피 슬로건 트래블카드",
+          "feature_id": "influencer_collaboration",
+          "query": "{candidate_name} 여행 인플루언서 협업 콘텐츠",
           "source_hint": "owned_channels"
         },
         {
-          "feature_id": "campaign_messaging_copy",
-          "query": "{candidate_name} 트래블카드 광고 후기 반응",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "influencer_collaboration_activity",
-          "query": "{candidate_name} 트래블카드 인플루언서 협업 유튜브 광고",
-          "source_hint": "owned_channels"
-        },
-        {
-          "feature_id": "peso_channel_coverage",
-          "query": "{candidate_name} 보도자료 언론 노출 해외여행 카드",
+          "feature_id": "owned_blog_press_release",
+          "query": "{candidate_name} 보도자료 공식 블로그",
           "source_hint": "owned_channels"
         }
       ],
       "action_lens": {
-        "social_channel_operations": "marketing",
-        "content_keyword_topics": "marketing",
-        "campaign_messaging_copy": "marketing",
-        "influencer_partnership": "marketing",
-        "seasonal_campaign_timing": "marketing",
-        "owned_blog_pr_activity": "marketing"
+        "official_sns_channel_operation": "marketing",
+        "campaign_keyword_theme": "marketing",
+        "travel_season_campaign": "marketing",
+        "influencer_collaboration": "marketing",
+        "owned_blog_press_release": "marketing"
       }
     },
     "battlecard": {
@@ -338,22 +301,24 @@
       "active": true,
       "source_flow": "A+B",
       "features": [
+        "overseas_payment_fee_rate",
+        "exchange_rate_application_method",
+        "atm_withdrawal_fee_benefit",
         "competitor_marketing_copy",
         "competitor_promo_end_date",
         "competitor_switch_story_quote",
         "competitor_sales_objection",
-        "winning_zone_summary",
-        "losing_zone_summary",
-        "battling_zone_summary"
+        "travel_benefit_differentiator"
       ],
       "feature_labels": {
-        "battling_zone_summary": "접전 영역 및 proof point",
-        "competitor_marketing_copy": "경쟁사 마케팅 카피",
+        "overseas_payment_fee_rate": "해외결제 수수료율",
+        "exchange_rate_application_method": "환율 적용 방식",
+        "atm_withdrawal_fee_benefit": "해외 ATM 출금 수수료 혜택",
+        "competitor_marketing_copy": "경쟁사 광고 카피",
         "competitor_promo_end_date": "경쟁사 한시 프로모션 종료일",
-        "competitor_sales_objection": "경쟁사 세일즈 반박 포인트",
-        "competitor_switch_story_quote": "경쟁사 전환 유도 스토리 인용",
-        "losing_zone_summary": "자사 열위 영역 및 우회 전략",
-        "winning_zone_summary": "자사 명확 우위 영역 요약"
+        "competitor_switch_story_quote": "전환 사용자 후기 인용",
+        "competitor_sales_objection": "경쟁사 영업 반론 유형",
+        "travel_benefit_differentiator": "여행 혜택 차별화 포인트"
       },
       "categories": [
         "Winning Zone",
@@ -366,48 +331,44 @@
       "search_query_hints": [
         {
           "feature_id": "competitor_marketing_copy",
-          "query": "{candidate_name} 트래블카드 공식 광고 카피 문구",
+          "query": "{candidate_name} 광고 카피 슬로건 해외여행",
           "source_hint": "official"
         },
         {
-          "feature_id": "competitor_marketing_copy",
-          "query": "{candidate_name} 트래블카드 광고 캠페인 메시지",
-          "source_hint": "owned_channels"
-        },
-        {
           "feature_id": "competitor_promo_end_date",
-          "query": "{candidate_name} 트래블카드 한시 이벤트 프로모션 기간",
+          "query": "{candidate_name} 한시 프로모션 이벤트 종료일",
           "source_hint": "official"
         },
         {
           "feature_id": "competitor_switch_story_quote",
-          "query": "{candidate_name} 트래블카드로 갈아탄 이유 후기",
-          "source_hint": "blog_community"
+          "query": "{candidate_name} 환승 후기 기존 사용자 전환 경험",
+          "source_hint": "official"
+        },
+        {
+          "feature_id": "travel_benefit_differentiator",
+          "query": "{candidate_name} 여행 특화 혜택 차별화 공식 안내",
+          "source_hint": "official"
+        },
+        {
+          "feature_id": "overseas_payment_fee_rate",
+          "query": "{candidate_name} 해외결제 수수료 공식 비교",
+          "source_hint": "official"
         },
         {
           "feature_id": "competitor_sales_objection",
-          "query": "{candidate_name} 트래블카드 단점 불편 반박 포인트",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "winning_zone_summary",
-          "query": "{own_product} vs {candidate_name} 해외결제 수수료 비교",
-          "source_hint": "blog_community"
-        },
-        {
-          "feature_id": "losing_zone_summary",
-          "query": "{candidate_name} 라운지 혜택 여행 보험 비교 우위",
+          "query": "{candidate_name} 트래블카드 단점 한계 공식 FAQ",
           "source_hint": "official"
         }
       ],
       "action_lens": {
+        "overseas_payment_fee_rate": "both",
+        "exchange_rate_application_method": "both",
+        "atm_withdrawal_fee_benefit": "both",
         "competitor_marketing_copy": "marketing",
         "competitor_promo_end_date": "marketing",
         "competitor_switch_story_quote": "marketing",
-        "competitor_sales_objection": "both",
-        "winning_zone_summary": "marketing",
-        "losing_zone_summary": "both",
-        "persona_variation_traveler": "both"
+        "competitor_sales_objection": "marketing",
+        "travel_benefit_differentiator": "marketing"
       }
     },
     "positioning_map": {
@@ -415,22 +376,16 @@
       "active": true,
       "source_flow": "B",
       "features": [
-        "positioning_axis_cost_efficiency",
-        "positioning_axis_digital_convenience",
-        "perceptual_vs_actual_gap",
-        "white_space_identification",
-        "persona_view_short_trip",
-        "persona_view_long_trip",
-        "aaker_condition_scores"
+        "cost_efficiency_score",
+        "app_ecosystem_integration_score",
+        "travel_benefit_richness_score",
+        "card_accessibility_score"
       ],
       "feature_labels": {
-        "aaker_condition_scores": "Aaker 3조건 점수",
-        "perceptual_vs_actual_gap": "인식 vs 실제 포지션 격차",
-        "persona_view_long_trip": "장기 체류·디지털노마드 페르소나 뷰",
-        "persona_view_short_trip": "단기 여행자 페르소나 뷰",
-        "positioning_axis_cost_efficiency": "포지셔닝 축: 비용 효율성",
-        "positioning_axis_digital_convenience": "포지셔닝 축: 디지털 편의성",
-        "white_space_identification": "시장 공백 식별"
+        "cost_efficiency_score": "비용 효율성 점수",
+        "app_ecosystem_integration_score": "앱 생태계 통합 점수",
+        "travel_benefit_richness_score": "여행 부가혜택 풍부도 점수",
+        "card_accessibility_score": "발급·접근성 점수"
       },
       "categories": [
         "Axis Selection",
@@ -443,17 +398,16 @@
       ],
       "search_query_hints": [
         {
-          "feature_id": "positioning_axis_cost_efficiency",
-          "query": "{domain_name} 트래블카드 브랜드 포지셔닝 비교",
-          "source_hint": "blog_community"
+          "feature_id": "cost_efficiency_score",
+          "query": "{domain_name} 포지셔닝 맵 참고 자료",
+          "source_hint": "macro"
         }
       ],
       "action_lens": {
-        "positioning_axis_cost_saving": "marketing",
-        "positioning_axis_app_ecosystem": "marketing",
-        "positioning_quadrant_interpretation": "marketing",
-        "positioning_white_space": "both",
-        "positioning_persona_view": "marketing"
+        "cost_efficiency_score": "marketing",
+        "app_ecosystem_integration_score": "marketing",
+        "travel_benefit_richness_score": "marketing",
+        "card_accessibility_score": "marketing"
       }
     },
     "market_context_swot": {
@@ -461,20 +415,18 @@
       "active": true,
       "source_flow": "A+B",
       "features": [
-        "outbound_travel_market_size",
-        "fx_regulation_trends",
-        "digital_banking_adoption_rate",
-        "competitor_new_entrant_threat",
-        "seasonal_travel_demand_pattern",
-        "payment_network_policy_changes"
+        "travel_market_size_trend",
+        "overseas_payment_regulation",
+        "fintech_card_penetration_rate",
+        "exchange_service_competitive_landscape",
+        "macro_economic_travel_index"
       ],
       "feature_labels": {
-        "competitor_new_entrant_threat": "신규 경쟁 진입 위협",
-        "digital_banking_adoption_rate": "디지털 뱅킹 이용률 증가 추세",
-        "fx_regulation_trends": "외환 규제 및 정책 동향",
-        "outbound_travel_market_size": "해외 출국자 수 및 여행 시장 규모",
-        "payment_network_policy_changes": "Visa·Mastercard 결제망 정책 변화",
-        "seasonal_travel_demand_pattern": "계절별 해외여행 수요 패턴"
+        "travel_market_size_trend": "해외여행 시장 규모 및 성장 추세",
+        "overseas_payment_regulation": "해외결제 관련 규제 동향",
+        "fintech_card_penetration_rate": "핀테크 카드 보급률",
+        "exchange_service_competitive_landscape": "환전 서비스 경쟁 구도",
+        "macro_economic_travel_index": "거시 경제 여행 지수"
       },
       "categories": [
         "SWOT 4분면",
@@ -486,43 +438,38 @@
       ],
       "search_query_hints": [
         {
-          "feature_id": "outbound_travel_market_size",
-          "query": "{domain_name} 해외 출국자 수 연간 통계 한국관광공사",
+          "feature_id": "travel_market_size_trend",
+          "query": "{domain_name} 해외여행 시장 규모 통계",
           "source_hint": "macro"
         },
         {
-          "feature_id": "outbound_travel_market_size",
-          "query": "한국 해외여행 시장 규모 TAM SAM 통계",
+          "feature_id": "travel_market_size_trend",
+          "query": "{domain_name} 출국자 수 연도별 통계",
           "source_hint": "macro"
         },
         {
-          "feature_id": "fx_regulation_trends",
-          "query": "국내 외환거래 규제 핀테크 카드 정책 동향",
+          "feature_id": "overseas_payment_regulation",
+          "query": "{domain_name} 해외결제 외환 규제 동향",
           "source_hint": "macro"
         },
         {
-          "feature_id": "digital_banking_adoption_rate",
-          "query": "인터넷은행 디지털 뱅킹 이용률 증가 통계",
+          "feature_id": "fintech_card_penetration_rate",
+          "query": "{domain_name} 핀테크 트래블카드 보급률 통계",
           "source_hint": "macro"
         },
         {
-          "feature_id": "competitor_new_entrant_threat",
-          "query": "{domain_name} 트래블카드 신규 경쟁사 진입 현황",
+          "feature_id": "exchange_service_competitive_landscape",
+          "query": "{domain_name} 환전 서비스 시장 경쟁 현황",
           "source_hint": "macro"
         },
         {
-          "feature_id": "seasonal_travel_demand_pattern",
-          "query": "해외 출국자 월별 계절별 수요 패턴 통계",
+          "feature_id": "macro_economic_travel_index",
+          "query": "{domain_name} 해외여행 소비 지수 거시경제",
           "source_hint": "macro"
         },
         {
-          "feature_id": "payment_network_policy_changes",
-          "query": "Visa Mastercard 해외결제 수수료 정책 변경 동향",
-          "source_hint": "macro"
-        },
-        {
-          "feature_id": "fx_regulation_trends",
-          "query": "{candidate_name} 외환 서비스 규제 대응 공식 발표",
+          "feature_id": "overseas_payment_regulation",
+          "query": "{candidate_name} 외환거래법 규제 적용 공식 안내",
           "source_hint": "official"
         }
       ],
@@ -531,15 +478,14 @@
         "visitkorea.or.kr",
         "kata.or.kr",
         "kftc.or.kr",
-        "kostat.go.kr"
+        "kfia.or.kr"
       ],
       "action_lens": {
-        "market_size_overseas_travel_card": "both",
-        "regulatory_environment_fintech": "both",
-        "seasonal_travel_demand": "marketing",
-        "competitive_intensity_fintech_card": "both",
-        "macro_exchange_rate_trend": "both",
-        "consumer_behavior_cashless_travel": "marketing"
+        "travel_market_size_trend": "both",
+        "overseas_payment_regulation": "both",
+        "fintech_card_penetration_rate": "marketing",
+        "exchange_service_competitive_landscape": "both",
+        "macro_economic_travel_index": "marketing"
       }
     },
     "executive_summary": {
@@ -547,20 +493,14 @@
       "active": true,
       "source_flow": "B",
       "features": [
-        "bluf_competitive_position",
-        "key_differentiation_findings",
-        "priority_action_recommendations",
-        "ceo_strategic_implication",
-        "cmo_marketing_implication",
-        "pm_product_implication"
+        "top_competitive_gap",
+        "priority_action_item",
+        "persona_specific_recommendation"
       ],
       "feature_labels": {
-        "bluf_competitive_position": "BLUF: 경쟁 포지션 핵심 결론",
-        "ceo_strategic_implication": "CEO 전략적 시사점",
-        "cmo_marketing_implication": "CMO 마케팅 시사점",
-        "key_differentiation_findings": "핵심 차별화 발견 사항",
-        "pm_product_implication": "PM 제품 개선 시사점",
-        "priority_action_recommendations": "우선순위 액션 권고"
+        "top_competitive_gap": "핵심 경쟁 격차 요약",
+        "priority_action_item": "우선순위 실행 항목",
+        "persona_specific_recommendation": "페르소나별 권고사항"
       },
       "categories": [
         "BLUF",
@@ -573,23 +513,22 @@
       ],
       "search_query_hints": [
         {
-          "feature_id": "bluf_competitive_position",
-          "query": "{domain_name} 트래블카드 시장 경쟁 현황 요약",
+          "feature_id": "top_competitive_gap",
+          "query": "{domain_name} 경쟁 분석 요약 참고",
           "source_hint": "macro"
         }
       ],
       "action_lens": {
-        "bluf_key_finding": "both",
-        "priority_action_ceo": "both",
-        "priority_action_cmo": "marketing",
-        "priority_action_pm": "product_dev"
+        "top_competitive_gap": "both",
+        "priority_action_item": "both",
+        "persona_specific_recommendation": "both"
       }
     }
   },
   "domain_id": "3",
-  "input_fingerprint": "51cbe64809b082e4c52559a9ee0c9a6d4171ad6ac3bdd59b8524447b846e736e",
-  "query_fingerprint": "3e4b1f9cf024f1a838f7e9ea632cb8f4165eef2b289f14af0b249b76e1648f49",
+  "input_fingerprint": "1a69ccf90c1f616f130df8b783a72bf15a4189908068c84bb4147f2bd411a48e",
+  "query_fingerprint": "945f25aa01e5f965a04b48788e4756c63682a9a6f2ade07b7e1c35f3aef2b229",
   "created_at": "2026-06-03T11:55:09+00:00",
-  "updated_at": "2026-06-13T03:25:21.520972+00:00",
-  "version": 5
+  "updated_at": "2026-08-24T18:18:06.281099+00:00",
+  "version": 7
 }

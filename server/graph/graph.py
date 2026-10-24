@@ -170,6 +170,20 @@ def _ab_join_node(state: DomainAnalysisState) -> dict:
         f"domain_taxonomy={'있음' if has_taxonomy else '❌없음'}",
         flush=True,
     )
+    # domain_modeling(분기 B) 산출이 합류 시점에 state 로 전파되지 못한 경우(재생성 실패·
+    # 체크포인트 유실 등) 디스크 캐시에서 복구해 후속 feature 매핑 노드의
+    # "domain_taxonomy 가 state 에 없습니다" 중단을 방지한다.
+    if not has_taxonomy:
+        from server.graph.nodes.domain_modeling_node import recover_taxonomy_from_disk
+        recovered = recover_taxonomy_from_disk(state.get("domain_name"))
+        if recovered:
+            print(
+                "🔗 [ab_join_node] domain_taxonomy 부재 → 디스크 캐시에서 복구 "
+                f"(domain_id={recovered.get('domain_id')}, slug={recovered.get('domain_slug')})",
+                flush=True,
+            )
+            return {"domain_taxonomy": recovered}
+        print("🔗 [ab_join_node] domain_taxonomy 복구 실패 — 디스크 캐시 없음", flush=True)
     return {}
 
 
