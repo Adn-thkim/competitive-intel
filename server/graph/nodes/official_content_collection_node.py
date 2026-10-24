@@ -86,7 +86,7 @@ from io import BytesIO
 import requests
 import trafilatura
 
-from server.config import AGENTS_DIR, API_MODEL
+from server.config import AGENTS_DIR, API_MODEL, HELPDESK_COLLECTION_ENABLED
 from server.cache_ttl import get_ttl_hours
 from server.graph.agent_cache import (
     load_agent_output,
@@ -389,6 +389,48 @@ def build_extraction_targets(state: dict) -> list[dict]:
             "urls":           urls,
         })
     return targets
+
+
+def _inject_helpdesk_urls(targets: list[dict], state: dict,
+                          feature_keywords: list[str] | None = None) -> None:
+    """targets 각 candidate 에 고객센터/FAQ URL(origin="helpdesk")을 추가(제자리 변경).
+
+    자사 도메인은 official_sources 에서 결정론적으로 확보하고, SaaS 는 Brave OR 로 탐색한 뒤
+    루트→leaf 아티클로 확장한다(feature_keywords 로 값 관련 아티클 우선 선택).
+    URL 의 feature_ids 는 candidate 전체 feature (FAQ 1페이지에서 다수 feature 추출 가능).
+    설계: docs/design/helpdesk_collection_design.md §4 (step 1 — 기본 병합·관찰).
+    """
+    from server.graph.nodes._helpdesk_urls import discover_helpdesk_urls
+    src_by_cid = {s.get("candidate_id", ""): s
+                  for s in (state.get("official_sources") or [])}
+    domain_map = _official_domain_map(state.get("official_sources") or [])
+    for t in targets:
+        cid = t["candidate_id"]
+        domains = domain_map.get(cid) or set()
+        if not domains:
+            continue
+        own_site = min(domains, key=len)                    # 등록 도메인(최단) 추정
+        brand = (src_by_cid.get(cid) or {}).get("brand", "") or t.get("candidate_name", "")
+        urls = discover_helpdesk_urls(brand, own_site, feature_keywords)
+        if not urls:
+            continue
+        existing = {u["url"] for u in t["urls"]}
+        added = 0
+        for url in urls:
+            if url in existing:
+                continue
+            t["urls"].append({
+                "url":              url,
+                "origin":           "helpdesk",
+                "subpage_category": "",
+                "page_title":       "",
+                "feature_ids":      list(t["feature_ids"]),
+            })
+            existing.add(url)
+            added += 1
+        if added:
+            logger.info("official_content_collection: helpdesk URL %d건 주입 (candidate=%s)",
+                        added, cid)
 
 
 # ─── Step 1: 콘텐츠 수집 (§5-2 — Trafilatura/BS4 폴백 + pypdf + 24h 캐시) ────
@@ -741,6 +783,13 @@ def run_llm_extraction(
         targets = [t for t in targets if t["candidate_id"] in only_candidates]
     features_meta = _features_meta(state)
     keywords = _build_keyword_pool(state, features_meta)
+    # 고객센터/FAQ 보조 소스 주입 (helpdesk_collection_design.md §4, step 1) — 비치명.
+    # keywords 를 넘겨 SaaS 루트→leaf 아티클 확장 시 값 관련 아티클을 상위 선택한다.
+    if HELPDESK_COLLECTION_ENABLED:
+        try:
+            _inject_helpdesk_urls(targets, state, keywords)
+        except Exception as exc:  # noqa: BLE001 — 주입 실패가 official 수집을 막지 않도록
+            logger.warning("helpdesk URL 주입 실패(무시): %s", str(exc)[:200])
     system_prompt, output_schema = _load_llm_assets()
 
     if analyzer is None:
@@ -969,6 +1018,14 @@ def official_content_collection_node(
                 "agent_steps": [_step("completed", started_at)]}
 
     feature_pool, product_profiles = assemble_feature_pool(results, targets)
+    # 수동 보정(override) 덮어쓰기 — 추출 캐시·프롬프트·페이지 변동과 무관하게 영속 적용.
+    try:
+        from server.graph.feature_pool_overrides import apply_overrides
+        n_ov = apply_overrides(feature_pool, logger)
+        if n_ov:
+            logger.info("official_content_collection_node: feature_pool override %d건 적용", n_ov)
+    except Exception as exc:  # noqa: BLE001 — override 실패가 파이프라인을 막지 않도록
+        logger.warning("feature_pool override 적용 실패(무시): %s", str(exc)[:200])
     _write_observability(run_id, results, feature_pool, product_profiles)
 
     failed_n = sum(1 for r in results if r["output"] is None and not r["no_content"])

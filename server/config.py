@@ -210,6 +210,14 @@ COMMUNITY_BRAVE_MAX_PAGES   = int(os.getenv("COMMUNITY_BRAVE_MAX_PAGES", "6"))
 # (실패 URL 은 매 실행 재시도되므로, 추후 네거티브 캐시로 dead URL skip 권장.)
 COMMUNITY_URLS_PER_SITE      = int(os.getenv("COMMUNITY_URLS_PER_SITE", "0"))
 COMMUNITY_URLS_PER_CANDIDATE = int(os.getenv("COMMUNITY_URLS_PER_CANDIDATE", "0"))
+
+# ── 고객센터/FAQ 보조 소스 수집 (docs/design/helpdesk_collection_design.md §4, step 1) ──
+# official_content_collection 이 candidate 별 고객센터/FAQ URL 을 Brave OR 쿼리로 탐색해
+# 보조 공식 소스(origin="helpdesk")로 함께 추출. 1=on. 실패는 비치명(기본 병합·관찰 단계).
+HELPDESK_COLLECTION_ENABLED     = os.getenv("HELPDESK_COLLECTION_ENABLED", "1") == "1"
+# 루트→leaf 아티클 확장(step a) 반영으로 값 아티클을 담을 여유를 두어 4→6 상향.
+HELPDESK_MAX_URLS_PER_CANDIDATE = int(os.getenv("HELPDESK_MAX_URLS_PER_CANDIDATE", "6"))
+
 # ── official 동적 sub-page 키워드 (정적 7키워드 ∪ comparison_matrix feature_labels) ──
 # url_discovery_official 이 정적 키워드에 더해 domain_taxonomy 의 feature 라벨로 site: 재쿼리한다.
 # PoC 결과 라운지·충전·재환전·적립 등 정적이 놓치는 feature 페이지를 동적이 회수(합집합).
