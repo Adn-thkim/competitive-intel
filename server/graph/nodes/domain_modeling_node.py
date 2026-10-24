@@ -622,6 +622,42 @@ def _load_cache(domain_id: str) -> dict | None:
         return None
 
 
+def recover_taxonomy_from_disk(domain_name: str | None) -> dict | None:
+    """state 에 domain_taxonomy 가 없을 때 디스크 캐시에서 복구한다(읽기 전용).
+
+    ab_join 배리어가 사용한다 — 병렬 분기(domain_modeling) 산출이 합류 시점에 state 로
+    전파되지 못한 경우(재생성 실패·체크포인트 유실 등)에도 파이프라인이 중단되지 않게,
+    이미 디스크에 있는 taxonomy 를 되살린다.
+
+    우선순위:
+      1) domain_name 이 레지스트리에 있으면 그 id 의 캐시(_get_domain_id 와 달리 **신규
+         등록은 하지 않는** 순수 조회).
+      2) 매칭 실패·domain_name 부재 시: 가장 최근 `*_slug.json`(로컬 단일 사용자 폴백).
+    어느 것도 없으면 None.
+    """
+    # 1) domain_name → id (read-only)
+    if domain_name and DOMAINS_REGISTRY_PATH.exists():
+        try:
+            registry = json.loads(DOMAINS_REGISTRY_PATH.read_text(encoding="utf-8"))
+            for id_, name in registry.items():
+                if name == domain_name:
+                    cached = _load_cache(id_)
+                    if cached:
+                        return cached
+        except (json.JSONDecodeError, OSError):
+            pass
+    # 2) 최근 캐시 폴백 (이름 매칭 실패 시)
+    if TAXONOMY_DIR.exists():
+        files = sorted(TAXONOMY_DIR.glob("*_slug.json"),
+                       key=lambda p: p.stat().st_mtime, reverse=True)
+        for path in files:
+            try:
+                return json.loads(path.read_text(encoding="utf-8"))
+            except (json.JSONDecodeError, OSError):
+                continue
+    return None
+
+
 def _is_cache_expired(cached: dict) -> bool:
     """캐시 updated_at 기준으로 TTL 초과 여부를 반환한다."""
     updated_at_str = cached.get("updated_at") or cached.get("created_at")
