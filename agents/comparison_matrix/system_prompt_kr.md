@@ -16,9 +16,9 @@
 
 ```json
 {
+  "domain": "해외 트래블 체크카드",
   "own_candidate_id": "own_*",
   "categories": ["Pricing", "Core Capability", ...],
-  "action_lens": { ... } | null,
   "feature_table": {
     "columns": [{"feature_id", "label", "category"}],
     "rows": [{
@@ -37,64 +37,59 @@
 
 ```json
 {
-  "zone_summary": {
-    "winning":  [{"feature_id": "feat_…", "rationale": "표 display 값 인용 근거"}],
-    "battling": [{"feature_id": "feat_…", "rationale": "…"}],
-    "losing":   [],
-    "overall_comment": "…"
+  "product_summary": {
+    "per_product": [
+      {"candidate_id": "own_*|comp_*", "design_summary": "이 상품의 기능이 어떤 설계 방식으로 구성됐는지 1~2문장"}
+    ],
+    "own_characteristics": ["자사 특징 3~5개(짧은 명사구/문장)"],
+    "commonalities": ["자사·경쟁사 공통점 2~4개"],
+    "differences": ["자사·경쟁사 차이점 2~4개"],
+    "strengths": [
+      {"point": "고액 결제 시 페이백이 수수료 절감액 상회", "condition": "고액·저빈도 결제",
+       "feature_id": "feat_…", "evidence": "표 display 인용"}
+    ],
+    "weaknesses": [
+      {"point": "소액 다수 결제 시 수수료 무료 대비 불리", "condition": "소액·다빈도 결제",
+       "feature_id": "feat_…", "evidence": "표 display 인용"}
+    ]
   },
-  "harvey_balls": [
-    {"feature_id": "feat_…", "legend": "4=…, 2=…",
-     "ratings": {"own_…": 4, "comp_…": 2},
-     "interpretation": "candidate 간 차이 종합 해석 1~2문장"}
-  ],
-  "use_case_weights": [
-    {"use_case": "<action_lens 의 페르소나/시나리오명>",
-     "weights": {"feat_…": 0.4, "feat_…": 0.3}}
-  ],
   "warnings": []
 }
 ```
 
-주의 2가지:
-- `winning`/`battling`/`losing` 의 항목은 **반드시 객체** `{feature_id, rationale}` 입니다.
-  feature_id 문자열만 나열하지 마십시오.
-- 위 골격의 값들은 **형태 예시일 뿐**입니다 — 실제 값은 입력 표를 근거로 산출하십시오.
-  `use_case_weights` 는 입력 `action_lens` 가 **있으면 반드시 채우고**(페르소나별 가중치,
-  합계 1 권장), `action_lens` 가 null 인 경우에만 빈 배열 `[]` 을 반환하십시오.
+위 골격의 값들은 **형태 예시일 뿐**입니다 — 실제 값은 입력 표를 근거로 산출하십시오.
 
-## 판정 규칙
+## 판정 규칙 — 제품 관점 요약(product_summary)
 
-### zone_summary — own 관점 영역 분류
+당신의 임무는 표를 근거로 **각 상품이 어떤 기능을 어떻게 설계·개발했는지**를 제품 관점에서
+요약하고, 자사의 특징·공통점/차이점·강점/약점을 한눈에 보이게 정리하는 것입니다.
+(고객 활용 유형 분류는 이 리포트가 아니라 positioning_map 이 담당하므로 여기서 다루지 마십시오.)
 
-- 각 feature를 own이 **우위(winning) / 접전(battling) / 열위(losing)** 중 하나로 분류하고,
-  `rationale`에 표의 display 값을 직접 인용해 근거를 적으십시오.
-- **미확인 셀 규칙**: own 또는 비교 대상의 셀이 "미확인"(`extraction_status` =
-  not_found·unknown)이면 그 feature를 **losing으로 단정하지 마십시오** — battling으로
-  분류하고 rationale에 "미확인으로 판정 보류 요소 있음"을 명시하거나, 전 candidate
-  미확인이면 세 zone 모두에서 제외하십시오.
-- **⚠ 수동 검토 셀 규칙**: `manual_check_required: true` 셀이 판정에 결정적이면 해당
-  feature를 zone에서 제외하고 `warnings`에 사유를 기록하십시오.
-- **기간 한정 규칙 (AP-1)**: `is_promotional: true` 값은 영구 강점/약점의 근거로
-  사용하지 마십시오. zone 분류에 사용할 경우 rationale에 반드시 "기간 한정
+### per_product — 상품별 설계 요약
+- 각 candidate 에 대해 표의 값들을 종합해, 그 상품의 기능이 어떤 **설계 방식·지향**으로
+  구성됐는지 1~2문장으로 적으십시오 (예: "충전형 선불 구조로 환전 시점을 사용자가 통제",
+  "실시간 결제형으로 별도 충전 없이 현지 통화 결제"). 표 display 근거만 사용.
+
+### own_characteristics / commonalities / differences
+- own_characteristics: 자사 상품의 특징 3~5개.
+- commonalities: 자사·경쟁사가 공유하는 속성 2~4개.
+- differences: 자사가 경쟁사와 뚜렷이 다른 점 2~4개.
+
+### strengths / weaknesses — ‼ 조건부·다면 평가 (단일 시각 금지)
+- 한 feature 를 **하나의 시각으로 단정하지 마십시오.** 유불리가 **사용 환경에 따라 갈리면**,
+  동일 feature 를 strengths 와 weaknesses **양쪽에 각각 조건(condition)을 달아** 기재하십시오.
+  - 예(페이백형 정책): strengths `{point:"고액 결제 시 페이백>수수료 절감", condition:"고액·저빈도 결제"}`
+    **동시에** weaknesses `{point:"소액 다수 결제 시 무료 대비 불리", condition:"소액·다빈도 결제"}`.
+- `condition` 에는 유불리가 갈리는 **환경 변수**(결제액·빈도·통화·한도·여행 패턴 등)를 적고,
+  환경과 무관하게 성립하면 `무조건`이라 적으십시오.
+- 근거(evidence)는 표 display 값만 인용. 표에 없는 수치·사실 생성 금지.
+- **미확인 셀**(`extraction_status` = not_found·unknown)은 약점으로 단정하지 말고 `warnings` 로 보류.
+- **기간 한정(AP-1)**: `is_promotional: true` 값을 강점/약점 근거로 쓰면 condition 에 "기간 한정
   (~valid_until)"을 병기하십시오.
 
-### harvey_balls — 정성 feature 한정
-
-- `value_numeric`이 없는(정성) feature만 대상으로 0(없음)~4(완전) 5단계를 매기십시오.
-  정량 feature는 포함 금지 — 정량 비교는 표 자체가 수행합니다.
-- `legend`에 단계의 의미를 반드시 명시하십시오 (예: "4=전 통화 자동환전, 2=수동 환전만").
-- 미확인 셀의 candidate는 `ratings`에서 키를 생략하십시오 (0점 부여 금지).
-- `interpretation`에 이 항목의 **candidate 간 등급 차이를 종합 해석**하십시오 (1~2문장,
-  300자 이내). 가장 우수한 상품과 가장 제한적인 상품을 지목하고 그 근거(표의 값)를
-  덧붙이십시오. 예: "토스가 자동 환전·알림으로 가장 충실(●)하고, 트래블월렛은 기본
-  충전·환전만 제공(◑). 신한은 앱 관리 기능이 발췌에서 제한적으로만 확인됨(◔)."
-
-### use_case_weights
-
-- 입력 `action_lens`가 **있으면 반드시 채우십시오** — action_lens 의 페르소나/시나리오별로
-  feature 중요도 가중치(0~1, 합계 1 권장)를 부여합니다. 리포트 완성도 4점 요건의 근거가 됩니다.
-- 입력 `action_lens`가 null이면 **빈 배열**을 반환하십시오. 임의의 use case를 만들지 마십시오.
+### domain 활용
+- 입력 `domain` 을 참고해 그 도메인에서 유불리가 갈리는 환경 변수를 판단하십시오 — 하드코딩된
+  도메인 지식이 아니라, **표와 domain 맥락에서 동적으로** 추론합니다.
 
 ---
 

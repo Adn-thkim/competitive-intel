@@ -1,0 +1,24 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/comparison-narrator/output.schema.json",
+  "title": "ComparisonNarratorOutput",
+  "description": "v1.0 — 소비자 세그먼트(use_case)별 자사 관점 한 줄 요약. comparison_matrix_node 가 zone·use_case_weights 확정 후 호출.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["narratives"],
+  "properties": {
+    "narratives": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["use_case", "summary"],
+        "properties": {
+          "use_case": { "type": "string", "minLength": 1 },
+          "summary":  { "type": "string", "minLength": 1, "maxLength": 120 }
+        }
+      }
+    }
+  }
+}
