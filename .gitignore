@@ -54,3 +54,36 @@ git/
 * 2.*
 scripts/migrate_cache_sharding.py
 scripts/verify_step0_with_cache.py
+
+# ── PoC·분석 스크립트 (일회성 실험·측정 — 결과는 docs/design 에 기록) ────────
+scripts/poc_*.py
+scripts/load_*_df.py
+scripts/test_stage*.py
+scripts/test_gate_prescreen_*.py
+scripts/test_llm_gate_prescreen.py
+scripts/test_cascade_precut.py
+scripts/test_title_member_units.py
+scripts/absa_replay.py
+scripts/channel_cut_verify.py
+scripts/community_playwright_poc.py
+scripts/export_youtube_comment_funnel.py
+scripts/filter_compare.py
+scripts/gate_title_override.py
+scripts/patch_channel_tags.py
+scripts/patch_state_bodies.py
+scripts/relevance_poc.py
+scripts/render_dynamic_pages.py
+
+# ── 노트북·임시 산출물 ────────────────────────────────
+*.ipynb
+reaction_pipeline_topology.png
+
+# ── 런타임·실험 데이터 ────────────────────────────────
+data/reaction_axis/
+data/poc/
+data/taxonomy/backups/
+data/taxonomy/aspect_codebook_v2_draft.json
+
+# ── 목업 빌드 스크립트 (세션 경로 하드코딩 — 추적 제외) ──────
+docs/mockups/build_final_tab.py
+docs/mockups/rebuild_matrix.py
