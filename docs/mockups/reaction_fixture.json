@@ -1,0 +1,4013 @@
+{
+ "meta": {
+  "source": "rebuild_reaction_insight.py",
+  "cluster_hash": "998c75526cbd32e3de39ed604fdd56f7b0f5682dc12ea2ef3919f450e77b8c72",
+  "cluster_created_at": "2026-09-05T07:35:16",
+  "units": 543,
+  "questions": 170,
+  "snapshot": "6ec75128-93a5-47fa-a2f5-15760470f5a1.json",
+  "llm_narrative_filled": "4/4"
+ },
+ "reaction_insight": {
+  "rubric_version": "deterministic (신 파이프라인 집계)",
+  "categories": [],
+  "content": {
+   "title": "고객 반응 인사이트",
+   "aspect_labels": {
+    "ATM 이용": "ATM 이용",
+    "계좌·충전·잔액 관리": "계좌·충전·잔액 관리",
+    "국내결제": "국내결제",
+    "기타": "기타",
+    "부가 혜택": "부가 혜택",
+    "앱 이용": "앱 이용",
+    "종합": "종합",
+    "카드 발급·품질": "카드 발급·품질",
+    "캐시백·적립": "캐시백·적립",
+    "해외결제": "해외결제",
+    "환전": "환전"
+   },
+   "aspect_matrix": {
+    "ATM 이용": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 5,
+      "negative": 4,
+      "neutral": 2,
+      "tuple_count": 11,
+      "weighted_sentiment": -0.0
+     },
+     "comp_트래블월렛카드": {
+      "positive": 2,
+      "negative": 10,
+      "neutral": 5,
+      "tuple_count": 17,
+      "weighted_sentiment": -0.565
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 16,
+      "negative": 0,
+      "neutral": 2,
+      "tuple_count": 18,
+      "weighted_sentiment": 0.94
+     },
+     "own_토스트래블카드": {
+      "positive": 10,
+      "negative": 10,
+      "neutral": 7,
+      "tuple_count": 27,
+      "weighted_sentiment": -0.092
+     }
+    },
+    "계좌·충전·잔액 관리": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 2,
+      "negative": 6,
+      "neutral": 1,
+      "tuple_count": 9,
+      "weighted_sentiment": -0.491
+     },
+     "comp_트래블월렛카드": {
+      "positive": 3,
+      "negative": 3,
+      "neutral": 0,
+      "tuple_count": 6,
+      "weighted_sentiment": 0.071
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 8,
+      "negative": 2,
+      "neutral": 2,
+      "tuple_count": 12,
+      "weighted_sentiment": 0.447
+     },
+     "own_토스트래블카드": {
+      "positive": 3,
+      "negative": 1,
+      "neutral": 1,
+      "tuple_count": 5,
+      "weighted_sentiment": 0.432
+     }
+    },
+    "국내결제": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 1,
+      "negative": 5,
+      "neutral": 0,
+      "tuple_count": 6,
+      "weighted_sentiment": -0.667
+     },
+     "comp_트래블월렛카드": {
+      "positive": 3,
+      "negative": 0,
+      "neutral": 0,
+      "tuple_count": 3,
+      "weighted_sentiment": 1.0
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 1,
+      "negative": 2,
+      "neutral": 1,
+      "tuple_count": 4,
+      "weighted_sentiment": -0.269
+     },
+     "own_토스트래블카드": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0,
+      "tuple_count": 1,
+      "weighted_sentiment": -1.0
+     }
+    },
+    "기타": {
+     "comp_트래블월렛카드": {
+      "positive": 1,
+      "negative": 2,
+      "neutral": 1,
+      "tuple_count": 4,
+      "weighted_sentiment": -0.5
+     }
+    },
+    "부가 혜택": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 13,
+      "negative": 4,
+      "neutral": 4,
+      "tuple_count": 21,
+      "weighted_sentiment": 0.514
+     },
+     "comp_트래블월렛카드": {
+      "positive": 1,
+      "negative": 0,
+      "neutral": 1,
+      "tuple_count": 2,
+      "weighted_sentiment": 0.5
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 1,
+      "negative": 2,
+      "neutral": 0,
+      "tuple_count": 3,
+      "weighted_sentiment": -0.286
+     }
+    },
+    "앱 이용": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 0,
+      "negative": 1,
+      "neutral": 0,
+      "tuple_count": 1,
+      "weighted_sentiment": -1.0
+     },
+     "comp_트래블월렛카드": {
+      "positive": 2,
+      "negative": 1,
+      "neutral": 0,
+      "tuple_count": 3,
+      "weighted_sentiment": 0.429
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 2,
+      "negative": 0,
+      "neutral": 0,
+      "tuple_count": 2,
+      "weighted_sentiment": 1.0
+     },
+     "own_토스트래블카드": {
+      "positive": 2,
+      "negative": 0,
+      "neutral": 0,
+      "tuple_count": 2,
+      "weighted_sentiment": 1.0
+     }
+    },
+    "종합": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 4,
+      "negative": 3,
+      "neutral": 2,
+      "tuple_count": 9,
+      "weighted_sentiment": 0.276
+     },
+     "comp_트래블월렛카드": {
+      "positive": 3,
+      "negative": 3,
+      "neutral": 2,
+      "tuple_count": 8,
+      "weighted_sentiment": -0.162
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 10,
+      "negative": 0,
+      "neutral": 1,
+      "tuple_count": 11,
+      "weighted_sentiment": 0.962
+     },
+     "own_토스트래블카드": {
+      "positive": 9,
+      "negative": 3,
+      "neutral": 0,
+      "tuple_count": 12,
+      "weighted_sentiment": 0.46
+     }
+    },
+    "카드 발급·품질": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 10,
+      "negative": 5,
+      "neutral": 0,
+      "tuple_count": 15,
+      "weighted_sentiment": 0.374
+     },
+     "comp_트래블월렛카드": {
+      "positive": 2,
+      "negative": 2,
+      "neutral": 0,
+      "tuple_count": 4,
+      "weighted_sentiment": -0.455
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 7,
+      "negative": 11,
+      "neutral": 4,
+      "tuple_count": 22,
+      "weighted_sentiment": -0.289
+     },
+     "own_토스트래블카드": {
+      "positive": 4,
+      "negative": 2,
+      "neutral": 0,
+      "tuple_count": 6,
+      "weighted_sentiment": 0.339
+     }
+    },
+    "캐시백·적립": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 1,
+      "negative": 5,
+      "neutral": 1,
+      "tuple_count": 7,
+      "weighted_sentiment": -0.628
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 1,
+      "negative": 2,
+      "neutral": 0,
+      "tuple_count": 3,
+      "weighted_sentiment": -0.6
+     }
+    },
+    "해외결제": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 6,
+      "negative": 3,
+      "neutral": 2,
+      "tuple_count": 11,
+      "weighted_sentiment": 0.272
+     },
+     "comp_트래블월렛카드": {
+      "positive": 3,
+      "negative": 1,
+      "neutral": 3,
+      "tuple_count": 7,
+      "weighted_sentiment": 0.364
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 11,
+      "negative": 4,
+      "neutral": 3,
+      "tuple_count": 18,
+      "weighted_sentiment": 0.377
+     },
+     "own_토스트래블카드": {
+      "positive": 4,
+      "negative": 6,
+      "neutral": 3,
+      "tuple_count": 13,
+      "weighted_sentiment": -0.216
+     }
+    },
+    "환전": {
+     "comp_신한sol트래블체크카드": {
+      "positive": 4,
+      "negative": 5,
+      "neutral": 0,
+      "tuple_count": 9,
+      "weighted_sentiment": -0.122
+     },
+     "comp_트래블월렛카드": {
+      "positive": 9,
+      "negative": 7,
+      "neutral": 2,
+      "tuple_count": 18,
+      "weighted_sentiment": -0.019
+     },
+     "comp_하나트래블로그카드": {
+      "positive": 11,
+      "negative": 4,
+      "neutral": 2,
+      "tuple_count": 17,
+      "weighted_sentiment": 0.395
+     },
+     "own_토스트래블카드": {
+      "positive": 13,
+      "negative": 6,
+      "neutral": 2,
+      "tuple_count": 21,
+      "weighted_sentiment": 0.32
+     }
+    }
+   },
+   "top_quotes": [
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "신한 트래블 쓰는데 카드 결제는 되는데 atm기에서 현금 인출이 안되던데 ... 아무튼 비추",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "내 카드는 atm 다돌아다녔는데 안되더라 지금도 인출은 안됨",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "신한뿐만 아니라 마스터 계열 트래블카드들이 종종 인출 안 될 때가 있음 마스터카드 문제라고 알고 있음",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "atm 출금 수수료 차이가 있네 걍 트래블카드가 나움",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "쏠트래블 : 이온세븐 둘다 출금무료",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=552186",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "일본이면 솔트래블이 더 유용함 세븐일레븐 가면 그만이라서",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=540807",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "월렛에 큰 단점이 하나 있는데 500달러 이상 뽑으면 수수료붙는다는거임",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "트래블월렛은 ATM 수수료 면제 한도도 있고(1개월 단위) 은행권 아니라 뺐음",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "ATM 월 수수료가 500달러밖에 안된다는거... 은근 치명적 단점임",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "인출 수수료는 로그 월렛 구분없이 세븐 이온 다 수수료없다",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "미니스톱에 이온atm있더라 어젠가 거기서 뽑으니 수수료안나옴",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/nokanto/101523",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "천엔 단위로 출금되는 트래블로그 세븐일레븐 많으니까 ㅅㅅ",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/creditcard/288019",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "그럼 체크카드 사용보다 현금인출을 더 자주 한다면 트래블로그가 낫겠구나",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "트래블로그는 세븐일레븐 atm이라 출금해야 할 땐 엄청 편하긴 하더라고",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "실제로는 인출 1회당 무조건 220밧의 atm 수수료는 있고 보통 최대 인출가능 금액인 2만밧을 뽑는다고 해도(그보다 소액이라면 더더욱) 미리 우리은행 앱에서 환율우대 받고 환전하는것보다 불리합니다",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=6LKhS1rDisQ",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "ATM 환율우대 두개인데 월 700$까지만 수수료 면제이기때문에 다른 카드 대비 어떤 메리트가 있는지 잘 모르겠습니다..ㅎㅎ",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=2u3CqtTdVJY",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "negative",
+     "quote": "다음달부터 atm 출금 횟수 월 5회 이상 또는 or 월 누적 인출 금액 한도 700달러 초과 인출시 수수료 부과; $3+국제브랜드 수수료 1%",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "해외결제네이버/atm출금 토스 조합이 현재기준 개 무적임ㅋㅋㅋ",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "토스에 엔화가 없어도 환전소 안가고 폰으로 바로 환전하고 인출가능한게 장점.(마스터카드)",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "ATM 이용",
+     "polarity": "positive",
+     "quote": "한번에 큰 금액을 찾아서 atm 이용할일이 한번두번 정도면 토스카드만 챙기시면 됩니다",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "해외결제 특화카드인데 실적에 해외결제 제외면 ㅅ* ㅋㅋㅋㅋ",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "신한은행 계좌만 가능합니다. 아래 신한 SOL트래블 카드 공식 페이지에 들어가보시고, '결제은행' 눌러보면 신한은행 계좌만 적혀있는 걸 볼 수 있어요.",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "솔직히 전월실적이 국내 한정만 아니었어도 쓸만했다 ㄹㅇ",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "특이한 점은 한도가 무려 6500만원.",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "보유한도 큰 건 좋다 !",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "작년에는 트래블월렛 200만원씩 충전해서쓰고힘들었음.. 매장갔는데 나는350넘게나왔는데 그자리에서충전하고ㅠ",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "최소 충전 금액이 로그보다 높음",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "월렛은 안되구요.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "잔액환불할때는 월렛이 훨씬 편함",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "트래블월렛- 아무은행 계좌 가능",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "은행 연동 아무 계좌나 가능",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "저는 연동계좌가 하나은행계좌만 가능하더라구요ㅜㅜ 몇번을 반복하다가 하나은행으로 연동해서 발급은 했는데",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "트래블로그- 하나은행 계좌만 가능",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "재환전이란 게 그때그때 자동충전이 되면, 귀국했을 때 남는 외화가 애초에 없는 거죠. 그렇기에 원화로 바꾸는(재환전) 일도 없는 거고요.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "최근에 트래블로그 체크가 업그레이드 되어서 2번 문제가 해결 되었네요 (계좌에서 바로 자동충전 되는 기능)",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "하나계좌 안만들어도 가상계좌에 때려박으면 하나머니 충전되는데",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/nokanto/101523",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "negative",
+     "quote": "토스뱅크 한달에 3천불이 최대라 좀 별로임",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "환율에 따라서 통장에서 빠져나갈때도 있고, 그냥 토스카드랑 연결된 토스뱅크 계좌에서 빠져나갈때도 있더라구요. 급하게 환전한 사람은 변하는 환율 생각해서 싼 쪽이 먼저 빠지게 돼서 편리해요",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "쓰고 남은 외화는 통장에 잘 있고, 다음에 쓰려고 그냥 놔뒀습니다.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/park/18649048",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "계좌·충전·잔액 관리",
+     "polarity": "positive",
+     "quote": "토스뱅크는 1일 천만원, 월 1억 원으로 제 활용 패턴 내에서는 한도 걱정할 필요 없어서 훨씬 편리했습니댜",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "근데 일본에서 터치앤고 되는 노선이랑 역이 한정되어있어서 안전하게 스이카써",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "그거 되는 곳도 있고 안되는 곳도 있어서 완전한 대체는 안됨",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "전월실적 40은 국내결제만으로 채워야함. 해외결제는 제외임",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "positive",
+     "quote": "안 많음. 오류 많다는거 개소리임",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "positive",
+     "quote": "월렛은 환불 수수료 없는게 장점인데",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "positive",
+     "quote": "작년에 카드 하나로 잘 썻던 기억이 있는데..",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "positive",
+     "quote": "트래블월렛으로 버스,지하철 다 교통카드되서 이지링크 사거나 교통비 충전할 필요도 없어서 좋았음 ㅋㅋ",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/travel/2718249800",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "몇몇 교통수단 컨택리스 결제(대부분 비자&JCB) 빼면 로그가 더 좋은듯",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/creditcard/288019",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "BTS는 안됩니다. 오직 MRT만 사용 가능.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "positive",
+     "quote": "방콕 MRT 지하철 트래블로그 카드로 우리나라 지하철처럼 찍고 탈 수 있습니다.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "국내결제",
+     "polarity": "negative",
+     "quote": "결제 혜택은 그다지 메리트가 없는것 같고",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=2u3CqtTdVJY",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "기타",
+     "polarity": "negative",
+     "quote": "일반 송금은 수수료나 이런 정보를 찾기가 어려웠습니다.(다만 어떤 정보에 따르면 수수료가 있더라고 하는데, 테스테리안 님 경험과는 좀 다른 정보네요.)",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "기타",
+     "polarity": "negative",
+     "quote": "직구 좀 해보면 체크카드 쓰면 환불받거나 문제 있을 때 피곤한 일 많이 생깁니다",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "기타",
+     "polarity": "positive",
+     "quote": "난 필요없지만 입문자들한텐 좋으니 ㅎㅎ",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "negative",
+     "quote": "체크인데 이제 신규 발급되는건 라운지이용 안된다 들었어요 기존고객은 여전히 가능함",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "negative",
+     "quote": "돈키 안가면 별로 아님?",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "negative",
+     "quote": "국내는 편의점 할인 같은거 밖에 없는데",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "positive",
+     "quote": "쏠이 한도도 젤 여유있고 라운지 2회 무료라 젤 나아보이더라구요",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "positive",
+     "quote": "일본 3대 편의점(세븐일레븐, 로손, 패밀리마트)에서 5%할인 (1달에 5천원까지 )",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "positive",
+     "quote": "쏠 트래블 카드가 라운지 혜택이랑 삼성페이 해외결제가 가능해서 가장 많이 쓰는 것 같고",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "positive",
+     "quote": "체크카드니까 소득공제 30%",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "negative",
+     "quote": "실적있으면 하위호환임",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=308176",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "부가 혜택",
+     "polarity": "positive",
+     "quote": "각종 할인 혜택이 유니온페이쪽이 많더라는.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "negative",
+     "quote": "신분증 인증이 안된다........",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "negative",
+     "quote": "월렛은 앱 접속때마다 6자리 비번 쳐야해서 쫌 귀찮음",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "ui직관성이랑 재환전은 트레블월렛이 갑인데",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "앱 가벼움, 개빠름",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "실시간으로 환율&잔액 체크하기 좋음",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "로그는 어플 자동로그인 돼서 넘 편하더라고",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "토스앱이 워낙 편하다보니까 토스카드를 메인으로 가져가는 게 편하더라고요!",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "앱 이용",
+     "polarity": "positive",
+     "quote": "토스가 UI도 편하고 쓸만해서 월렛버리고 근 몇개월 썼는데",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "프카 업종을 무리하게 일반카드화 한 느낌이 있다",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "클와이보다 못하네",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "해외 위주로 쓰는 사람들은 클와랑 글로비스 대신 쓸 이유가 없네...",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "토스 +30만원 실적 쓴 쏠 이 두개 콤보면 걍 무적같음",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/travel/3116434541",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "신한 글로벌 체크가 1황이 되어버린..",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "트래블체카중에 일본여행 한정으로 그럼 현시점 제일 나은건가 ㅎㅎ 굿",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "아주 고약한 카드에요.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "트래블로그가 트래블월렛 상위호환",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "그것빼곤 솔직히 좋은지는 잘 ㅠㅠ 애매함",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "트래블월렛 빼면 걍 그놈이 그놈임",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=540807",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "난 두개 다 쓰긴하는데 월렛이 편한 부분도 있어",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/japan/2850575646",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "atm 위치만 괜찮으면 월렛도 좋아요",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "하나트래블로그가 업계선두주라서 아직따라올카드가없는듯해요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "아직까지는하나트래블이좋아요 하나가업계선두주자라서그런지따라올카드사가아직없는듯",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "몇몇 교통수단 컨택리스 결제(대부분 비자&JCB) 빼면 로그가 더 좋은듯",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/creditcard/288019",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "그냥 토스 자체가 별로",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "토스가 너프되면서",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "negative",
+     "quote": "국민트래블러스, 토스체크카드 신청하면서도 불편할것같았는데... 둘다취소하고",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "토스 +30만원 실적 쓴 쏠 이 두개 콤보면 걍 무적같음",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/travel/3116434541",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "확실한건 토스뱅크가 가장 신경 써야 할 꺼리가 적습니다. 전 해외에서 직불카드는 토스카드로 정착했어요.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "종합",
+     "polarity": "positive",
+     "quote": "토스 외화통장+카드 압도적으로 편리합니다.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/park/18649048",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "신한 SOL 트래블카드도 신청하긴 했는데 내용을 보니 아무래도 사용은 하지 않을 것 같습니다.",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "쏠트래블j는 디자인 원툴임",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "신한 트래블j는 실적 필요해서 저거 받기 힘듬",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "신한이나 우리은행 카드가 훨씬 나을듯 미화로 환전기준 5만달러까지 가능하고 해당기능 플러스 마스터카드 결제할인에 일 월별 결제 5만달러까지 가능하니 그게 더 나은 선택일 수도 !",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "하나만 선택해야 한다면 쏠 트래블 쓸 것 같습니다.",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "오 신한도 생겼으면 좋겠다싶었는데 나이스",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "월렛은 이제 비자인 거 외엔 논할 필요가 없지싶음ㅋㅋㅋ",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "처음과 달리 최초 발급당시의 광고를 지금까지 그대로 써먹는 사기회사입니다",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=74v7tKI6_Kk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "카드가 이뻐서 결제는 월렛으로",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "other"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "유럽카페보면 트레블월렛 추천 많이하길래",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "하나은행 계좌 통장 잇어야 당일 카드 발급가능 하며, 이렇게 만든 카드는 다른 은행 계좌 연동 안되고 하나통장 연동만 가능하다고 하네요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "저도 이거보고 지금 하나은행인데 계좌있어야 한다네요..2주전에 다른은행에서 계좌개설해서 안된다네여",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "유니온페이는(토스통장연동도 은행에서는 안된다고 하네요) 모바일로만 가능하다고 해서",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "하나 디자인이 맘에들어서 여권디자인ㅋㅋ 일단 만들어둬야겠다",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "거기에 여권디자인 있어서 어그로도 가능",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/creditcard/288019",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "other"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "로그는 여권디자인이 예쁘고",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/foreign/3252116493",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "보라색 괜찮을 줄 알았는데 씹구리네",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "negative",
+     "quote": "토스 별로임",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "둘다써봤지만 사실 내가가는곳이 토스카드가 안된다면 말겟지만 된다면 토스가 편한느낌이 더있어요. 금액제한이 제일큰이유",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "나도토스들고이번에유럽쪽다녀왔는데 대만족ㅋㅋ",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "카드 발급·품질",
+     "polarity": "positive",
+     "quote": "토스외화체크랑 트레블제로가 좋은거 같아요",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "overall"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "negative",
+     "quote": "솔트래블이 5퍼적립이면 최고아닌가? 왜2등이지했는데 영역별 3천원제한 에라이",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=5qukW5F1Wh0",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "negative",
+     "quote": "솔트레블카드 편의점 5%는 국내 편의점 입니다. 국외 아니에요",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "negative",
+     "quote": "국내 2%야 쉽게 받을수 있는데 굳이 전월실적 채워서 몇몇 영역에서만 가능한게 별로인듯",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "positive",
+     "quote": "쏠도 마스터 페이백 된다 괜찮네",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/travel/3116434541",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "negative",
+     "quote": "국내 없다고 생각하고보면 괜찮긴한데 대놓고 실사용하게 낚으려는 카드라 주의는해야할듯",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=308176",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "negative",
+     "quote": "대놓고 실사용하게 낚으려는 카드라 주의는해야할듯",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.dcinside.com/board/nokanto/308176?headid=20",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "other"
+    },
+    {
+     "aspect": "캐시백·적립",
+     "polarity": "positive",
+     "quote": "트래블로그 신용카드 (하나)는 평소에 쓰기도 무실적 1프로 적립, 온라인 1.3% 적립이라 나쁘지는 않더라고요.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "마스터카드 : 미국 코스트코 사용 불가능",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/use/18900166",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "솔트래블 체크카드보다 0.5% 이득임. 다만 해외결제 만으로 체크카드보다 이득이려면 해외결제 연 600만원 이상 써야함",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "웹사이트에서 결제가 튕기는 곳이 많음",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "reliability"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "아직도 JCB만 받는 사이트가 있어서 그런곳 이용하는 사람에겐 매우 유용하지",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "캐나다 코스트코 사용 가능",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/use/18900166",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "쏠 트래블 카드가 라운지 혜택이랑 삼성페이 해외결제가 가능해서 가장 많이 쓰는 것 같고",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "트레블월렛은 데빗카드라서 보증금 환불 같은 부분에 불편한 점도 있습니다.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "트래블월렛은 브랜드수수료가 없고 환전수수료가 1회 (해당국가 화폐로 충전 가능하니) 로 더 저렴하고.. 은행수수료는 없는걸로 알구요",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "트레블월렛카드 많이쓰는거같던데 해외결제시 수수료가 없고 atm에서 인출도 수수료 적게 인출가능해서",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "월렛 : 비자카드발사대",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=552186",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "benefit"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "해외 신용도 3퍼긴 합니다만 이건 환율이랑 수수류가 별로라..",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "트래블로그는 체크카드로만 헤외결제수수료가 없고 신용카드는 부과된다고 하네요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "일본에서 은련 혼자 결제시스템이 달라서 다른 카드는 다 받아도 은련은 안 받는 데가 꽤 많음",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "중국의 결제시스템 즈푸바오.웨이신 즈푸에 결합 사용시 유니온페이카드는 다른 카드대비 일정금액사용시 발생하는 수수료가 없거든요.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "하나카드 트래블 로그 카드는 외화 구매시 수수료가 0%(매매기준율 적용) 이지만",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=438977",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "유니온페이는 베트남 여행갈때 수수료 무료여서 좋아요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "영상보고 토스에서 만드려고 보니깐 횟수나 제한들이 생긴것 같네요?? 무제한이 아닌듯 합니다. 그리고 700불 한도네요",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "유니온페이가 강세인 지역은 아쉽",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "negative",
+     "quote": "토스카드는 안되는 나라가 많음",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "coverage"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "식당결제 가능하고 지하철탈때 체크 카드 찍고 자동결제 되는것도 너무 좋았어요",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "컨택트리스도 되고 좋더라구요.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/park/18649048",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "convenience"
+    },
+    {
+     "aspect": "해외결제",
+     "polarity": "positive",
+     "quote": "비주요 통화권의 경우에는 적어도 '지금까지는' 압도적으로 토스카드(+외화통장)가 유리한 것 같습니다.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/park/18649048",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "저건 수수료 우대 혜택임 재환전할때 내야하는 수수료의 50퍼만 뗀다고",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "SOL트래블은 해외결제계좌 만들어야 되서 사실상 환전수수료 1%는 고객부담",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "신한만 재환전 수수료 있다는걸로 봤네",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/square/3105873201",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "매매환율을 얼마로 잡냐에따라 1%도 안될수 있긴한데 어쨌든 무제한이라 개꿀",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "SOL트래블 외화계좌는 환전수수료 100% 우대라 수수료 0%임",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "토스빼면 우대율은 쏠이 제일 나음",
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "channel": "community",
+     "source_url": "https://theqoo.net/travel/3729034746",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "환전수수료가 시중은행에서 환전하는 것보다 못하고",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=74v7tKI6_Kk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "유로 미달러 엔화를 제외하고는 환전수수료 무지막지합니다.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "트래블월렛은 환전 수수료가 무료가 아닙니다. 정확히는, 3종(엔,달러,유로)만 수수료 무료입니다. 호주에선 호주달러를 쓸테니 환전수수료가 있겠네요.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "트레블월렛이 좀 더 쌌습니다.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "적어도 US달러, 유로, 엔에 한해서는 트래블 월렛과 트래블 로그의 환율 차이가 거의 없었습니다.",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/lecture/18806850",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "유로존을 쓸 땐, 트레블 월랫 환율 좋게 환전 받을 수 있는데",
+     "candidate_id": "comp_트래블월렛카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=5qukW5F1Wh0",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "트래블로그가 좋긴한데 남은 외화 환불 시 1%의 수수료 때문에 제로와 고민 중입니다.",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "트래블로그는 재환전 수수료 2% 토스는 무료",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=420388",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "원화 재 환전 할시 수수료가 비쌈",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "오히려 트래블로그가 훨 좋은데 하나머니에서 원하는 환율에 자동 환전 가능하게 걸어놓을 수 있어서 이점에선 훨씬 좋아요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 3,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "미리 원하는 환율때 충전하면 로그가 훨 좋은데",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "80만원 이상은 오히려 트래블로그나 토스로 ATM에서 뽑는게 더 좋다고 하더라구요. 25년 3월 17일 기준으로 토스랑 하나는 43.1바트 인데 우리은행은 44바트네요",
+     "candidate_id": "comp_하나트래블로그카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "토스 환율도 일반 은행보다 안좋음.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "토스 환율이 다른 은행보다 높습니다. 화 태크 할때는 상관없겠지만 결제, 사용시손해보는 구조입니다",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "negative",
+     "quote": "토스는 환전 수수료가 없다고는 하지만 다른 은행과 동일 시간대 환율을 비교하면 약단 더 토스가 높더라구요.",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://www.clien.net/service/board/park/18649048",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "exchange_rate"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "트래블로그는 재환전 수수료 2% 토스는 무료",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "community",
+     "source_url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=420388",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "환전한 외화를 다시 원화로 환전할때 수수료가 없습니다",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=5opOon0j_eY",
+     "posted_at": "",
+     "intensity": 1,
+     "perspective": "cost"
+    },
+    {
+     "aspect": "환전",
+     "polarity": "positive",
+     "quote": "수수료가 없어서 엔화 쌀때 사놓고",
+     "candidate_id": "own_토스트래블카드",
+     "channel": "youtube",
+     "source_url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+     "posted_at": "",
+     "intensity": 2,
+     "perspective": "cost"
+    }
+   ],
+   "channel_meta": {
+    "comp_신한sol트래블체크카드": {
+     "channel_counts": {
+      "community": 81,
+      "youtube": 18
+     },
+     "sample_size": 99,
+     "youtube": {
+      "videos": 8,
+      "units": 18,
+      "questions": 6
+     },
+     "community": {
+      "posts": 16,
+      "units": 81,
+      "questions": 15
+     }
+    },
+    "comp_트래블월렛카드": {
+     "channel_counts": {
+      "community": 56,
+      "youtube": 16
+     },
+     "sample_size": 72,
+     "youtube": {
+      "videos": 6,
+      "units": 16,
+      "questions": 7
+     },
+     "community": {
+      "posts": 15,
+      "units": 56,
+      "questions": 6
+     }
+    },
+    "own_토스트래블카드": {
+     "channel_counts": {
+      "community": 30,
+      "youtube": 57
+     },
+     "sample_size": 87,
+     "youtube": {
+      "videos": 10,
+      "units": 57,
+      "questions": 17
+     },
+     "community": {
+      "posts": 8,
+      "units": 30,
+      "questions": 4
+     }
+    },
+    "comp_하나트래블로그카드": {
+     "channel_counts": {
+      "community": 66,
+      "youtube": 44
+     },
+     "sample_size": 110,
+     "youtube": {
+      "videos": 8,
+      "units": 44,
+      "questions": 22
+     },
+     "community": {
+      "posts": 18,
+      "units": 66,
+      "questions": 10
+     }
+    }
+   },
+   "channel_weights": {
+    "youtube": 1.0,
+    "community": 0.9,
+    "blog": 0.9
+   },
+   "totals": {
+    "units": 543,
+    "questions": 170,
+    "candidate_units": 368,
+    "excluded_units": 175
+   },
+   "perspective_overall": {
+    "cost": 76,
+    "convenience": 70,
+    "overall": 65,
+    "coverage": 56,
+    "benefit": 34,
+    "exchange_rate": 29,
+    "reliability": 20,
+    "other": 18
+   },
+   "question_type_overall": {
+    "feasibility": 31,
+    "recommendation": 15,
+    "condition": 15,
+    "method": 9,
+    "troubleshooting": 8,
+    "comparison": 6,
+    "cost": 3
+   },
+   "question_type_own": {
+    "recommendation": 7,
+    "feasibility": 6,
+    "method": 4,
+    "troubleshooting": 2,
+    "condition": 2
+   },
+   "question_aspect_own": {
+    "ATM 이용": 9,
+    "해외결제": 4,
+    "환전": 3,
+    "종합": 2,
+    "카드 발급·품질": 1,
+    "부가 혜택": 1,
+    "계좌·충전·잔액 관리": 1
+   },
+   "question_aspect_by_candidate": {
+    "환전": {
+     "comp_하나트래블로그카드": 3,
+     "own_토스트래블카드": 3,
+     "comp_신한sol트래블체크카드": 1,
+     "comp_트래블월렛카드": 3
+    },
+    "기타": {
+     "comp_트래블월렛카드": 1
+    },
+    "카드 발급·품질": {
+     "comp_신한sol트래블체크카드": 3,
+     "own_토스트래블카드": 1,
+     "comp_하나트래블로그카드": 5
+    },
+    "종합": {
+     "comp_신한sol트래블체크카드": 3,
+     "comp_하나트래블로그카드": 5,
+     "own_토스트래블카드": 2,
+     "comp_트래블월렛카드": 2
+    },
+    "국내결제": {
+     "comp_신한sol트래블체크카드": 4
+    },
+    "부가 혜택": {
+     "comp_신한sol트래블체크카드": 6,
+     "comp_하나트래블로그카드": 3,
+     "comp_트래블월렛카드": 2,
+     "own_토스트래블카드": 1
+    },
+    "해외결제": {
+     "comp_트래블월렛카드": 3,
+     "comp_신한sol트래블체크카드": 1,
+     "own_토스트래블카드": 4,
+     "comp_하나트래블로그카드": 7
+    },
+    "ATM 이용": {
+     "comp_신한sol트래블체크카드": 1,
+     "comp_하나트래블로그카드": 3,
+     "own_토스트래블카드": 9
+    },
+    "계좌·충전·잔액 관리": {
+     "comp_하나트래블로그카드": 5,
+     "comp_트래블월렛카드": 2,
+     "comp_신한sol트래블체크카드": 1,
+     "own_토스트래블카드": 1
+    },
+    "앱 이용": {
+     "comp_하나트래블로그카드": 1
+    },
+    "캐시백·적립": {
+     "comp_신한sol트래블체크카드": 1
+    }
+   },
+   "question_analysis": {
+    "competition": [
+     "자사는 추천요청(33%)과 가능여부(29%)가 질문의 62%를 차지하는 반면, 하나 트래블로그는 가능여부가 전체에서 가장 높은 비중(11건)을 보이고 조건·자격(5건)·원인해결(4건)이 고르게 분포해 실사용 운영 이슈 질문이 상대적으로 많다.",
+     "트래블월렛은 가능여부(8건)가 압도적이고 추천요청·비교 질문이 거의 없어, 기능 작동 범위에 대한 확인 수요가 집중되는 반면 자사처럼 상품 선택 자체를 묻는 추천요청 비중은 낮다.",
+     "신한 SOL트래블은 조건·자격(7건)과 추천요청(4건)이 주축으로, 혜택 적용 조건을 구체적으로 확인하려는 질문이 두드러지며 자사에서 상대적으로 적은 이 유형(10%)과 대비된다."
+    ],
+    "focus": [
+     "자사 질문의 33%가 추천요청 유형으로, 토스카드 단독 사용 여부와 타 수단과의 조합 선택에 대한 판단을 구하는 질문이 집중된다.",
+     "가능여부 유형이 29%로 두 번째로 높으며, 해외 ATM 무료 출금 적용 범위와 외화통장 선결제 후 정산 방식에 대한 혼란이 반복된다.",
+     "방법·원인해결·조건자격 유형은 각각 19%, 10%, 10%로, 환전 시점 선택 방법과 ATM 오류 대처에 대한 운영 실무 질문이 산발적으로 나타난다."
+    ]
+   },
+   "question_overview": {
+    "common": [
+     "가능여부·조건·자격 질문이 전 카드 공통으로 다수"
+    ],
+    "diff": [
+     "자사는 추천요청(7건) 비율이 가장 높고 가능여부는 상대적으로 낮음",
+     "신한 SOL트래블은 조건·자격(7건)이 타 카드 대비 두드러지게 많음"
+    ],
+    "focus": [
+     "가능여부(31건)·추천요청(15건)에 질문 집중",
+     "해외결제·ATM 이용·부가혜택 순으로 관심 집중"
+    ]
+   },
+   "perspective_by_super_candidate": {
+    "해외결제": {
+     "comp_신한sol트래블체크카드": {
+      "coverage": {
+       "pos": 2,
+       "neg": 1,
+       "neu": 1
+      },
+      "cost": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 1
+      },
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "own_토스트래블카드": {
+      "coverage": {
+       "pos": 1,
+       "neg": 3,
+       "neu": 0
+      },
+      "exchange_rate": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 1
+      },
+      "cost": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 2
+      },
+      "reliability": {
+       "pos": 0,
+       "neg": 2,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "cost": {
+       "pos": 3,
+       "neg": 2,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 2,
+       "neg": 2,
+       "neu": 2
+      },
+      "other": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      },
+      "overall": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 3,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_트래블월렛카드": {
+      "coverage": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 2
+      },
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "cost": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 1
+      },
+      "convenience": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     }
+    },
+    "ATM 이용": {
+     "comp_신한sol트래블체크카드": {
+      "cost": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 2
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 1,
+       "neg": 3,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_트래블월렛카드": {
+      "coverage": {
+       "pos": 0,
+       "neg": 3,
+       "neu": 2
+      },
+      "cost": {
+       "pos": 2,
+       "neg": 6,
+       "neu": 2
+      },
+      "convenience": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 1
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "convenience": {
+       "pos": 8,
+       "neg": 0,
+       "neu": 0
+      },
+      "cost": {
+       "pos": 7,
+       "neg": 0,
+       "neu": 1
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 1
+      }
+     },
+     "own_토스트래블카드": {
+      "convenience": {
+       "pos": 6,
+       "neg": 0,
+       "neu": 1
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 2,
+       "neu": 2
+      },
+      "cost": {
+       "pos": 3,
+       "neg": 6,
+       "neu": 2
+      },
+      "reliability": {
+       "pos": 0,
+       "neg": 2,
+       "neu": 0
+      },
+      "benefit": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 2
+      }
+     }
+    },
+    "환전": {
+     "comp_트래블월렛카드": {
+      "exchange_rate": {
+       "pos": 4,
+       "neg": 3,
+       "neu": 0
+      },
+      "cost": {
+       "pos": 3,
+       "neg": 4,
+       "neu": 2
+      },
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "own_토스트래블카드": {
+      "cost": {
+       "pos": 5,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 1
+      },
+      "reliability": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      },
+      "exchange_rate": {
+       "pos": 5,
+       "neg": 4,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 2,
+       "neu": 0
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "cost": {
+       "pos": 0,
+       "neg": 3,
+       "neu": 0
+      },
+      "exchange_rate": {
+       "pos": 3,
+       "neg": 2,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "exchange_rate": {
+       "pos": 6,
+       "neg": 0,
+       "neu": 1
+      },
+      "cost": {
+       "pos": 2,
+       "neg": 4,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 1
+      }
+     }
+    },
+    "기타": {
+     "comp_트래블월렛카드": {
+      "cost": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "other": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      },
+      "overall": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     }
+    },
+    "캐시백·적립": {
+     "comp_하나트래블로그카드": {
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "other": {
+       "pos": 0,
+       "neg": 2,
+       "neu": 0
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "cost": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "benefit": {
+       "pos": 1,
+       "neg": 3,
+       "neu": 1
+      }
+     }
+    },
+    "종합": {
+     "own_토스트래블카드": {
+      "overall": {
+       "pos": 9,
+       "neg": 2,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "overall": {
+       "pos": 4,
+       "neg": 3,
+       "neu": 2
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "overall": {
+       "pos": 10,
+       "neg": 0,
+       "neu": 1
+      }
+     },
+     "comp_트래블월렛카드": {
+      "overall": {
+       "pos": 3,
+       "neg": 3,
+       "neu": 2
+      }
+     }
+    },
+    "부가 혜택": {
+     "comp_신한sol트래블체크카드": {
+      "benefit": {
+       "pos": 10,
+       "neg": 3,
+       "neu": 4
+      },
+      "overall": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "cost": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "other": {
+       "pos": 0,
+       "neg": 2,
+       "neu": 0
+      },
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_트래블월렛카드": {
+      "benefit": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 1
+      }
+     }
+    },
+    "계좌·충전·잔액 관리": {
+     "own_토스트래블카드": {
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 1
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "coverage": {
+       "pos": 2,
+       "neg": 3,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 0,
+       "neg": 2,
+       "neu": 1
+      },
+      "other": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_트래블월렛카드": {
+      "convenience": {
+       "pos": 3,
+       "neg": 3,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "convenience": {
+       "pos": 6,
+       "neg": 2,
+       "neu": 1
+      },
+      "other": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      },
+      "coverage": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      }
+     }
+    },
+    "카드 발급·품질": {
+     "comp_하나트래블로그카드": {
+      "other": {
+       "pos": 3,
+       "neg": 2,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 0,
+       "neg": 5,
+       "neu": 1
+      },
+      "overall": {
+       "pos": 2,
+       "neg": 3,
+       "neu": 2
+      },
+      "coverage": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      },
+      "cost": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "other": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      },
+      "overall": {
+       "pos": 8,
+       "neg": 2,
+       "neu": 0
+      },
+      "cost": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_트래블월렛카드": {
+      "other": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "overall": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "own_토스트래블카드": {
+      "other": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      },
+      "overall": {
+       "pos": 3,
+       "neg": 1,
+       "neu": 0
+      }
+     }
+    },
+    "국내결제": {
+     "comp_신한sol트래블체크카드": {
+      "coverage": {
+       "pos": 0,
+       "neg": 3,
+       "neu": 0
+      },
+      "benefit": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      },
+      "reliability": {
+       "pos": 1,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "coverage": {
+       "pos": 1,
+       "neg": 2,
+       "neu": 0
+      },
+      "benefit": {
+       "pos": 0,
+       "neg": 0,
+       "neu": 1
+      }
+     },
+     "comp_트래블월렛카드": {
+      "cost": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "coverage": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      },
+      "convenience": {
+       "pos": 1,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "own_토스트래블카드": {
+      "benefit": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     }
+    },
+    "앱 이용": {
+     "comp_트래블월렛카드": {
+      "convenience": {
+       "pos": 2,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "own_토스트래블카드": {
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      }
+     },
+     "comp_신한sol트래블체크카드": {
+      "reliability": {
+       "pos": 0,
+       "neg": 1,
+       "neu": 0
+      }
+     },
+     "comp_하나트래블로그카드": {
+      "convenience": {
+       "pos": 2,
+       "neg": 0,
+       "neu": 0
+      }
+     }
+    }
+   },
+   "selected_aspects": [
+    "ATM 이용",
+    "환전",
+    "해외결제"
+   ],
+   "own_only_negative_aspects": [],
+   "own_only_positive_aspects": [],
+   "aspect_candidate_polarity": {},
+   "aspect_analysis": {
+    "ATM 이용": {
+     "competition": [
+      "자사 부정률은 37%로 경쟁사 평균 부정률 32%보다 5%p 높으며, 트래블월렛(59%)보다는 낮지만 하나트래블로그(0%)와 비교하면 현저히 불리한 수준이다.",
+      "자사 의견은 '비용(수수료)' 관점에 집중되어 있으며 해당 관점의 부정 의견(6건)이 긍정(3건)의 2배로, 수수료 정책 변경이 핵심 불만 요인으로 작용한다.",
+      "하나트래블로그는 편의성 관점 긍정 8건·부정률 0%로 ATM 접근성 전반에서 압도적 호평을 받고 있고, 신한SOL트래블은 긍정률 45%로 자사(37%)를 상회하며, 트래블월렛은 부정률 59%·긍정률 12%로 자사보다 불리하나 이온ATM 한정 수수료 무료 혜택이 일부 긍정 요인으로 작용한다."
+     ],
+     "negatives": [
+      "월 5회 이상 또는 700달러 초과 출금 시 $3+1% 수수료가 부과되며, 수수료 면제 한도(월 700달러) 도입으로 트래블 용도 메리트가 약화되었다는 지적이 있다.",
+      "외화통장 설정 후에도 세븐일레븐 ATM에서 '지원되지 않는 카드' 오류가 발생하거나, 원화 기반 잘못된 환전 경로로 출금된 부정 경험이 보고되었다.",
+      "수수료 무료 혜택이 한시적(7월 말까지)으로 명시되어 지속 가능성에 대한 불확실성이 존재한다."
+     ],
+     "positives": [
+      "토스 트래블카드는 별도 환전소 없이 앱에서 즉시 환전 후 ATM 인출이 가능하며, 토스뱅크 ATM에서 외화 선택 시 외화통장에서 수수료 없이 직접 출금된다.",
+      "대규모 1~2회 출금 시 토스카드 단독으로도 충분하다는 평가가 있으며, TMB 등 현지 ATM에서의 대량 출금 편의성도 긍정적으로 언급된다.",
+      "아무 ATM에서나 이용 가능하다는 접근성 측면에서 긍정 평가를 받고 있다."
+     ]
+    },
+    "해외결제": {
+     "competition": [
+      "자사 부정률은 46%로, 경쟁 평균 부정률 21%(신한 27%, 하나 22%, 트래블월렛 14%)를 크게 상회하며 고객 불만 집중도가 뚜렷하게 높다.",
+      "자사 의견은 '적용 범위' 관점에 집중(부정 3건, 긍정 1건)되어 사용 가능 국가·네트워크 제한이 핵심 약점으로 작용한다.",
+      "경쟁 3사도 '적용 범위'를 주요 관점으로 다루지만 신한·하나는 해당 관점에서 긍정 2건·부정 1~2건으로 균형을 유지하며, 트래블월렛은 '비용(수수료)' 관점에서 부정 0건으로 비용 경쟁력이 차별화 요소로 부각된다."
+     ],
+     "negatives": [
+      "건당 수수료 부과, 유니온페이 지역 지원 미흡, 사용 불가 국가 다수 등 적용 범위 측면에서 부정 의견이 집중된다.",
+      "해외 출금 정책 변경으로 횟수·한도 제한이 생겨 기존 무제한 혜택이 축소됐다는 강한 불만이 다수 제기된다."
+     ],
+     "positives": [
+      "토스 체크카드는 비교 카드 중 결제한도가 가장 크며, 비주요 통화권 결제 시 외화통장 연계로 유리한 환경을 제공한다.",
+      "컨택트리스 결제 및 식당·지하철 자동결제 등 현지 결제 편의성이 긍정적으로 평가된다."
+     ]
+    },
+    "환전": {
+     "competition": [
+      "자사 부정률은 29%로 경쟁사 평균 부정률 40% 대비 11%p 낮아 전반적 고객 수용도가 높다.",
+      "자사는 '환율' 관점에 의견이 집중(긍정 5건, 부정 4건)되어 환율 실질 유불리 논쟁이 핵심 쟁점이며, 재환전 수수료 무료가 주요 차별점으로 부각된다.",
+      "경쟁사 중 하나 트래블로그는 부정률 24%로 자사와 유사한 수준이나 재환전 수수료(2~6%)가 약점이고, 신한 SOL트래블은 부정률 56%로 재환전 수수료 부분 면제와 고정변동 환율 방식이 주된 불만 원인이며, 트래블월렛은 부정률 39%로 주요 통화 외 수수료 과다 및 비기축통화 환율 불리함이 집중 비판을 받는다."
+     ],
+     "negatives": [
+      "수수료 무료를 표방하나 적용 환율 자체가 타 은행보다 불리하다는 실질 비용 부담이 지적된다.",
+      "무료 환전 가능 통화 수가 경쟁 트래블카드 대비 적어 다양한 외화 사용자에게 제약으로 작용한다."
+     ],
+     "positives": [
+      "재환전 수수료 무료와 소수점 단위 환전 지원으로 환전 비용 측면에서 경쟁 대비 우위로 평가된다.",
+      "자동환전 기능이 실시간 환율로 적용되며 금액 제한 없이 이용 가능해 편의성 측면에서 긍정적으로 평가된다.",
+      "실측 비교에서 토스뱅크 환율이 경쟁사(하나머니) 대비 유리한 경우가 확인되었다."
+     ]
+    }
+   },
+   "aspect_descriptions": {
+    "ATM 이용": "현금 인출·입금·조회 등 ATM 기기를 통한 금융 거래 경험에 관한 고객 반응을 포괄한다.",
+    "계좌·충전·잔액 관리": "계좌 개설·연결, 카드 충전, 잔액 확인 및 자금 관리 전반에 관한 고객 반응을 포괄한다.",
+    "국내결제": "국내 가맹점 및 온·오프라인 채널에서의 카드 결제 이용 경험에 관한 고객 반응을 포괄한다.",
+    "기타": "특정 범주로 분류되지 않는 기타 다양한 주제의 고객 반응을 포괄한다.",
+    "부가 혜택": "할인, 무료 서비스, 제휴 혜택 등 카드 사용에 따른 부가적 혜택 경험에 관한 고객 반응을 포괄한다.",
+    "앱 이용": "모바일 앱의 기능, 사용성, 오류 등 앱 이용 전반에 관한 고객 반응을 포괄한다.",
+    "종합": "카드 또는 서비스에 대한 전반적인 만족도와 종합적 평가에 관한 고객 반응을 포괄한다.",
+    "카드 발급·품질": "카드 신청·발급 절차, 배송, 카드 실물 품질에 관한 고객 반응을 포괄한다.",
+    "캐시백·적립": "결제 금액의 일부를 현금이나 포인트로 돌려받는 캐시백·적립 혜택 경험에 관한 고객 반응을 포괄한다.",
+    "해외결제": "해외 가맹점 및 해외 온라인 채널에서의 카드 결제 이용 경험에 관한 고객 반응을 포괄한다.",
+    "환전": "외화 환전 서비스의 환율, 절차, 편의성에 관한 고객 반응을 포괄한다."
+   },
+   "aspect_insights": [],
+   "overall_summary": ""
+  },
+  "evaluation_score": 0,
+  "generated_at": "2026-09-10T05:09:58.838829+00:00",
+  "source_references": [
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=552186",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=540807",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/nokanto/101523",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/creditcard/288019",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "ATM 이용",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=6LKhS1rDisQ",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=2u3CqtTdVJY",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "ATM 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/nokanto/101523",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/park/18649048",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "계좌·충전·잔액 관리",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+    "aspect": "국내결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+    "aspect": "국내결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "국내결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+    "aspect": "국내결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "국내결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "국내결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://theqoo.net/travel/2718249800",
+    "aspect": "국내결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/creditcard/288019",
+    "aspect": "국내결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "국내결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "국내결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=2u3CqtTdVJY",
+    "aspect": "국내결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "기타",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+    "aspect": "기타",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+    "aspect": "기타",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=587506",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=308176",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "부가 혜택",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "앱 이용",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "앱 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+    "aspect": "앱 이용",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/travel/3116434541",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+    "aspect": "종합",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=540807",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://theqoo.net/japan/2850575646",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "종합",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "종합",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "종합",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/creditcard/288019",
+    "aspect": "종합",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://theqoo.net/travel/3116434541",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/park/18649048",
+    "aspect": "종합",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=74v7tKI6_Kk",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=289200",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/creditcard/288019",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://theqoo.net/foreign/3252116493",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=785644",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "카드 발급·품질",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=5qukW5F1Wh0",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=Biq30qO1N_s",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/travel/3116434541",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=308176",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.dcinside.com/board/nokanto/308176?headid=20",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "캐시백·적립",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/use/18900166",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=430131",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=633200",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=checkcard&no=26600",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/use/18900166",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "해외결제",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+    "aspect": "해외결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.ppomppu.co.kr/zboard/view.php?id=oversea&no=801125",
+    "aspect": "해외결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=476538&page=1",
+    "aspect": "해외결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=552186",
+    "aspect": "해외결제",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=363565",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=438977",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "해외결제",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/park/18649048",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/park/18649048",
+    "aspect": "해외결제",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/square/3105873201",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/board/view/?id=creditcard&no=533042",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://theqoo.net/travel/3729034746",
+    "aspect": "환전",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=74v7tKI6_Kk",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=08zw1L2RXp0",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=9xLtY6o_HAs",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/lecture/18806850",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=5qukW5F1Wh0",
+    "aspect": "환전",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://m.ppomppu.co.kr/new/bbs_view.php?id=money&no=490070",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=420388",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=217825",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=BUwVweuzANs",
+    "aspect": "환전",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=-bnDGAAYwNk",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.clien.net/service/board/park/18649048",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://gall.dcinside.com/mgallery/board/view/?id=nokanto&no=420388",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=5opOon0j_eY",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.youtube.com/watch?v=7stsMSYx0y8",
+    "aspect": "환전",
+    "candidate_id": "own_토스트래블카드"
+   }
+  ],
+  "warnings": []
+ },
+ "product_profiles": [
+  {
+   "candidate_id": "comp_신한sol트래블체크카드",
+   "product_name": "신한 SOL트래블 체크카드",
+   "profile_summary": "신한카드(전업카드사)가 발급하는 SOL트래블 체크카드는 신한은행 SOL트래블 외화예금 계좌와 연결되어 발급되는 체크카드 구조이다. 해외 환전·결제·ATM 수수료 3종을 면제하며, 30종 통화 환전 수수료가 무료이다. 사용 후 남은 외화를 원화로 재환전 시 수수료 50% 우대가 적용된다. 해외 결제 시 미리 환전한 현지 통화로 차감되며, 현지 통화 미보유 시 미달러로 환전하여 사용 가능하다. 해외 ATM 출금 수수료는 면제되나 현지 ATM 운영사 Surcharge는 별도 부과될 수 있다. 전 세계 공항라운지 연 2회 무료 이용, 컨택리스 해외 대중교통 1% 결제일 할인, 마스터카드 트래블 리워드(400여개 가맹점 최대 10% 캐시백, 2026.12.31까지) 등 여행 특화 혜택을 제공한다. 국내에서는 편의점 5% 할인, 대중교통 1% 할인 등 혜택도 포함된다. 보유 한도는 약 6,500만원(USD 50,000), 결제 한도는 약 780만원(USD 6,000)이다.",
+   "sources_used": [
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_credit.html",
+    "https://www.shinhancard.com/pconts/company/html/promotion/press/1226784_3999.html",
+    "https://www.shinhancard.com/pconts/html/benefit/event/1227891_2239.html",
+    "https://www.shinhancard.com/pconts/html/card/apply/check/1237542_2206.html",
+    "https://www.shinhancard.com/pconts/html/card/apply/credit/1227751_2207.html",
+    "https://www.shinhancard.com/pconts/html/card/apply/credit/1228373_2207.html",
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_supersol.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/guide/CONFM90017/CONFM90017R02.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/terms/terms22/1237121_1222.html",
+    "https://www.shinhancard.com/mob/MOBFM154N/MOBFM154R01.shc"
+   ],
+   "fetch_failures": [
+    "https://www.shinhancard.com/",
+    "https://www.shinhancard.com/crp/CRP51000N/CRP51000PH.shc",
+    "https://www.shinhancard.com/pconts/html/helpdesk/MOBFM630/MOBFM630R01.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/MOBFM651/MOBFM651R01.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/consumer/MOBFM324/MOBFM12310.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/online/MOBFM152/SHCFRW092.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/totalService/MOBFM12552/MOBFM12552G/MOBFM12552R05.html"
+   ],
+   "needs_manual_review": false
+  },
+  {
+   "candidate_id": "comp_트래블월렛카드",
+   "product_name": "트래블월렛 카드",
+   "profile_summary": "트래블월렛 카드는 (주)트래블월렛이 발행·관리하는 선불전자지급수단(충전식 선불카드)으로, VISA 네트워크를 통해 해외 온·오프라인 가맹점 결제가 가능합니다. 전 세계 46개 통화를 지원하며(2025년 2월 기준), USD·JPY·EUR 환전 수수료 0%, 해외결제 수수료 0%를 공식 홈페이지에서 명시하고 있습니다. 환율은 앱 고시 환율을 기준으로 적용하며, 재환전(환불) 시에는 앱 고시 환불 환율에 환불 수수료를 차감한 금액을 원화로 지급하되, 일정 조건 충족 시 수수료 없이 전액 환급합니다. 해외 ATM 출금은 선불충전금 기준으로 가능하나, 수수료 면제 여부는 발췌에서 명시되지 않았습니다. 앱을 통해 충전·잔액 확인·카드 관리가 가능하며, GS25 ATM 즉시 발급도 지원합니다. 컨택리스(Tap & Go) 결제 및 글로벌 대중교통 탭 결제 기능을 제공합니다. 발급 주체는 핀테크 기업인 (주)트래블월렛입니다.",
+   "sources_used": [
+    "https://enterprise.travel-wallet.com/home",
+    "https://www.travel-wallet.com/en",
+    "https://www.travel-wallet.com/docs/pay_terms",
+    "https://www.travel-wallet.com/pay_terms.html",
+    "https://www.travel-wallet.com/terms.html",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%EC%9B%94%EB%A0%9B-%EC%9A%B0%EB%A6%AC%EC%B9%B4%EB%93%9C%EB%A1%9C-%ED%95%B4%EC%99%B8-ATM-%EC%9D%B4%EC%9A%A9%EC%9D%B4-%EA%B0%80%EB%8A%A5%ED%95%9C%EA%B0%80%EC%9A%94-b4404c94",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%ED%8E%98%EC%9D%B4-%EC%B9%B4%EB%93%9C-%EB%B0%9C%EA%B8%89-%EC%A1%B0%EA%B1%B4-d590d6c6",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%95%B4%EC%99%B8%EC%97%90%EC%84%9C-%EC%B9%B4%EB%93%9C-%EA%B2%B0%EC%A0%9C%EA%B0%80-%EC%95%88-%EB%8F%BC%EC%9A%94-624ba84d",
+    "https://docs.channel.io/travelwallet/ko/articles/GS25-ATM-%EC%B9%B4%EB%93%9C-%EB%B0%9C%EA%B8%89-%EB%B0%A9%EB%B2%95-ff34116e",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%EC%9B%94%EB%A0%9B-%ED%95%B4%EC%99%B8-%EC%98%A8%EB%9D%BC%EC%9D%B8-%EA%B2%B0%EC%A0%9C%EC%A7%81%EA%B5%AC-%EB%B0%A9%EB%B2%95-6d2a18ba",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%95%B4%EC%99%B8%EC%86%A1%EA%B8%88-%EC%88%98%EC%88%98%EB%A3%8C-8d6f386a"
+   ],
+   "fetch_failures": [
+    "https://web-contents.travel-wallet.com/hybrid-loca5"
+   ],
+   "needs_manual_review": false
+  },
+  {
+   "candidate_id": "comp_하나트래블로그카드",
+   "product_name": "하나 트래블로그 카드",
+   "profile_summary": "하나 트래블로그 카드는 하나카드가 발급하는 하나머니 전용 체크카드로, 하나머니 잔액(원화·외화) 내에서 국내외 신용카드 가맹점 결제 및 해외 ATM 인출이 가능하다. 외화 하나머니 설정 시 해외 가맹점 이용수수료(해외서비스수수료·국제브랜드수수료)와 해외 ATM 인출수수료가 면제된다. 58종 통화에 대해 환율 100% 우대(무료환전)를 제공하며, 58종 미지원 지역에서는 USD로 결제 가능하다. 외화 하나머니를 원화로 재환전(환급) 시 전신환 매입률 기준으로 환산 후 환급수수료 1%가 차감되며, 대만 달러(TWD)는 스프레드 0.99% 기준이 적용된다. 국내 가맹점 이용 시 0.3% 하나머니 적립 혜택이 있으며, 무료 외화송금, 목표환율 자동충전, 1/N 정산 기능 등 여행 편의 기능을 앱에서 제공한다. 하나은행·하나증권·하나저축은행 중 하나의 본인 실명 계좌 등록 후 사용 가능하다.",
+   "sources_used": [
+    "https://m.hanacard.co.kr/MKATCL2032N.web",
+    "https://m.hanacard.co.kr/MKCDCM1000M.web?CD_PD_SEQ=15640",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=16801",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=17131&BRANCH_GUBUN=M&agent_type=Y&sub_agent=bank&MYBRCH_DV_C=MYB01500114065&BLG_BR_NO=0150",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=18969",
+    "https://m.hanacard.co.kr/MKCDPD7000M.web",
+    "https://m.hanacard.co.kr/MKCONT3100M.web",
+    "https://m.hanacard.co.kr/MKTRVB0212N.web",
+    "https://m.hanacard.co.kr/mobile_web/landing/travlog/a45/",
+    "https://m.hanacard.co.kr/MKCNSL6010M.web",
+    "https://smart.hanacard.co.kr/MPACEN300M.web",
+    "https://corp.hanacard.co.kr/MSA60000000N.web",
+    "https://corp.hanacard.co.kr/MPACEN100M.web?faqCategory=13",
+    "https://m.hanacard.co.kr/MKFAQ1010M.web",
+    "https://www.hanacard.co.kr/OSA43000000D.web"
+   ],
+   "fetch_failures": [
+    "https://www.hanacard.co.kr/"
+   ],
+   "needs_manual_review": false
+  },
+  {
+   "candidate_id": "own_토스트래블카드",
+   "product_name": "토스 트래블카드",
+   "profile_summary": "토스뱅크 트래블카드는 토스뱅크(인터넷은행)가 발급하는 체크카드로, 마스터카드 네트워크를 기반으로 한다. 토스뱅크 외화통장을 해외 결제계좌로 지정한 경우 해외 결제 수수료 및 해외 ATM 출금 수수료가 면제된다(단, 현지 ATM 운영사 수수료는 별도 부과될 수 있음). 외화통장 잔액이 부족할 경우 연결된 토스뱅크 통장에서 자동환전하며, 토스뱅크 통장도 부족하면 타행 계좌에서 자동 충전하는 기능을 제공한다. 컨택리스(마스터카드) 방식으로 해외 대중교통 이용도 가능하다(일부 국가 제한). 환율 적용 방식, 재환전 수수료율, 지원 통화 수에 대한 구체적 정보는 수집된 발췌에서 확인되지 않는다.",
+   "sources_used": [
+    "https://www.tossbank.com/",
+    "https://www.tossbank.com/articles/travelcard",
+    "https://www.tossbank.com/product-service/card/check-card",
+    "https://support.toss.im/",
+    "https://support.toss.im/faq",
+    "https://toss.im/faq",
+    "https://support.toss.im/faq?category=298",
+    "https://toss.im/suspend"
+   ],
+   "fetch_failures": [
+    "https://support.toss.im/faq/tossplace/4461?from=147&page=1",
+    "https://toss.im/"
+   ],
+   "needs_manual_review": false
+  }
+ ],
+ "own_product": {
+  "brand": "토스",
+  "name": "토스 트래블카드",
+  "category": "해외여행 특화 체크카드",
+  "provider": "토스뱅크",
+  "product_id": "own_토스트래블카드"
+ }
+}

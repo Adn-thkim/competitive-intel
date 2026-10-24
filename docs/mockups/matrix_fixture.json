@@ -1,0 +1,1751 @@
+{
+ "meta": {
+  "thread_id": "bde5b72b-c1ca-4683-87b7-326804158f0f",
+  "project_id": "proj_토스트래블카드",
+  "raw_query": "토스 트래블카드",
+  "saved_at": "2026-09-09T14:42:19.217016+00:00",
+  "matrix_revision": "v2 정합화 (2026-09-09)"
+ },
+ "comparison_matrix": {
+  "rubric_version": "report_taxonomy.md §2-1 (2026-05)",
+  "categories": [
+   "Pricing",
+   "Core Capability",
+   "Additional Benefit",
+   "Onboarding/Eligibility",
+   "UX/Support",
+   "재환전 우대"
+  ],
+  "content": {
+   "title": "비교 매트릭스 — 트래블카드 4종",
+   "feature_table": {
+    "columns": [
+     {
+      "feature_id": "feat_overseas_payment_fee",
+      "label": "해외결제 수수료",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_fx_rate_preference",
+      "label": "환율 우대율",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_settlement_method",
+      "label": "결제 통화 처리 방식",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_atm_withdrawal_fee",
+      "label": "해외 ATM 수수료",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_reexchange_fee",
+      "label": "재환전 부담",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_supported_currency_count",
+      "label": "환율우대 통화 수",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_travel_specific_benefit",
+      "label": "여행 중 부가혜택",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_app_fx_convenience",
+      "label": "앱 편의 기능",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_domestic_benefit",
+      "label": "국내 사용 혜택",
+      "category": "고객 혜택"
+     },
+     {
+      "feature_id": "feat_issuer_type",
+      "label": "발급 주체 유형",
+      "category": "사업자 구조"
+     },
+     {
+      "feature_id": "feat_card_structure_type",
+      "label": "카드 구조 유형",
+      "category": "사업자 구조"
+     },
+     {
+      "feature_id": "feat_domestic_lockin",
+      "label": "귀국 후 국내 락인",
+      "category": "사업자 구조"
+     },
+     {
+      "feature_id": "feat_deposit_funding",
+      "label": "예수금 조달 가능 여부",
+      "category": "사업자 구조"
+     },
+     {
+      "feature_id": "feat_regulatory_sandbox",
+      "label": "규제 특례",
+      "category": "사업자 구조"
+     },
+     {
+      "feature_id": "feat_benefit_volatility",
+      "label": "혜택 변동성 (36개월)",
+      "category": "사업자 구조"
+     }
+    ],
+    "rows": [
+     {
+      "candidate_id": "own_토스트래블카드",
+      "candidate_name": "토스 트래블카드",
+      "is_own": true,
+      "cells": {
+       "feat_overseas_payment_fee": {
+        "display": "면제 (0%)",
+        "headline": "면제 (0%)",
+        "value": "국제브랜드 수수료 1% + 해외이용 수수료 건당 US$0.5 전액 면제. 2026-04-01~08-10 한시적으로 부과+2% 캐시백 구조였으나 2026-08-11 면제로 원복되었다.",
+        "condition": "외화통장을 해외 결제계좌로 연결 시",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-08-11",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.tossbank.com/articles/checkcard-payment-fee-free",
+        "evidence": "2026년 8월 11일부터 해외 결제 수수료가 다시 무료가 돼요. 그동안 제공되던 결제 금액 2% 캐시백은 종료돼요.",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_fx_rate_preference": {
+        "display": "100% (전 통화)",
+        "headline": "100% (전 통화)",
+        "value": "살 때·팔 때 모두 매매기준율 적용. 통화별 차등 없음.",
+        "condition": "외화통장 보유",
+        "items": [],
+        "value_numeric": 100.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+        "evidence": "살 때, 팔 때 모두 수수료 없이 토스뱅크의 매매기준율로 환전해요.",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_settlement_method": {
+        "display": "외화 잔액 결제 + 자동환전",
+        "headline": "외화 잔액 결제 + 자동환전",
+        "value": "외화통장 잔액으로 현지 통화 직접 결제. 잔액 부족 시 원화통장에서 자동 환전되어 결제된다.",
+        "condition": "잔액 부족분 자동환전",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://support.toss.im/faq/tossbank/5265",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_atm_withdrawal_fee": {
+        "display": "월 5회 또는 US$700까지 면제",
+        "headline": "월 5회 또는 US$700까지 면제",
+        "value": "국제브랜드 수수료 1% + 건당 US$3 면제. 한도 초과분은 인출액 1% + 건당 US$3 부과. 2025-05-01 이전에는 무제한 면제였다. 현지 ATM 운영사 수수료는 별도.",
+        "condition": "월 5회 또는 누적 US$700 초과 시 유료; 현지 ATM Surcharge 별도",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.tossbank.com/card/benefits",
+        "evidence": "ATM 출금 시 월 5회 또는 US$700까지 수수료가 면제돼요.",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_reexchange_fee": {
+        "display": "0% (수수료 없음)",
+        "headline": "0% (수수료 없음)",
+        "value": "외화→원화 재환전 시 환급수수료 없음. 매도 시에도 매매기준율을 적용하므로 스프레드 부담도 없다. 4개 상품 중 유일하게 왕복 모두 0%.",
+        "condition": "통화·보관 한도 제한 없음",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_supported_currency_count": {
+        "display": "17종",
+        "headline": "17종",
+        "value": "USD·EUR·JPY·GBP·CAD·AUD·NZD·SGD·HKD·CNY·CHF·MYR·PHP·IDR·THB·VND·TWD. 2024-01 출시 이후 36개월간 증감 없음.",
+        "condition": "전 통화 우대 100%",
+        "items": [],
+        "value_numeric": 17,
+        "unit": "종",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_travel_specific_benefit": {
+        "display": "컨택리스 교통만",
+        "headline": "컨택리스 교통만",
+        "value": "컨택리스 해외 대중교통 결제(일부 국가 이용 제한). 공항라운지·여행자보험·여행 적립은 공식 페이지에 기재되어 있지 않다 — 4개 상품 중 여행 부가혜택이 가장 얇다.",
+        "condition": "일부 국가 이용 제한; 라운지·보험·적립 없음",
+        "items": [
+         "컨택리스 해외 교통 (일부 국가 제한)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.tossbank.com/articles/travelcard",
+        "evidence": "컨택리스·마스터카드 로고 단말기에 태그 — 한국에서 대중교통 이용할 때처럼",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_app_fx_convenience": {
+        "display": "자산관리형 5종",
+        "headline": "자산관리형 5종",
+        "value": "부족한 돈 자동환전(잔액 부족 시 원화통장에서 자동 환전), 카드 잔액 자동 충전(타행 계좌 연동), 원하는 환율에 환전하기(목표 환율 도달 시 자동 실행), 외화 모으기(100원부터, 매일 오전 10시 자동 환전), 이자로 달러 모으기(원화 이자를 외화 적립으로 전환). 4개 상품 중 앱 기능이 가장 두껍고, 성격이 여행 도구보다 자산관리 도구에 가깝다.",
+        "condition": "외화통장 보유 필요",
+        "items": [
+         "부족한 돈 자동환전",
+         "카드 잔액 자동 충전",
+         "목표 환율 예약 환전",
+         "외화 모으기 (100원·매일 10시)",
+         "이자로 달러 모으기"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.tossbank.com/articles/travelcard",
+        "evidence": "100원부터 시작 가능 — 매일 오전 10시 원화통장에서 자동 환전",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_benefit": {
+        "display": "한시 캐시백",
+        "headline": "한시 캐시백",
+        "value": "스위치 캐시백 시즌6 — 국내 오프라인 7개 영역(편의점·대중교통·음식음료·마트백화점·서점·즉석사진·영화관)에서 1만원 이상 결제 시 500원, 1만원 미만 100원 캐시백. 영역별 월 5,000원 한도(일 1회·월 10회). 최소 결제 3,000원 이상(대중교통 100원 이상). 2026-04-01~09-30 한시 운영으로 시즌7 조건은 미공지.",
+        "condition": "2026-09-30 종료 예정; 간편결제 이용 시 제외될 수 있음",
+        "items": [
+         "오프라인 7개 영역 캐시백",
+         "1만원↑ 500원 / 미만 100원",
+         "영역별 월 5,000원 한도",
+         "2026-09-30 종료"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.tossbank.com/card/benefits",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [
+         2
+        ],
+        "manual_check_required": false
+       },
+       "feat_issuer_type": {
+        "display": "인터넷은행",
+        "headline": "인터넷은행",
+        "value": "토스뱅크 (인터넷전문은행). 수신 기능 보유",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://toss.im/team",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_card_structure_type": {
+        "display": "체크 + 수신계좌",
+        "headline": "체크 + 수신계좌",
+        "value": "체크카드 + 외화통장(예금자보호 대상 수신상품) 연결형",
+        "condition": "외화통장 연결이 혜택 전제",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://support.toss.im/faq/tossbank/5265",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_lockin": {
+        "display": "한시 — 작동 제한적",
+        "headline": "한시 — 작동 제한적",
+        "value": "혜택은 존재하나 6개월 시즌제라 지속성이 없다. 시즌마다 조건이 바뀌고 다음 시즌 보장이 없어 고객이 이 카드를 국내 주력으로 고정할 근거가 약하다.",
+        "condition": "2026-09-30 이후 미정",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.85,
+        "source_url": "https://www.tossbank.com/card/benefits",
+        "evidence": "",
+        "derived_from": "feat_domestic_benefit",
+        "footnote_refs": [
+         2
+        ],
+        "manual_check_required": false
+       },
+       "feat_deposit_funding": {
+        "display": "가능 (주 회수 경로)",
+        "headline": "가능 (주 회수 경로)",
+        "value": "외화통장은 수신상품이므로 잔액이 은행의 조달자금이 된다. 전 통화 이자 0% — 무이자 조달. 결제가 아니라 남은 잔액에서 회수가 일어나는 구조.",
+        "condition": "이자 0%",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.85,
+        "source_url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_regulatory_sandbox": {
+        "display": "미확인",
+        "headline": "미확인",
+        "value": "미확인",
+        "condition": "혁신금융서비스 지정 여부 확인 불가 — 추가 조사 필요",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "",
+        "extraction_status": "not_found",
+        "confidence": 0.0,
+        "source_url": "",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_benefit_volatility": {
+        "display": "높음 — 축소 3회 + 원복 1회",
+        "headline": "높음 — 축소 3회 + 원복 1회",
+        "value": "2024-08·2024-12 ATM 한도 축소, 2025-05 해외 ATM 유료화, 2026-04 해외결제 유료화 후 2026-08 원복. 4개 상품 중 유일하게 핵심 혜택을 축소한 사업자.",
+        "condition": "최근 변경 2026-08-11",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://news.mtn.co.kr/news-detail/2026022410261632794",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       }
+      }
+     },
+     {
+      "candidate_id": "comp_하나트래블로그카드",
+      "candidate_name": "하나 트래블로그 카드",
+      "is_own": false,
+      "cells": {
+       "feat_overseas_payment_fee": {
+        "display": "면제 (0%)",
+        "headline": "면제 (0%)",
+        "value": "해외서비스수수료·국제브랜드수수료 면제",
+        "condition": "외화 하나머니 설정 시",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_fx_rate_preference": {
+        "display": "100% (58종)",
+        "headline": "100% (58종)",
+        "value": "58종 통화 환율 100% 우대",
+        "condition": "외화 하나머니 충전 기준",
+        "items": [],
+        "value_numeric": 100.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://m.hanacard.co.kr/MKCDPD7000M.web",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_settlement_method": {
+        "display": "충전 잔액 결제",
+        "headline": "충전 잔액 결제",
+        "value": "외화 하나머니에 미리 충전한 잔액으로 현지 통화 결제. 체크카드는 잔액 범위 내에서만 결제된다.",
+        "condition": "사전 충전 필요",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_atm_withdrawal_fee": {
+        "display": "무제한 면제",
+        "headline": "무제한 면제",
+        "value": "건당 US$3 + 국제브랜드 1% 면제, 횟수·금액 제한 없음(무실적). 인출한도 일 US$6,000 / 월 US$10,000. 현지 ATM Surcharge 별도.",
+        "condition": "인출한도 일 US$6,000 / 월 US$10,000; 현지 ATM Surcharge 별도",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.hanacard.co.kr/OPI41000000D.web?CD_PD_SEQ=15414",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_reexchange_fee": {
+        "display": "1% (정률 수수료)",
+        "headline": "1% (정률 수수료)",
+        "value": "외화→원화 재환전 시 1% 수수료. 충전(원화→외화)은 100% 우대이나 되돌릴 때는 유료 — 단방향 무료 구조.",
+        "condition": "충전 시 우대 100%와 별개",
+        "items": [],
+        "value_numeric": 1.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.8,
+        "source_url": "https://sudanghelp.co.kr/blog/re-exchange-2026/",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_supported_currency_count": {
+        "display": "58종",
+        "headline": "58종",
+        "value": "58종 통화 환율 100% 우대 — 4개 상품 중 최다",
+        "condition": "",
+        "items": [],
+        "value_numeric": 58,
+        "unit": "종",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://m.hanacard.co.kr/MKCDPD7000M.web",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_travel_specific_benefit": {
+        "display": "항공사 0.3% 적립",
+        "headline": "항공사 0.3% 적립",
+        "value": "체크카드 부가서비스는 항공사 이용액 0.3% 하나머니 적립뿐이다. 해외여행자보험·해외 3% 적립·통합한도 5만 하나머니·공항라운지는 모두 트래블로그 **신용카드** 혜택이며 체크카드에는 적용되지 않는다. '적립챌린지'는 카드 혜택이 아니라 하나머니 앱 공통 기능이다.",
+        "condition": "보험·라운지·3% 적립은 신용카드 전용 — 체크카드 비적용",
+        "items": [
+         "항공사 이용액 0.3% 적립"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15356",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [
+         3
+        ],
+        "manual_check_required": false
+       },
+       "feat_app_fx_convenience": {
+        "display": "송금 · 정산 특화",
+        "headline": "송금 · 정산 특화",
+        "value": "하나머니(트래블로그) 앱에서 외화 하나머니 충전·실시간 환율 확인, 개인 간 외화 송금(1일 US$5,000 / 1개월 US$10,000), 여행지 N분의1 정산, 항공·호텔·렌터카 예약. 송금·정산은 혁신금융서비스 특례로 가능한 기능이다. 건당 한도와 예약 서비스의 브랜드명은 공식 문서에서 확인하지 못했다.",
+        "condition": "건당 한도 미공시; 예약 서비스 명칭 미확인",
+        "items": [
+         "하나머니 충전 · 실시간 환율",
+         "개인 간 외화 송금 (일 $5,000 / 월 $10,000)",
+         "여행지 N분의1 정산",
+         "항공·호텔·렌터카 예약"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "partial",
+        "confidence": 0.8,
+        "source_url": "https://app.hanamembership.com/gw/gsp/gSP002m.do",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_benefit": {
+        "display": "상시 적립 0.3%",
+        "headline": "상시 적립 0.3%",
+        "value": "전월 실적 조건 없이 국내 0.3% 무제한 적립. 상위 라인업은 조건부로 더 높다 — 트래블GO 체크(편의점·카페·교통 최대 5%, 전월 20만원), 카카오페이 트래블로그 체크(카카오페이포인트 최대 10%, 전월 40만원).",
+        "condition": "기본 카드 0.3%는 무실적·무한도; 5~10%는 상위 라인업의 전월 실적 조건",
+        "items": [
+         "국내 0.3% 무제한 적립 (무실적)",
+         "트래블GO: 최대 5% (전월 20만원)",
+         "카카오페이 트래블로그: 최대 10% (전월 40만원)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.card-gorilla.com/contents/detail/3471",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_issuer_type": {
+        "display": "전업카드사",
+        "headline": "전업카드사",
+        "value": "하나카드 (전업카드사). 수신 불가",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://m.hanacard.co.kr/mobile_web/landing/travlog/gmh_credit/",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_card_structure_type": {
+        "display": "체크 + 선불충전",
+        "headline": "체크 + 선불충전",
+        "value": "외화 하나머니(선불충전) 기반 체크카드. 신용카드 라인업도 별도 존재",
+        "condition": "체크는 하나머니 잔액 내 결제",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_lockin": {
+        "display": "상시 — 구조적으로 작동",
+        "headline": "상시 — 구조적으로 작동",
+        "value": "혜택 자체보다 유통 구조가 락인을 만든다. '트래블로그 스위치'로 기존 국내 체크카드 3종에 해외 기능을 탑재해 기존 고객 약 260만명이 별도 발급 없이 전환됐다. 국내 카드가 곧 여행 카드이므로 귀국 후 사용이 끊기지 않는다.",
+        "condition": "2026-03 시행",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.85,
+        "source_url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+        "evidence": "",
+        "derived_from": "feat_domestic_benefit",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_deposit_funding": {
+        "display": "불가",
+        "headline": "불가",
+        "value": "전업카드사라 수신이 불가능하다. 선불충전금 예치는 있으나 예수금 조달과는 성격이 다르다. 회수가 전부 결제 관계 안(인터체인지·재환전 1%·국내 결제)에서 일어난다.",
+        "condition": "카드사 — 수신 불가",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.9,
+        "source_url": "https://www.ibtomato.com/ExternalView.aspx?type=1&no=19102",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_regulatory_sandbox": {
+        "display": "보유 (~2028-04-17)",
+        "headline": "보유 (~2028-04-17)",
+        "value": "혁신금융서비스 지정 — 외화 하나머니 충전한도 300만원, 개인 간 외화 송금(1회 US$1,000 / 1일 US$5,000 / 연 US$10,000), 여행지 N분의1 정산. 2026-04-20 2년 연장. 일부 기능 우위는 제품 역량이 아니라 인허가에서 온다.",
+        "condition": "2028-04-17까지",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-04-20",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_benefit_volatility": {
+        "display": "낮음 — 축소 0회, 연장 2회",
+        "headline": "낮음 — 축소 0회, 연장 2회",
+        "value": "36개월간 핵심 혜택 축소 없음. 무료환전 2026년 말까지 연장(2025-10), 혁신금융 특례 2028년까지 연장(2026-04).",
+        "condition": "최근 변경 2026-04-20",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       }
+      }
+     },
+     {
+      "candidate_id": "comp_신한sol트래블체크카드",
+      "candidate_name": "신한 SOL트래블 체크카드",
+      "is_own": false,
+      "cells": {
+       "feat_overseas_payment_fee": {
+        "display": "면제 (0%)",
+        "headline": "면제 (0%)",
+        "value": "가맹점 결제 수수료 1.2% 면제 (환전·결제·ATM 3종 수수료 면제의 일부)",
+        "condition": "전월 실적 조건 없음",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "해외 가맹점 결제 수수료(이용금액의 1.2%), 환전 수수료, ATM 인출 수수료를 전액 면제",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_fx_rate_preference": {
+        "display": "100% (42종)",
+        "headline": "100% (42종)",
+        "value": "42개 통화 환율 100% 우대, 실시간 환율 적용",
+        "condition": "2026-12-31까지 연장 확정",
+        "items": [],
+        "value_numeric": 100.0,
+        "unit": "%",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "42개 통화국가에서 100% 환율 우대, 실시간 환율 등을 확인할 수 있어요",
+        "derived_from": "",
+        "footnote_refs": [
+         1
+        ],
+        "manual_check_required": false
+       },
+       "feat_settlement_method": {
+        "display": "외화예금 잔액 결제",
+        "headline": "외화예금 잔액 결제",
+        "value": "SOL트래블 외화예금에 미리 환전해 둔 현지 통화로 결제. 결제 전 해당 통화 환전이 필요하다.",
+        "condition": "사전 환전 필요",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_atm_withdrawal_fee": {
+        "display": "무제한 면제",
+        "headline": "무제한 면제",
+        "value": "건당 US$3 + 국제브랜드 1% 면제, 전월 실적 무관·면제 횟수 제한 없음. Master 또는 Cirrus 로고 기기 한정. 출금한도 일·월 각 US$10,000(전체 해외결제한도 US$20,000 내). 현지 ATM Surcharge 별도.",
+        "condition": "Master/Cirrus 기기 한정; 한도 일·월 US$10,000; 현지 ATM Surcharge 별도",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "Master 또는 Cirrus 로고가 있는 기기 이용 시 건당 $3의 해외 ATM 인출 수수료는 면제",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_reexchange_fee": {
+        "display": "환율우대 50% (수수료율 미공시)",
+        "headline": "환율우대 50% (수수료율 미공시)",
+        "value": "재환전 시 환율우대 50% 적용으로 알려져 있으나, 신한카드 공식 상품 페이지에는 재환전 조건이 명시되어 있지 않다. 다른 3개 상품은 수수료율(%)로 공시되어 단위가 일치하지 않는다.",
+        "condition": "단위 불일치 — 우대율만 확인됨. 수수료율 환산 불가",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-09",
+        "extraction_status": "partial",
+        "confidence": 0.5,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_supported_currency_count": {
+        "display": "42종",
+        "headline": "42종",
+        "value": "42개 통화 환율 100% 우대",
+        "condition": "2026-12-31까지 연장 확정",
+        "items": [],
+        "value_numeric": 42,
+        "unit": "종",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "42개 통화국가에서 100% 환율 우대",
+        "derived_from": "",
+        "footnote_refs": [
+         1
+        ],
+        "manual_check_required": false
+       },
+       "feat_travel_specific_benefit": {
+        "display": "라운지 + 해외 할인",
+        "headline": "라운지 + 해외 할인",
+        "value": "전 세계 공항라운지 연 2회 무료(반기별 1회, 본인만, **전월 국내 이용 30만원 이상**), 컨택리스 해외 대중교통 1% 결제일 할인(월 3천원 한도, 마스터카드 선택 시, 택시 제외), 마스터카드 400여 가맹점 10% 캐시백(~2026-12-31), 해외 인기 가맹점 5% 할인(일본 편의점·미국 스타벅스 월 5천원 / 롯데마트·Grab 월 3천원). 4개 상품 중 여행 부가혜택이 가장 두껍다.",
+        "condition": "라운지에 전월 국내 30만원 실적 조건; 할인마다 월 한도 3~5천원",
+        "items": [
+         "공항라운지 연 2회 (전월 30만원 조건)",
+         "컨택리스 교통 1% (월 3천원)",
+         "마스터카드 10% 캐시백 [기간한정]",
+         "해외 가맹점 5% (월 3~5천원)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/apply/check/1225714_2206.html",
+        "evidence": "반기별 1회(1~6월/7~12월), 연 2회 본인 입장 — 전월 국내 이용금액 30만원 이상",
+        "derived_from": "",
+        "footnote_refs": [
+         1,
+         4
+        ],
+        "manual_check_required": false
+       },
+       "feat_app_fx_convenience": {
+        "display": "개설 · 환전 · 계좌 간 이체",
+        "headline": "개설 · 환전 · 계좌 간 이체",
+        "value": "SOL트래블 외화예금 개설·카드 신청·앱 내 환전, 실시간 환율 확인. 외화 직접이체는 SOL트래블 외화예금 보유자 간에만 가능하며(SOL뱅크 앱, 1일·1개월 각 US$5,000), 타행 외화계좌에서의 이전은 불가하다. 가입 경로는 상품설명서 기준 영업점·SOL뱅크·슈퍼SOL 3곳이다.",
+        "condition": "직접이체는 SOL트래블 계좌 간 한정; 타행 이전 불가",
+        "items": [
+         "외화예금 개설 · 카드 신청 · 환전",
+         "실시간 환율 확인",
+         "SOL트래블 계좌 간 외화 이체 ($5,000/일·월)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "partial",
+        "confidence": 0.75,
+        "source_url": "https://img.shinhan.com/sbank2016/seol/20240117000001110008LC000030.PDF",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [
+         5
+        ],
+        "manual_check_required": false
+       },
+       "feat_domestic_benefit": {
+        "display": "상시 할인",
+        "headline": "상시 할인",
+        "value": "편의점(CU·세븐일레븐·GS25·이마트24) 5% 할인, 국내 후불교통 1% 결제일 할인(월 3,000원 한도).",
+        "condition": "후불교통 할인 월 3,000원 한도",
+        "items": [
+         "편의점 4사 5% 할인",
+         "국내 후불교통 1% 할인 (월 3천원)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "partial",
+        "confidence": 0.75,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_issuer_type": {
+        "display": "은행 + 카드사",
+        "headline": "은행 + 카드사",
+        "value": "신한은행 외화예금 + 신한카드 발급의 결합 구조",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_card_structure_type": {
+        "display": "체크 + 수신계좌",
+        "headline": "체크 + 수신계좌",
+        "value": "신한은행 SOL트래블 외화예금 연결 체크카드",
+        "condition": "외화예금 개설 필수",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_lockin": {
+        "display": "상시 — 혜택으로 작동",
+        "headline": "상시 — 혜택으로 작동",
+        "value": "편의점·교통 등 생활 밀착 영역의 상시 혜택으로 귀국 후 재사용을 유도한다. 구조적 탑재는 아니지만 조건 변경 위험이 없다.",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.8,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "feat_domestic_benefit",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_deposit_funding": {
+        "display": "가능",
+        "headline": "가능",
+        "value": "신한은행 외화예금 기반이라 잔액이 조달자금이 된다. 결제 관계 안팎 양쪽에서 회수한다.",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.8,
+        "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_regulatory_sandbox": {
+        "display": "미확인",
+        "headline": "미확인",
+        "value": "미확인",
+        "condition": "지정 여부 확인 불가",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "",
+        "extraction_status": "not_found",
+        "confidence": 0.0,
+        "source_url": "",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_benefit_volatility": {
+        "display": "낮음 — 축소 0회, 연장 1회",
+        "headline": "낮음 — 축소 0회, 연장 1회",
+        "value": "36개월간 핵심 혜택 축소 없음. 환율우대 100%·외화예금 특별금리를 2026년 말까지 연장(2025-12).",
+        "condition": "최근 변경 2025-12-18",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       }
+      }
+     },
+     {
+      "candidate_id": "comp_트래블월렛카드",
+      "candidate_name": "트래블월렛 카드",
+      "is_own": false,
+      "cells": {
+       "feat_overseas_payment_fee": {
+        "display": "면제 (0%)",
+        "headline": "면제 (0%)",
+        "value": "해외 가맹점 결제 수수료 0%",
+        "condition": "",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_fx_rate_preference": {
+        "display": "통화별 차등",
+        "headline": "통화별 차등",
+        "value": "USD·JPY·EUR 3종만 환전 수수료 0%(우대 100%). 그 외 통화는 0.5~2.5% 부과 — 4개 상품 중 유일하게 전 통화 무료가 아니다.",
+        "condition": "USD·JPY·EUR 외 통화는 0.5~2.5% 부과",
+        "items": [],
+        "value_numeric": null,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_settlement_method": {
+        "display": "선불 충전 잔액 결제",
+        "headline": "선불 충전 잔액 결제",
+        "value": "앱에서 충전한 선불 잔액으로 결제. 잔액 부족 시 결제가 거절되며 자동 충전은 없다.",
+        "condition": "사전 충전 필요; 자동환전 없음",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "partial",
+        "confidence": 0.75,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_atm_withdrawal_fee": {
+        "display": "월 US$500까지 면제",
+        "headline": "월 US$500까지 면제",
+        "value": "월 US$500 이하 인출 시 무료, 초과분 2% 부과. 인출한도 1회 US$400 / 1일 US$1,000 / 월 US$2,000. 현지 ATM Surcharge 별도.",
+        "condition": "월 US$500 초과분 2%; 한도 1회 $400 / 1일 $1,000 / 월 $2,000",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://docs.channel.io/travelwallet/ko/articles/해외-ATM-출금-한도-수수료는-얼마인가요-5d51ec3d",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_reexchange_fee": {
+        "display": "0% (명목) + 매도 스프레드",
+        "headline": "0% (명목) + 매도 스프레드",
+        "value": "환불 수수료는 명목상 0%이나 환불 시 매도 환율이 적용되어 스프레드만큼 실부담이 발생한다. 명목 수수료와 실부담이 다른 유일한 사례.",
+        "condition": "명목 0%이나 매도환율 스프레드 부담 있음",
+        "items": [],
+        "value_numeric": 0.0,
+        "unit": "%",
+        "as_of": "2026-09",
+        "extraction_status": "partial",
+        "confidence": 0.8,
+        "source_url": "https://docs.channel.io/travelwallet/ko/articles/환불-시-적용-환율은-어떻게-되나요-0cc2f37d",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_supported_currency_count": {
+        "display": "46종 (우대 100%는 3종)",
+        "headline": "46종 (우대 100%는 3종)",
+        "value": "충전 가능 통화는 46종이나 환전 수수료 0%(우대 100%)는 USD·JPY·EUR 3종뿐. 나머지 43종은 0.5~2.5% 부과되므로 다른 3개 상품과 같은 기준으로 비교하면 3종이다.",
+        "condition": "46종 충전 가능 / 우대 100%는 3종",
+        "items": [],
+        "value_numeric": 3,
+        "unit": "종",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_travel_specific_benefit": {
+        "display": "컨택리스 결제만",
+        "headline": "컨택리스 결제만",
+        "value": "컨택리스(Tap & Go) 해외 결제, 글로벌 대중교통 카드(지원 도시 목록 미공개). 공항라운지·적립은 없다. 여행자보험은 카드 기본 제공은 아니며, 앱 내 제휴 보험 노출이 확인되나 부가 방식은 확인하지 못했다.",
+        "condition": "지원 도시 미공개; 보험은 카드 기본 제공 아님",
+        "items": [
+         "컨택리스 해외 결제",
+         "글로벌 교통카드 (도시 미공개)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09-10",
+        "extraction_status": "partial",
+        "confidence": 0.8,
+        "source_url": "https://www.travel-wallet.com/",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_app_fx_convenience": {
+        "display": "충전 · 교환 · 환급",
+        "headline": "충전 · 교환 · 환급",
+        "value": "앱 내 충전·통화 간 교환·잔액 환급·친구 송금. 46개 통화 71개국 지원(2026-04 기준). 카드 발급부터 환불까지 앱 중심이나, GS25 스마트ATM 즉시발급(약 2분) 경로도 있다.",
+        "condition": "앱 중심 (+GS25 스마트ATM 발급)",
+        "items": [
+         "앱 내 충전 · 통화 교환",
+         "잔액 즉시 환불",
+         "친구 송금",
+         "46종 71개국 충전 (2026-04)"
+        ],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-04",
+        "extraction_status": "explicit",
+        "confidence": 0.85,
+        "source_url": "https://docs.channel.io/travelwallet/ko/articles/충전-가능한-외화-종류가-궁금해요-aaa9a48b",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_benefit": {
+        "display": "없음",
+        "headline": "없음",
+        "value": "국내 결제는 가능하나 국내 전용 캐시백·할인·적립 혜택이 없다. 여행 목적 외 사용 유인이 부재하다.",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.75,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_issuer_type": {
+        "display": "전자금융업자",
+        "headline": "전자금융업자",
+        "value": "주식회사 트래블월렛 (선불전자지급수단 발행·관리업)",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "explicit",
+        "confidence": 0.9,
+        "source_url": "https://www.travel-wallet.com/terms.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_card_structure_type": {
+        "display": "선불전자지급수단",
+        "headline": "선불전자지급수단",
+        "value": "충전식 선불카드 (VISA 네트워크). 예금자보호 대상 아님",
+        "condition": "예금자보호 비대상",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-06-08",
+        "extraction_status": "explicit",
+        "confidence": 0.95,
+        "source_url": "https://www.travel-wallet.com/docs/pay_terms",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_domestic_lockin": {
+        "display": "없음",
+        "headline": "없음",
+        "value": "국내 혜택이 없어 락인 장치가 부재하다. 여행이 끝나면 관계도 끝난다.",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.75,
+        "source_url": "https://www.card-gorilla.com/contents/detail/2867",
+        "evidence": "",
+        "derived_from": "feat_domestic_benefit",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_deposit_funding": {
+        "display": "불가 (선불충전금)",
+        "headline": "불가 (선불충전금)",
+        "value": "전자금융업자로 수신이 불가능하다. 선불충전금 운용 수익은 있으나 예금이 아니다.",
+        "condition": "",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "2026-09",
+        "extraction_status": "inferred",
+        "confidence": 0.85,
+        "source_url": "https://www.travel-wallet.com/terms.html",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_regulatory_sandbox": {
+        "display": "미확인",
+        "headline": "미확인",
+        "value": "미확인",
+        "condition": "지정 여부 확인 불가",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "",
+        "extraction_status": "not_found",
+        "confidence": 0.0,
+        "source_url": "",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       },
+       "feat_benefit_volatility": {
+        "display": "미확인",
+        "headline": "미확인",
+        "value": "미확인",
+        "condition": "36개월 변경 이력 확인 불가",
+        "items": [],
+        "value_numeric": null,
+        "unit": "",
+        "as_of": "",
+        "extraction_status": "not_found",
+        "confidence": 0.0,
+        "source_url": "",
+        "evidence": "",
+        "derived_from": "",
+        "footnote_refs": [],
+        "manual_check_required": false
+       }
+      }
+     }
+    ]
+   },
+   "product_summary": {
+    "per_product": [
+     {
+      "candidate_id": "own_토스트래블카드",
+      "design_summary": "인터넷은행(토스뱅크) 외화통장 연결형 체크카드로, 환전·재환전 수수료 0원 구조를 기반으로 하되 2026-04-01부터 해외결제 수수료를 부과하고 2% 캐시백으로 상쇄하는 페이백형 설계."
+     },
+     {
+      "candidate_id": "comp_신한sol트래블체크카드",
+      "design_summary": "전업카드사(신한카드)가 발급하는 외화통장 연결 체크카드로, 환전·결제·ATM 3종 수수료를 모두 면제하고 공항라운지 등 오프라인 여행 부가혜택을 다층 제공하는 종합혜택형 설계."
+     },
+     {
+      "candidate_id": "comp_트래블월렛카드",
+      "design_summary": "핀테크 전자금융업자가 발행하는 VISA 충전식 선불카드로, 46종 통화를 미리 충전해 수수료 0%로 결제하고 잔액을 즉시 환불받는 충전·선불 통제형 설계."
+     },
+     {
+      "candidate_id": "comp_하나트래블로그카드",
+      "design_summary": "전업카드사(하나카드)가 외화 하나머니 포인트 기반으로 운영하는 체크·신용 라인업으로, 58종 통화 환율 100% 우대와 항공·여행 적립 혜택을 결합한 포인트 연동형 설계."
+     }
+    ],
+    "own_characteristics": [
+     "외화통장 기반 환전수수료 0원(100% 우대), 재환전 수수료 0원 구조",
+     "2026-04-01 이후 해외결제 수수료(1%+건당 USD 0.5) 부과 후 2% 캐시백으로 환급하는 페이백 방식",
+     "일본 결제 한시 3% 캐시백(~2026-06-30)",
+     "외화 부족 시 원화통장 자동환전·타행 계좌 자동충전 지원",
+     "지원 통화 17종(경쟁사 30~58종 대비 최소 수준)"
+    ],
+    "commonalities": [
+     "해외 ATM 출금 시 카드사 부과 수수료 면제 또는 혜택 제공(조건 상이)",
+     "외화통장/충전 잔액 기반 현지 통화 결제 방식",
+     "컨택리스(Tap & Go) 해외 결제 지원",
+     "재환전 시 수수료 우대(면제 또는 50% 이상 우대)"
+    ],
+    "differences": [
+     "경쟁사 3사는 해외결제 수수료를 완전 면제하는 반면, 토스 트래블카드는 수수료 부과 후 캐시백 방식으로 전환(2026-04-01~)",
+     "토스 트래블카드는 지원 통화가 17종으로 경쟁사(30~58종) 대비 가장 적음",
+     "경쟁사(신한·하나)는 공항라운지, 여행보험, 항공사 적립 등 오프라인 여행 부가혜택을 제공하나 토스는 자동환전·자동충전 등 UX 편의 중심",
+     "트래블월렛은 선불 충전형 구조로 사용자가 환전 시점을 직접 통제하는 반면, 토스는 잔액 부족 시 자동환전으로 편의성 우선 설계"
+    ],
+    "strengths": [
+     {
+      "point": "고액 결제 시 캐시백(2%)이 수수료(1%+USD 0.5) 합계를 초과해 순이득 발생",
+      "condition": "건당 약 USD 50 이상 고액·저빈도 결제",
+      "feature_id": "feat_overseas_payment_fee_rate",
+      "evidence": "수수료 1% + 건당 USD 0.5 부과, 2% 캐시백"
+     },
+     {
+      "point": "일본 결제 시 3% 캐시백으로 경쟁사 면제 구조 대비 순이득",
+      "condition": "일본 결제, 2026-06-30까지 기간 한정",
+      "feature_id": "feat_overseas_payment_fee_rate",
+      "evidence": "일본 결제는 2026-06-30까지 한시적으로 3% 즉시 캐시백"
+     },
+     {
+      "point": "재환전 수수료 완전 면제로 남은 외화 처리 비용 0원",
+      "condition": "무조건(외화통장 보유 조건)",
+      "feature_id": "feat_reexchange_fee_rate",
+      "evidence": "면제 (외화→원화 재환전 시 환급수수료 없음, 전 통화·보관 한도 제한 없음)"
+     },
+     {
+      "point": "외화 부족 시 원화통장 자동환전·타행 자동충전으로 잔액 부족 리스크 최소화",
+      "condition": "무조건(외화통장·타행 계좌 연동 전제)",
+      "feature_id": "feat_travel_specific_benefit",
+      "evidence": "부족한 돈 자동환전, 카드 잔액 자동 충전"
+     }
+    ],
+    "weaknesses": [
+     {
+      "point": "소액 다수 결제 시 건당 USD 0.5 고정 수수료 비중이 커져 캐시백(2%)으로 상쇄 불가, 경쟁사 면제 대비 불리",
+      "condition": "건당 약 USD 25 미만 소액·다빈도 결제",
+      "feature_id": "feat_overseas_payment_fee_rate",
+      "evidence": "수수료 1% + 건당 USD 0.5 부과, 2% 캐시백"
+     },
+     {
+      "point": "지원 통화 17종으로 신한(30종)·하나(58종)·트래블월렛(46종) 대비 최소, 비주류 통화 여행지 이용 불가",
+      "condition": "17종 미포함 통화 사용 국가 여행",
+      "feature_id": "feat_supported_currency_count",
+      "evidence": "17종 (USD·EUR·JPY·GBP·CAD·AUD·NZD·SGD·HKD·CNY·CHF·MYR·PHP·IDR·THB·VND·TWD)"
+     },
+     {
+      "point": "공항라운지, 여행자보험, 항공사 적립 등 오프라인 여행 부가혜택 부재",
+      "condition": "장거리·고빈도 항공 이용자, 프리미엄 여행 패턴",
+      "feature_id": "feat_travel_specific_benefit",
+      "evidence": "부족한 돈 자동환전 · 카드 잔액 자동 충전 · 컨택리스 교통카드"
+     }
+    ]
+   },
+   "promotional_footnotes": [
+    {
+     "ref": 1,
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "feature_id": "feat_travel_specific_benefit",
+     "valid_until": "2026-12-31",
+     "note": "환율우대 100%·마스터카드 10% 캐시백 — 기간 한정"
+    },
+    {
+     "ref": 2,
+     "candidate_id": "own_토스트래블카드",
+     "feature_id": "feat_domestic_lockin",
+     "valid_until": "2026-09-30",
+     "note": "스위치 캐시백 시즌6 — 시즌7 조건 미공지"
+    },
+    {
+     "ref": 3,
+     "candidate_id": "comp_하나트래블로그카드",
+     "feature_id": "feat_travel_specific_benefit",
+     "valid_until": "2026-12-31",
+     "note": "58종 중 54종 무료환전은 이벤트 — 4종만 상시"
+    },
+    {
+     "ref": 4,
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "feature_id": "feat_travel_specific_benefit",
+     "valid_until": "2026-12-31",
+     "note": "마스터카드 400여 가맹점 10% 캐시백 — 연장 미확정"
+    },
+    {
+     "ref": 5,
+     "candidate_id": "comp_신한sol트래블체크카드",
+     "feature_id": "feat_app_fx_convenience",
+     "valid_until": "",
+     "note": "공식 문서 간 가입 경로 불일치 (상품 페이지=슈퍼SOL 전용 / 상품설명서=영업점·SOL뱅크·슈퍼SOL)"
+    }
+   ],
+   "traps_footnote": [
+    "AP-1 comp_신한sol트래블체크카드 × feat_reexchange_fee — 다른 3사는 수수료율(%)로 공시하나 신한만 환율우대율(50%)로만 확인돼 단위가 일치하지 않는다. 직접 비교 불가.",
+    "AP-1 comp_트래블월렛카드 × feat_reexchange_fee — 명목 수수료 0%이나 환불 시 매도환율 스프레드가 적용되어 실부담이 0이 아니다.",
+    "AP-1 comp_트래블월렛카드 × feat_supported_currency_count — 충전 46종과 우대 100% 3종을 구분해야 한다. 46종만 보면 하나(58종) 다음으로 보이나 우대 기준으로는 최하위.",
+    "AP-2 own_토스트래블카드 × feat_overseas_payment_fee — 2026-04-01~08-10 구간에는 부과+캐시백 구조였다. 이 기간 수집 자료를 현재 조건으로 오독하지 말 것.",
+    "AP-3 own_토스트래블카드 × feat_regulatory_sandbox — 미확인. 하나만 특례 보유가 확인되어 이 행은 현재 비대칭이다.",
+    "AP-4 comp_하나트래블로그카드 × feat_travel_specific_benefit — 원본 수집값에 **신용카드 혜택이 체크카드로 섞여** 있었다(해외여행자보험·해외 3% 적립·통합한도 5만·공항라운지). 하나카드는 혜택 페이지를 체크/신용으로 분리 운영하며, 체크카드 부가서비스는 항공사 0.3% 적립뿐이다. 동일 브랜드 내 라인업 혼동은 수집 단계에서 재발 가능성이 높다.",
+    "AP-4 comp_신한sol트래블체크카드 × feat_travel_specific_benefit — 라운지 혜택에 \"전월 국내 이용 30만원 이상\" 실적 조건이 원본에서 누락되어 있었다. 무조건 혜택으로 오독될 소지.",
+    "AP-5 comp_신한sol트래블체크카드 × feat_app_fx_convenience — 공식 상품 페이지는 \"슈퍼SOL 앱에서만 개설\"이라 하고 공식 상품설명서는 \"영업점·SOL뱅크·슈퍼SOL\"이라 한다. 공식 문서 간 불일치이므로 어느 쪽도 단독 근거로 쓸 수 없다."
+   ]
+  },
+  "evaluation_score": 4,
+  "generated_at": "2026-09-09T00:00:00+00:00",
+  "source_references": [
+   {
+    "url": "https://img.shinhan.com/sbank2016/seol/20240117000001110008LC000030.PDF",
+    "feature_id": "feat_app_fx_convenience",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_atm_withdrawal_fee",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_benefit_volatility",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_card_structure_type",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_deposit_funding",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_domestic_benefit",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_domestic_lockin",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_fx_rate_preference",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_issuer_type",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_overseas_payment_fee",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_reexchange_fee",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_settlement_method",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "feature_id": "feat_supported_currency_count",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://www.shinhancard.com/pconts/html/card/apply/check/1225714_2206.html",
+    "feature_id": "feat_travel_specific_benefit",
+    "candidate_id": "comp_신한sol트래블체크카드"
+   },
+   {
+    "url": "https://docs.channel.io/travelwallet/ko/articles/충전-가능한-외화-종류가-궁금해요-aaa9a48b",
+    "feature_id": "feat_app_fx_convenience",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://docs.channel.io/travelwallet/ko/articles/해외-ATM-출금-한도-수수료는-얼마인가요-5d51ec3d",
+    "feature_id": "feat_atm_withdrawal_fee",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.travel-wallet.com/docs/pay_terms",
+    "feature_id": "feat_card_structure_type",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.travel-wallet.com/terms.html",
+    "feature_id": "feat_deposit_funding",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_domestic_benefit",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_domestic_lockin",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_fx_rate_preference",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.travel-wallet.com/terms.html",
+    "feature_id": "feat_issuer_type",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_overseas_payment_fee",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://docs.channel.io/travelwallet/ko/articles/환불-시-적용-환율은-어떻게-되나요-0cc2f37d",
+    "feature_id": "feat_reexchange_fee",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_settlement_method",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/2867",
+    "feature_id": "feat_supported_currency_count",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://www.travel-wallet.com/",
+    "feature_id": "feat_travel_specific_benefit",
+    "candidate_id": "comp_트래블월렛카드"
+   },
+   {
+    "url": "https://app.hanamembership.com/gw/gsp/gSP002m.do",
+    "feature_id": "feat_app_fx_convenience",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.hanacard.co.kr/OPI41000000D.web?CD_PD_SEQ=15414",
+    "feature_id": "feat_atm_withdrawal_fee",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+    "feature_id": "feat_benefit_volatility",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+    "feature_id": "feat_card_structure_type",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.ibtomato.com/ExternalView.aspx?type=1&no=19102",
+    "feature_id": "feat_deposit_funding",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.card-gorilla.com/contents/detail/3471",
+    "feature_id": "feat_domestic_benefit",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+    "feature_id": "feat_domestic_lockin",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDPD7000M.web",
+    "feature_id": "feat_fx_rate_preference",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/mobile_web/landing/travlog/gmh_credit/",
+    "feature_id": "feat_issuer_type",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+    "feature_id": "feat_overseas_payment_fee",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://sudanghelp.co.kr/blog/re-exchange-2026/",
+    "feature_id": "feat_reexchange_fee",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://marketin.edaily.co.kr/News/ReadE?newsId=02338646645418088",
+    "feature_id": "feat_regulatory_sandbox",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+    "feature_id": "feat_settlement_method",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDPD7000M.web",
+    "feature_id": "feat_supported_currency_count",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15356",
+    "feature_id": "feat_travel_specific_benefit",
+    "candidate_id": "comp_하나트래블로그카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/travelcard",
+    "feature_id": "feat_app_fx_convenience",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/card/benefits",
+    "feature_id": "feat_atm_withdrawal_fee",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://news.mtn.co.kr/news-detail/2026022410261632794",
+    "feature_id": "feat_benefit_volatility",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://support.toss.im/faq/tossbank/5265",
+    "feature_id": "feat_card_structure_type",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+    "feature_id": "feat_deposit_funding",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/card/benefits",
+    "feature_id": "feat_domestic_benefit",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/card/benefits",
+    "feature_id": "feat_domestic_lockin",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+    "feature_id": "feat_fx_rate_preference",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://toss.im/team",
+    "feature_id": "feat_issuer_type",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/checkcard-payment-fee-free",
+    "feature_id": "feat_overseas_payment_fee",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+    "feature_id": "feat_reexchange_fee",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://support.toss.im/faq/tossbank/5265",
+    "feature_id": "feat_settlement_method",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/foreign-currency-exchange",
+    "feature_id": "feat_supported_currency_count",
+    "candidate_id": "own_토스트래블카드"
+   },
+   {
+    "url": "https://www.tossbank.com/articles/travelcard",
+    "feature_id": "feat_travel_specific_benefit",
+    "candidate_id": "own_토스트래블카드"
+   }
+  ],
+  "warnings": [
+   "v2 정합화: 기존 feat_exchange_rate_application_method 는 상품별로 우대율·결제 메커니즘이 섞여 있어 feat_fx_rate_preference(환율 우대율)와 feat_settlement_method(결제 통화 처리)로 분리했다.",
+   "v2 정합화: feat_reexchange_fee_rate 는 하나 100% 우대·신한 50% 우대 등 우대율과 수수료율이 혼재했다. 고객 실부담 기준으로 통일하고 단위가 다른 신한은 partial 로 명시했다.",
+   "v2 정합화: feat_supported_currency_count 의 기준을 환율우대 100% 적용 통화 수로 통일했다. 신한 30종 → 42종(공식 페이지 확인), 트래블월렛 46종 → 우대 기준 3종으로 정정했다.",
+   "v2 정합화: own_토스트래블카드 의 해외결제 수수료를 2026-08-11 원복 반영, ATM 수수료에 월 5회/US$700 한도를 추가했다. 기존 값은 각각 원복 전·한도 누락 상태였다.",
+   "v2 정합화: as_of 를 전 셀에 기입했다(기존 32셀 중 2셀만 보유).",
+   "도메인 이관: feat_domestic_lockin·feat_deposit_funding·feat_regulatory_sandbox·feat_benefit_volatility 4개 행을 도메인 분석 탭에서 이관했다. category 로 그룹을 구분한다.",
+   "v2 표시: 셀별 기준일(as_of) 표기를 제거하고 리포트 헤더에 일괄 표기했다. 데이터에는 셀 단위 as_of 를 그대로 보관하므로(수집 시점 2026-04-20~2026-09-09) 추적성은 유지되며, 개별 시점은 셀 후버에서 확인할 수 있다.",
+   "v2 표시: 단일 표를 그룹별 2개 표(고객 혜택 / 사업자 구조)로 분리했다. 두 그룹은 독자의 질문이 달라 같은 격자에 두면 층위가 섞인다.",
+   "v2 표시: 4개 상품의 핵심값이 모두 같은 행은 정보량이 0이므로 표 맨 아래로 내리고 \"4사 동일\" 배지를 붙였다. 나열형 항목은 items 를 비교해 오탐을 막는다.",
+   "v3 분리: 기존 feat_travel_specific_benefit 에 여행 부가혜택과 앱 조작 편의가 섞여 있어 feat_app_fx_convenience(앱 편의 기능)를 분리했다. 후자는 파이프라인 feature pool 의 기존 ID 를 재사용한다 — 이번 실행에서 8개 항목에 선정되지 않았을 뿐 신규 항목이 아니다.",
+   "v3 신설: feat_domestic_benefit(국내 사용 혜택)을 고객 혜택 그룹에 추가했다. feat_domestic_lockin(사업자 구조)과 같은 사실을 다루지만 층위가 다르다 — 전자는 내역(\"무엇을 받는가\"), 후자는 판정(\"락인으로 작동하는가\"). derived_from 으로 파생 관계를 명시해 원본 갱신 시 함께 갱신되게 했다.",
+   "v4 사실검증: 여행 중 부가혜택·앱 편의 기능 8셀을 공식 출처로 재검증해 오류 9건을 수정했다. ①하나 체크카드에서 신용카드 혜택 제거(보험·3% 적립·통합한도·라운지) ②하나 적립 3%→0.3% ③하나 송금 한도 \"연\"→\"1개월\" ④신한 라운지에 전월 국내 30만원 조건 추가 ⑤신한 앱 가입 경로 정정 ⑥신한 외화 직접이체 범위 한정 ⑦하나 앱 명칭 정정 ⑧트래블월렛 \"앱 전용\"→\"앱 중심\" ⑨트래블월렛 보험 표현 완화. 토스 \"기간별 환율 차트\"는 공식 문서 미기재로 삭제했다.",
+   "score_rationale: as_of 전수 기입·단위 통일·함정 각주 전면 명시로 5점 요건 충족. 다만 feat_regulatory_sandbox 3셀 미확인 + 신한 공식 문서 간 불일치 1건으로 4점을 유지한다."
+  ],
+  "as_of_all": "2026-09-09"
+ },
+ "product_profiles": [
+  {
+   "candidate_id": "comp_신한sol트래블체크카드",
+   "product_name": "신한 SOL트래블 체크카드",
+   "profile_summary": "신한카드(전업카드사)가 발급하는 SOL트래블 체크카드로, 신한은행 SOL트래블 외화입금 계좌와 연결되어 발급된다. 해외 환전·결제·ATM 3종 수수료를 면제하며, 30종 통화 환전 수수료 무료, 재환전 시 수수료 50% 우대를 제공한다. 해외 결제 시 현지 통화로 결제하는 방식이며, 해외 ATM 이용 시 카드사 부과 수수료는 면제되나 현지 ATM 운영사 Surcharge는 별도 부과될 수 있다. 전 세계 공항라운지 연 2회 무료 이용, 컨택리스 해외 대중교통 1% 결제일 할인, 마스터카드 가맹점 최대 10% 캐시백(2026.12.31까지), 해외 인기 가맹점 5% 할인 등 여행 특화 혜택을 제공한다. 신용·체크 전환 가능한 SOL트래블 신용카드 버전도 별도 존재하며, 체크카드 해외 ATM 인출 한도는 1일 6,000 USD, 월 20,000 USD(최대 10,000 USD 상향 가능)이다.",
+   "sources_used": [
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_credit.html",
+    "https://www.shinhancard.com/pconts/html/main.html",
+    "https://www.shinhancard.com/pconts/company/html/promotion/press/1226784_3999.html",
+    "https://www.shinhancard.com/pconts/html/card/apply/check/1237542_2206.html",
+    "https://www.shinhancard.com/pconts/html/benefit/event/1227891_2239.html",
+    "https://www.shinhancard.com/pconts/html/card/apply/credit/1228373_2207.html",
+    "https://www.shinhancard.com/pconts/html/card/travel/travel_supersol.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/guide/CONFM90017/CONFM90017R02.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/terms/terms22/1237121_1222.html",
+    "https://www.shinhancard.com/mob/MOBFM154N/MOBFM154R01.shc"
+   ],
+   "fetch_failures": [
+    "https://www.shinhancard.com/",
+    "https://www.shinhancard.com/crp/CRP51000N/CRP51000PH.shc",
+    "https://www.shinhancard.com/pconts/html/company/intro/CONFM00012/CONFM00012C01.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/MOBFM630/MOBFM630R01.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/MOBFM651/MOBFM651R01.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/consumer/MOBFM324/MOBFM12310.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/online/MOBFM152/SHCFRW092.html",
+    "https://www.shinhancard.com/pconts/html/helpdesk/totalService/MOBFM12552/MOBFM12552G/MOBFM12552R05.html"
+   ],
+   "needs_manual_review": false
+  },
+  {
+   "candidate_id": "comp_트래블월렛카드",
+   "product_name": "트래블월렛 카드",
+   "profile_summary": "트래블월렛 카드는 주식회사 트래블월렛이 발행·관리하는 선불전자지급수단(VISA 네트워크)으로, 앱을 통해 충전 후 국내 신용카드 가맹점 및 해외 VISA 가맹점에서 결제할 수 있다. 전 세계 46개 통화를 지원하며, USD·JPY·EUR에 대해 환전 수수료 0%를 적용한다. 해외 가맹점 결제 시 외화 거래 수수료(foreign transaction fee)는 0%이다. 해외 VISA ATM에서 현지 통화 인출이 가능하며, 출금 한도는 1회 USD 400, 1일 USD 1,000, 월 USD 2,000이다. 컨택리스(Tap & Go) 결제 및 주요 도시 대중교통 탭 결제를 지원하고, 잔여 잔액 즉시 환불 기능을 제공한다. 카드 발급은 만 18세 이상 본인 명의 휴대전화·국내 은행 계좌·신분증 보유자를 대상으로 하며, GS25 ATM 즉시 발급도 가능하다. 약관 기준일은 2026년 6월 8일(Ver 2.2)이다.",
+   "sources_used": [
+    "https://www.travel-wallet.com/en",
+    "https://www.travel-wallet.com/docs/pay_terms",
+    "https://www.travel-wallet.com/pay_terms.html",
+    "https://www.travel-wallet.com/privacy.html",
+    "https://www.travel-wallet.com/terms.html",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%EC%9B%94%EB%A0%9B-%EC%9A%B0%EB%A6%AC%EC%B9%B4%EB%93%9C%EB%A1%9C-%ED%95%B4%EC%99%B8-ATM-%EC%9D%B4%EC%9A%A9%EC%9D%B4-%EA%B0%80%EB%8A%A5%ED%95%9C%EA%B0%80%EC%9A%94-b4404c94",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%ED%8E%98%EC%9D%B4-%EC%B9%B4%EB%93%9C-%EB%B0%9C%EA%B8%89-%EC%A1%B0%EA%B1%B4-d590d6c6",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%95%B4%EC%99%B8%EC%97%90%EC%84%9C-%EC%B9%B4%EB%93%9C-%EA%B2%B0%EC%A0%9C%EA%B0%80-%EC%95%88-%EB%8F%BC%EC%9A%94-624ba84d",
+    "https://docs.channel.io/travelwallet/ko/articles/GS25-ATM-%EC%B9%B4%EB%93%9C-%EB%B0%9C%EA%B8%89-%EB%B0%A9%EB%B2%95-ff34116e",
+    "https://docs.channel.io/travelwallet/ko/articles/%EC%B6%A9%EC%A0%84-%ED%95%9C%EB%8F%84%EB%8A%94-%EB%B3%80%EA%B2%BD%ED%95%A0-%EC%88%98-%EC%97%86%EB%82%98%EC%9A%94-f607d6dd",
+    "https://docs.channel.io/travelwallet/ko/articles/%ED%8A%B8%EB%9E%98%EB%B8%94%EC%9B%94%EB%A0%9B-%EA%B0%80%EC%9E%85-%EB%B0%8F-%EC%84%9C%EB%B9%84%EC%8A%A4-%EC%9D%B4%EC%9A%A9-%EC%A1%B0%EA%B1%B4-db2864ca"
+   ],
+   "fetch_failures": [],
+   "needs_manual_review": false
+  },
+  {
+   "candidate_id": "comp_하나트래블로그카드",
+   "product_name": "하나 트래블로그 카드",
+   "profile_summary": "하나 트래블로그 카드는 하나카드(전업카드사)가 발급하는 카드로, 체크카드와 신용카드 라인업이 존재한다. 체크카드는 하나머니 잔액 내에서 결제하는 하나머니 전용 체크카드이며, 신용카드는 신용결제 또는 외화 하나머니 설정을 선택할 수 있는 하이브리드 구조다. 외화 하나머니 설정 시 해외 가맹점 이용수수료(해외서비스수수료·국제브랜드수수료)와 해외 ATM 인출 수수료가 면제된다. 58종 통화에 대해 환율 100% 우대가 적용되며, 지원 통화 수는 58종이다. 신용 결제 설정 시 항공사·면세점·여행사 3% 하나머니 적립(통합 한도 5만 하나머니), 해외 가맹점 3% 하나머니 적립(최대 5만 하나머니) 혜택이 있다. 부가 혜택으로 해외여행자보험, 트래블버킷(항공·호텔·렌터카) 서비스가 제공된다. 재환전 수수료율의 구체적 수치는 발췌에서 확인되지 않으며, 환율 적용 방식의 세부 기준(실시간·고시환율 등)도 발췌에 명시되지 않았다.",
+   "sources_used": [
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15155",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=16801",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=17131",
+    "https://m.hanacard.co.kr/MKCDPD7000M.web",
+    "https://m.hanacard.co.kr/MKCONT3100M.web",
+    "https://m.hanacard.co.kr/MKATCL2032N.web",
+    "https://m.hanacard.co.kr/MKCDCM1000M.web?CD_PD_SEQ=16640",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15356",
+    "https://m.hanacard.co.kr/MKPONT2030M.web",
+    "https://m.hanacard.co.kr/MKTRVSTMPEVTM.web",
+    "https://m.hanacard.co.kr/mobile_web/landing/travlog/gmh_credit/",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=15414",
+    "https://m.hanacard.co.kr/MKCDCM1010M.web?CD_PD_SEQ=18969",
+    "https://m.hanacard.co.kr/MKCNSL6010M.web",
+    "https://smart.hanacard.co.kr/MPACEN300M.web",
+    "https://corp.hanacard.co.kr/MSA60000000N.web",
+    "https://corp.hanacard.co.kr/MPACEN100M.web?faqCategory=13",
+    "https://m.hanacard.co.kr/MKFAQ1010M.web",
+    "https://www.hanacard.co.kr/OSA43000000D.web"
+   ],
+   "fetch_failures": [
+    "https://www.hanacard.co.kr/"
+   ],
+   "needs_manual_review": true
+  },
+  {
+   "candidate_id": "own_토스트래블카드",
+   "product_name": "토스 트래블카드",
+   "profile_summary": "토스뱅크 트래블카드(토스뱅크 체크카드)는 토스뱅크(인터넷은행, 1금융권)가 발급하는 체크카드로, 토스뱅크 외화통장을 해외 결제계좌로 지정한 경우 해외 결제 수수료 및 해외 ATM 출금 수수료가 면제된다. 단, 현지 ATM 운영사 수수료는 별도 부과될 수 있다. 환전 수수료도 없으며, 외화 잔액 부족 시 연결된 토스뱅크 통장에서 자동 환전하는 '부족한 돈 자동환전' 기능과, 토스뱅크 통장 잔액 부족 시 타행 계좌에서 원화를 자동 충전하는 '카드 잔액 자동 충전' 기능을 제공한다. 마스터카드 컨택리스 방식으로 해외 대중교통 이용도 가능하다(일부 국가 제한). 연회비 없음. 환율 적용 방식, 지원 통화 수, 재환전 수수료율에 대한 정보는 제공된 발췌에서 확인되지 않는다.",
+   "sources_used": [
+    "https://toss.im/team",
+    "https://www.tossbank.com/",
+    "https://www.tossbank.com/articles/travelcard",
+    "https://www.tossbank.com/product-service/card/check-card",
+    "https://support.toss.im/",
+    "https://support.toss.im/faq",
+    "https://toss.im/faq",
+    "https://support.toss.im/faq?category=298",
+    "https://toss.im/suspend"
+   ],
+   "fetch_failures": [
+    "https://support.toss.im/faq/tossplace/4461?from=147&page=1"
+   ],
+   "needs_manual_review": false
+  }
+ ],
+ "own_product": {
+  "brand": "토스",
+  "name": "토스 트래블카드",
+  "category": "해외여행 특화 체크카드",
+  "provider": "토스뱅크",
+  "product_id": "own_토스트래블카드"
+ }
+}

@@ -1,0 +1,129 @@
+{
+ "meta": {
+  "units": 543,
+  "questions": 170,
+  "analyzed": 368,
+  "channels": {
+   "community": 292,
+   "youtube": 251
+  }
+ },
+ "heat": [
+  {
+   "super_aspect": "ATM 이용",
+   "own_total": 27,
+   "own_pos": 10,
+   "own_neg": 10,
+   "own_neu": 7,
+   "own_net": 0.0,
+   "comp_best_net": 0.889,
+   "gap": -0.889
+  },
+  {
+   "super_aspect": "환전",
+   "own_total": 21,
+   "own_pos": 13,
+   "own_neg": 6,
+   "own_neu": 2,
+   "own_net": 0.333,
+   "comp_best_net": 0.412,
+   "gap": -0.078
+  },
+  {
+   "super_aspect": "해외결제",
+   "own_total": 13,
+   "own_pos": 4,
+   "own_neg": 6,
+   "own_neu": 3,
+   "own_net": -0.154,
+   "comp_best_net": 0.389,
+   "gap": -0.543
+  },
+  {
+   "super_aspect": "카드 발급·품질",
+   "own_total": 6,
+   "own_pos": 4,
+   "own_neg": 2,
+   "own_neu": 0,
+   "own_net": 0.333,
+   "comp_best_net": 0.333,
+   "gap": 0.0
+  },
+  {
+   "super_aspect": "계좌·충전·잔액 관리",
+   "own_total": 5,
+   "own_pos": 3,
+   "own_neg": 1,
+   "own_neu": 1,
+   "own_net": 0.4,
+   "comp_best_net": 0.5,
+   "gap": -0.1
+  },
+  {
+   "super_aspect": "앱 이용",
+   "own_total": 2,
+   "own_pos": 2,
+   "own_neg": 0,
+   "own_neu": 0,
+   "own_net": 1.0,
+   "comp_best_net": 0.333,
+   "gap": 0.667
+  },
+  {
+   "super_aspect": "국내결제",
+   "own_total": 1,
+   "own_pos": 0,
+   "own_neg": 1,
+   "own_neu": 0,
+   "own_net": -1.0,
+   "comp_best_net": 1.0,
+   "gap": -2.0
+  }
+ ],
+ "question_type_all": {
+  "recommendation": 42,
+  "comparison": 15,
+  "method": 14,
+  "feasibility": 61,
+  "condition": 20,
+  "troubleshooting": 10,
+  "cost": 6,
+  "other": 1,
+  "safety_anxiety": 1
+ },
+ "question_type_own": {
+  "recommendation": 7,
+  "method": 4,
+  "feasibility": 6,
+  "troubleshooting": 2,
+  "condition": 2
+ },
+ "question_aspect_own": {
+  "ATM 이용": 9,
+  "해외결제": 4,
+  "환전": 3,
+  "종합": 2,
+  "카드 발급·품질": 1,
+  "부가 혜택": 1,
+  "계좌·충전·잔액 관리": 1
+ },
+ "perspective_own": {
+  "cost": 19,
+  "coverage": 15,
+  "overall": 15,
+  "convenience": 18,
+  "exchange_rate": 10,
+  "reliability": 5,
+  "other": 2,
+  "benefit": 3
+ },
+ "own_negative_subclusters": {
+  "ATM 이용": 10,
+  "환전": 6,
+  "해외결제": 6,
+  "종합": 3,
+  "카드 발급·품질": 2,
+  "계좌·충전·잔액 관리": 1,
+  "국내결제": 1
+ }
+}
