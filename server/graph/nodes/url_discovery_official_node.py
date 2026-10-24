@@ -61,6 +61,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+from server.cache_ttl import get_ttl_hours
+from server.config import (
+    OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED,
+    OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX,
+    OFFICIAL_MAX_URLS_PER_CANDIDATE,
+)
+from server.graph.agent_cache import load_agent_output, store_agent_output
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
@@ -89,12 +96,44 @@ _OFFICIAL_SUBPAGE_KEYWORDS: tuple[str, ...] = (
 )
 
 _BRAVE_COUNT_PER_QUERY = 5
+
+# 노드 결과 캐시 (2026-10-23) — 공식 URL 선정 결과를 TTL 동안 고정한다.
+# 같은 (도메인 · 자사 상품 · candidate 집합) 이면 Brave 재탐색·도달성 재검증·상한 컷을
+# 다시 하지 않고 직전 선정 결과를 그대로 돌려준다 → feature_mapping_official 의
+# url_fingerprint 가 고정되어 하류(official_content_collection → comparison_matrix) 캐시가 히트.
+# 키에 taxonomy·official_sources 세부는 넣지 않는다(의도적: "한 번 선정하면 TTL 까지 재탐색 금지").
+# 강제 재탐색: data/cache/agent_outputs/url_discovery_official/ 의 해당 엔트리 삭제,
+#             또는 _NODE_CACHE_CONTEXT 의 "v" 증가(전체 무효화).
+_NODE_CACHE_AGENT_ID  = "url_discovery_official"
+_NODE_CACHE_CONTEXT   = {"agent_id": _NODE_CACHE_AGENT_ID, "v": 1}
+_NODE_CACHE_TTL_HOURS = get_ttl_hours("url_discovery_official_hours", 7200)  # cache_ttls.yaml
 _MAX_WORKERS           = 5     # site: 검색·_check_url_status 공통 worker 수
 _STATUS_OK_MIN         = 200
 _STATUS_OK_MAX         = 399
 
+# 상품명-비의존(공통 속성) feature — 상품명을 뺀 일반 변형 쿼리도 함께 발사한다.
+# 발급조건·카드구조 같은 속성은 상품명이 안 붙은 일반 페이지(예: 체크카드 발급조건)에
+# 있어, 상품명 쿼리만으로는 오답 페이지가 채택되는 문제를 보강한다(수집 점검 결과).
+_GENERIC_VARIANT_FEATURES = {"issuance_eligibility", "card_structure_type"}
+
 
 # ─── 헬퍼 ────────────────────────────────────────────────────────────────────
+
+def node_cache_input(domain_name: str, own_product: dict, candidate_ids) -> dict:
+    """노드 결과 캐시 키 입력. scripts/seed_url_discovery_official_cache.py 와 공유(단일 정의).
+
+    필드 구성은 feature_mapping_official 캐시 입력의 domain/own_product/candidate_ids 와
+    동일 규칙 — 기존 하류 캐시 엔트리로부터 시드(seed) 엔트리를 재구성할 수 있게 한다.
+    """
+    return {
+        "domain":        domain_name,
+        "own_product":   {
+            "brand":        own_product.get("brand", ""),
+            "product_name": own_product.get("name") or own_product.get("product_name", ""),
+        },
+        "candidate_ids": sorted(c for c in candidate_ids if c),
+    }
+
 
 def _extract_official_domain(primary_url: str) -> str:
     """primary_url 에서 host (스킴·path 없이) 추출.
@@ -121,6 +160,60 @@ def _build_subpage_query(candidate_name: str, official_domain: str, subpage_keyw
         "트래블월렛 약관 site:travelwallet.com"
     """
     return f"{candidate_name} {subpage_keyword} site:{official_domain}"
+
+
+def _comparison_feature_labels(domain_taxonomy: dict, limit: int) -> list[str]:
+    """comparison_matrix feature_labels(한국어) → 동적 sub-page 키워드 (합집합 2차 패스).
+
+    domain_taxonomy.report_config.comparison_matrix.feature_labels 값들. 없으면 빈 리스트.
+    정적 7키워드가 놓치는 feature 페이지(라운지·충전·재환전·적립 등)를 site: 재쿼리로 회수한다.
+    하드코딩이 아니라 도메인별 taxonomy 에서 동적으로 읽으므로 도메인 변경에 자동 적응한다.
+    """
+    cm = (domain_taxonomy.get("report_config") or {}).get("comparison_matrix") or {}
+    labels = cm.get("feature_labels") or {}
+    out: list[str] = []
+    for v in labels.values():
+        s = str(v).strip()
+        if s and s not in out:
+            out.append(s)
+        if len(out) >= limit:
+            break
+    return out
+
+
+def _cap_official_urls(merged: list[dict], cap: int) -> list[dict]:
+    """candidate당 official URL 상한 — feature_mapping payload 비대화(timeout) 방지.
+
+    판단 기준(우선순위):
+      1) carry-through `official_source`(자사·경쟁사 공식 도메인 확정 URL)는 **무조건 유지**.
+         권위 페이지이자 downstream 리포트의 근간이므로 상한에서 제외 대상이 아니다.
+      2) `official_subpage` 는 **키워드 다양성 우선(greedy set-cover)** — 아직 안 뽑힌
+         subpage_category(=발견 키워드)를 먼저 1개씩 채워, 특정 feature 에 URL 이 쏠리지 않고
+         **여러 feature 가 최소 1개씩 커버**되도록 폭을 확보한다.
+      3) 남는 예산은 나머지 subpage 를 원래 순서(도달성 검증 통과 순)대로 채운다.
+    cap 이하이면 원본을 그대로 반환한다.
+    """
+    if cap <= 0 or len(merged) <= cap:
+        return merged
+    carry = [u for u in merged if u.get("origin") == "official_source"]
+    subs  = [u for u in merged if u.get("origin") != "official_source"]
+    kept: list[dict] = list(carry[:cap])
+    seen_cat: set[str] = set()
+    overflow: list[dict] = []
+    for u in subs:                                   # 1차: 키워드 다양성(greedy)
+        if len(kept) >= cap:
+            break
+        cat = u.get("subpage_category", "")
+        if cat not in seen_cat:
+            seen_cat.add(cat)
+            kept.append(u)
+        else:
+            overflow.append(u)
+    for u in overflow:                               # 2차: 남는 예산 순서대로
+        if len(kept) >= cap:
+            break
+        kept.append(u)
+    return kept[:cap]
 
 
 def _is_status_ok(status: int | None) -> bool:
@@ -217,6 +310,38 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
         len(carried_by_candidate), len(domain_by_candidate),
     )
 
+    # ── Step 1.5: 노드 결과 캐시 조회 (TTL 내 재탐색 금지) ─────────────────────
+    cache_input = node_cache_input(domain_name, own_product, carried_by_candidate.keys())
+    cached = None
+    if carried_by_candidate:
+        cached = load_agent_output(
+            agent_id=_NODE_CACHE_AGENT_ID,
+            cache_input=cache_input,
+            context=_NODE_CACHE_CONTEXT,
+            logger=logger,
+            ttl_hours=_NODE_CACHE_TTL_HOURS,
+        )
+    if cached and cached.get("official_urls_by_candidate"):
+        cached_results: dict = cached["official_urls_by_candidate"]
+        logger.info(
+            "url_discovery_official_node: 노드 캐시 hit — 재탐색 생략 (%d candidate · 총 %d URL, 선정 %s)",
+            len(cached_results), sum(len(v) for v in cached_results.values()),
+            cached.get("selected_at", "?"),
+        )
+        print(
+            f"🏛️  [url_discovery_official_node] cache hit — {len(cached_results)} candidate",
+            flush=True,
+        )
+        return {
+            "official_urls_by_candidate": cached_results,
+            "agent_steps": [{
+                "step_name":   "UrlDiscoveryOfficial",
+                "status":      "completed",
+                "started_at":  started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }],
+        }
+
     # ── Step 2: source_hint="official" hints 추출 ───────────────────────────
     all_active      = _extract_active_reports(domain_taxonomy)
     hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
@@ -224,6 +349,12 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
     # ── Step 3: site: 한정 검색 (candidate × domain × sub-page 키워드) ──────
     # (candidate_id, query, subpage_category) 작업 목록
     subpage_tasks: list[tuple[str, str, str]] = []
+    # 동적 2차 패스 키워드 (comparison_matrix feature_labels) — 정적과 합집합.
+    dynamic_kw = (
+        _comparison_feature_labels(domain_taxonomy, OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX)
+        if OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED else []
+    )
+    _static_set = set(_OFFICIAL_SUBPAGE_KEYWORDS)
     for cid, official_domains in domain_by_candidate.items():
         cand_name = name_map.get(cid) or name_map.get("own", "")
         if not cand_name:
@@ -232,6 +363,16 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
             for keyword in _OFFICIAL_SUBPAGE_KEYWORDS:
                 query = _build_subpage_query(cand_name, official_domain, keyword)
                 subpage_tasks.append((cid, query, keyword))
+            for keyword in dynamic_kw:                    # 동적 feature 라벨 (정적 중복 제외)
+                if keyword in _static_set:
+                    continue
+                query = _build_subpage_query(cand_name, official_domain, keyword)
+                subpage_tasks.append((cid, query, keyword))
+    if dynamic_kw:
+        logger.info(
+            "url_discovery_official_node: 동적 sub-page 키워드 %d종 추가 (정적 %d + 동적)",
+            len(dynamic_kw), len(_OFFICIAL_SUBPAGE_KEYWORDS),
+        )
 
     # source_hint="official" hint 가 있으면 site: 부착하여 추가 보강
     # (D33 옵션 a: domain_taxonomy 의 LLM 추천 hint 도 활용)
@@ -252,6 +393,19 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
                 for official_domain in sorted(official_domains):
                     subpage_tasks.append(
                         (cid, f"{base_query} site:{official_domain}", "hint"))
+
+            # 공통 속성 feature: 상품명을 뺀 일반 변형도 추가 (일반 페이지 보강)
+            if feature_id in _GENERIC_VARIANT_FEATURES:
+                generic_tmpl = " ".join(
+                    query_template.replace("{candidate_name}", "").split())
+                generic_query = _substitute_tokens(
+                    generic_tmpl, name_map, cand_name, own_product_name, domain_name)
+                if (generic_query and "{" not in generic_query
+                        and "site:" not in generic_query.lower()
+                        and generic_query != base_query):
+                    for official_domain in sorted(official_domains):
+                        subpage_tasks.append(
+                            (cid, f"{generic_query} site:{official_domain}", "hint"))
 
     # 동일 쿼리 dedup
     stage_dedup: dict[str, tuple[str, str, str]] = {}
@@ -280,7 +434,9 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
         futures = [pool.submit(_search, *t) for t in stage_dedup.values()]
-        for fut in as_completed(futures):
+        # 제출 순서대로 수집한다. as_completed(완료 순)로 쌓으면 스레드 타이밍에 따라 URL 순서가
+        # 바뀌고, 그 순서에 의존하는 _cap_official_urls 상한 컷이 실행마다 다른 URL 을 남긴다.
+        for fut in futures:
             cid, results, keyword = fut.result()
             domains = domain_by_candidate.get(cid) or set()
             for r in results:
@@ -342,7 +498,13 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
                 merged.append(u)
                 seen_urls.add(u["url"])
         if merged:
-            final_results[cid] = merged
+            capped = _cap_official_urls(merged, OFFICIAL_MAX_URLS_PER_CANDIDATE)
+            if len(capped) < len(merged):
+                logger.info(
+                    "url_discovery_official_node: %s URL 상한 적용 %d → %d (carry 유지 + 키워드 다양성)",
+                    cid, len(merged), len(capped),
+                )
+            final_results[cid] = capped
 
     total = sum(len(v) for v in final_results.values())
     logger.info(
@@ -353,6 +515,28 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
         sum(len(v) for v in filtered_subpage.values()),
         dropped_count, len(errors),
     )
+
+    # ── Step 7: 노드 결과 캐시 저장 — Brave 부분 실패가 없을 때만(불완전 선정 고정 방지) ──
+    if final_results and not errors and carried_by_candidate:
+        try:
+            store_agent_output(
+                agent_id=_NODE_CACHE_AGENT_ID,
+                cache_input=cache_input,
+                context=_NODE_CACHE_CONTEXT,
+                output={
+                    "official_urls_by_candidate": final_results,
+                    "selected_at": datetime.now(timezone.utc).isoformat(),
+                    "origin": "live",
+                },
+                logger=logger,
+            )
+        except Exception as exc:  # noqa: BLE001 — 캐시 저장 실패는 비치명
+            logger.warning("url_discovery_official_node: 노드 캐시 저장 실패: %s", exc)
+    elif errors:
+        logger.info(
+            "url_discovery_official_node: 부분 실패 %d건 — 노드 캐시 저장 생략(다음 실행 재탐색)",
+            len(errors),
+        )
 
     finished_at = datetime.now(timezone.utc).isoformat()
     step: AgentStep = {

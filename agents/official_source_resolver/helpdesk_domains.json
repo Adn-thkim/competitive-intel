@@ -1,0 +1,21 @@
+{
+  "_meta": {
+    "description": "공용 헬프데스크/고객센터 SaaS 도메인 목록. 이 도메인의 페이지는 자체 도메인이 아니어도, URL 의 서브도메인 또는 경로에 브랜드 토큰이 있으면 해당 브랜드의 '보조 공식 출처'로 인정한다(_filter_official_urls). 예: docs.channel.io/travelwallet → 트래블월렛 보조 공식. 공용 SaaS 라 host 단독이 아니라 '브랜드 경로/서브도메인' 한정으로만 통과시킨다(타 브랜드 고객센터 오인 방지).",
+    "version": 1,
+    "updated_at": "2026-06-27",
+    "match_rule": "host == entry 또는 host.endswith('.' + entry) (www. 제거 후) AND 브랜드 토큰이 host 또는 path 에 존재"
+  },
+  "hosts": [
+    "channel.io",
+    "zendesk.com",
+    "freshdesk.com",
+    "intercom.help",
+    "gitbook.io",
+    "gitbook.com",
+    "notion.site",
+    "helpscoutdocs.com",
+    "crisp.help",
+    "happyfox.com",
+    "stonly.com"
+  ]
+}

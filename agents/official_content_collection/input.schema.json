@@ -49,7 +49,7 @@
         "required": ["url", "origin", "excerpt"],
         "properties": {
           "url":              { "type": "string", "minLength": 1 },
-          "origin":           { "type": "string", "enum": ["official_source", "official_subpage", "additional_validated"] },
+          "origin":           { "type": "string", "enum": ["official_source", "official_subpage", "additional_validated", "helpdesk"] },
           "subpage_category": { "type": "string", "description": "약관·수수료·환율·한도·혜택·공지사항·이용안내·hint 또는 빈 문자열" },
           "feature_ids": {
             "type": "array",

@@ -2,68 +2,46 @@
   "$schema": "https://json-schema.org/draft/2020-12/schema",
   "$id": "https://example.com/schemas/comparison-matrix/output.schema.json",
   "title": "ComparisonMatrixAgentOutput",
-  "description": "코드가 구성한 feature_table을 입력받아 LLM이 산출하는 판정 부분 (CM-D1). 표 수치는 재생성하지 않는다. 설계: docs/design/comparison_matrix_node_design.md §5.",
+  "description": "코드가 구성한 feature_table을 입력받아 LLM이 산출하는 '제품 관점 요약'(product_summary). 표 수치는 재생성하지 않는다. v2.0 — 활용유형(use_case)·zone·harvey 폐기, 상품 설계 관점 요약으로 전환. 활용유형 분류는 positioning_map 으로 이관.",
   "type": "object",
   "additionalProperties": false,
-  "required": ["zone_summary", "harvey_balls", "use_case_weights", "warnings"],
+  "required": ["product_summary", "warnings"],
   "properties": {
-    "zone_summary": {
+    "product_summary": {
       "type": "object",
       "additionalProperties": false,
-      "required": ["winning", "battling", "losing", "overall_comment"],
+      "required": ["per_product", "own_characteristics", "commonalities", "differences", "strengths", "weaknesses"],
       "properties": {
-        "winning":  { "$ref": "#/$defs/zoneItems" },
-        "battling": { "$ref": "#/$defs/zoneItems" },
-        "losing":   { "$ref": "#/$defs/zoneItems" },
-        "overall_comment": {
-          "type": "string",
-          "maxLength": 600,
-          "description": "own 관점 종합 코멘트. 표에 없는 사실 인용 금지."
-        }
-      }
-    },
-    "harvey_balls": {
-      "type": "array",
-      "description": "정성 feature(value_numeric 없는 열) 한정 5단계(0~4) 판정. 정량 feature는 포함 금지.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["feature_id", "legend", "ratings", "interpretation"],
-        "properties": {
-          "feature_id": { "type": "string", "pattern": "^feat_" },
-          "legend": {
-            "type": "string",
-            "maxLength": 200,
-            "description": "각 단계의 의미 범례 (예: '4=전 통화 지원, 2=주요 통화만'). 필수 — Harvey Balls 규약"
-          },
-          "ratings": {
+        "per_product": {
+          "type": "array",
+          "description": "각 candidate 의 기능이 어떤 설계 방식/철학으로 구성·개발됐는지 제품 관점 요약.",
+          "items": {
             "type": "object",
-            "description": "candidate_id → 0(없음)~4(완전). 미확인 셀 candidate는 키 자체를 생략",
-            "additionalProperties": { "type": "integer", "minimum": 0, "maximum": 4 }
-          },
-          "interpretation": {
-            "type": "string",
-            "maxLength": 300,
-            "description": "이 항목에 대한 candidate 간 등급 차이의 종합 해석. 가장 우수·열위 상품과 그 이유를 1~2문장으로. 표 근거만 사용."
+            "additionalProperties": false,
+            "required": ["candidate_id", "design_summary"],
+            "properties": {
+              "candidate_id": { "type": "string", "minLength": 1, "description": "feature_table.rows 에 존재하는 candidate_id." },
+              "design_summary": { "type": "string", "maxLength": 300, "description": "이 상품의 기능이 어떤 설계 방식으로 구성됐는지 1~2문장. 표 display 근거만." }
+            }
           }
-        }
-      }
-    },
-    "use_case_weights": {
-      "type": "array",
-      "description": "입력에 action_lens가 있을 때만 산출. 없으면 빈 배열.",
-      "items": {
-        "type": "object",
-        "additionalProperties": false,
-        "required": ["use_case", "weights"],
-        "properties": {
-          "use_case": { "type": "string" },
-          "weights": {
-            "type": "object",
-            "description": "feature_id → 가중치 0~1 (합계 1 권장)",
-            "additionalProperties": { "type": "number", "minimum": 0, "maximum": 1 }
-          }
-        }
+        },
+        "own_characteristics": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 120 },
+          "description": "자사 상품의 특징 3~5개(짧은 명사구/문장). 표 근거."
+        },
+        "commonalities": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 160 },
+          "description": "자사와 경쟁사의 공통점 2~4개."
+        },
+        "differences": {
+          "type": "array",
+          "items": { "type": "string", "maxLength": 160 },
+          "description": "자사와 경쟁사의 두드러진 차이점 2~4개."
+        },
+        "strengths": { "$ref": "#/$defs/tradeoffItems" },
+        "weaknesses": { "$ref": "#/$defs/tradeoffItems" }
       }
     },
     "warnings": {
@@ -73,19 +51,18 @@
     }
   },
   "$defs": {
-    "zoneItems": {
+    "tradeoffItems": {
       "type": "array",
+      "description": "자사의 조건부 강점/약점. ‼ 한 feature 를 단일 시각으로 단정 금지 — 유불리가 사용 환경(예: 결제액·빈도·통화·여행 패턴)에 따라 갈리면 동일 feature 를 strengths·weaknesses 양쪽에 각각 조건을 달아 기재한다.",
       "items": {
         "type": "object",
         "additionalProperties": false,
-        "required": ["feature_id", "rationale"],
+        "required": ["point", "condition"],
         "properties": {
-          "feature_id": { "type": "string", "pattern": "^feat_" },
-          "rationale": {
-            "type": "string",
-            "maxLength": 300,
-            "description": "판정 근거 — 표의 display 값 인용. 표에 없는 사실 금지"
-          }
+          "point": { "type": "string", "maxLength": 160, "description": "강점/약점 요지." },
+          "condition": { "type": "string", "maxLength": 160, "description": "이 판단이 성립하는 환경·조건(예: '고액·저빈도 결제'). 조건 없이 항상 성립하면 '무조건'." },
+          "feature_id": { "type": "string", "description": "관련 feature_id (선택). feature_table 에 존재하는 값만." },
+          "evidence": { "type": "string", "maxLength": 200, "description": "표 display 인용 근거(선택)." }
         }
       }
     }

@@ -1,0 +1,49 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://example.com/schemas/comparison-normalizer/output.schema.json",
+  "title": "ComparisonNormalizerOutput",
+  "description": "v1.0 — feature_pool 의 셀 값을 비교표 노출용 headline(핵심값, 톤 통일) + condition(조건/부수)으로 정규화. comparison_matrix_node 가 build_feature_table 직전에 호출. 입력의 모든 (feature_id, candidate_id) 쌍에 1개씩.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["normalized"],
+  "properties": {
+    "normalized": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": ["feature_id", "candidate_id", "headline", "condition", "items"],
+        "properties": {
+          "feature_id": {
+            "type": "string",
+            "pattern": "^feat_",
+            "description": "입력 features 에 존재하는 feature_id."
+          },
+          "candidate_id": {
+            "type": "string",
+            "minLength": 1,
+            "description": "입력 cells 에 존재하는 candidate_id (own_*/comp_*)."
+          },
+          "headline": {
+            "type": "string",
+            "minLength": 1,
+            "maxLength": 24,
+            "description": "비교 핵심값. 같은 행에서 같은 사실은 같은 표기로 통일. 미확인은 '미확인'."
+          },
+          "condition": {
+            "type": "string",
+            "maxLength": 40,
+            "description": "headline 성립의 전제·제약·범위. 없으면 빈 문자열. headline 과 중복 금지."
+          },
+          "items": {
+            "type": "array",
+            "maxItems": 6,
+            "items": { "type": "string", "minLength": 1, "maxLength": 24 },
+            "description": "정성·나열형 feature(여행 혜택·앱 기능 목록 등)의 대표 항목(각 짧은 명사구, 3~5개). 셀에 줄바꿈으로 표시. 스칼라·단일분류형 feature 는 빈 배열 []."
+          }
+        }
+      }
+    }
+  }
+}

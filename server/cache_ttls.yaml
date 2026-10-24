@@ -22,6 +22,7 @@ defaults:
   reaction_video_gate_hours:    7200   # reaction_video_gate_node 영상 도메인 게이트 (커뮤니티 gate 와 대칭)
   reaction_prescreen_hours:     7200   # reaction_prescreen_node 스레드 프리스크린(배치별 캐시)
   feature_url_mapper_hours:     7200   # feature_url_mapper 노드 캐시 (4개 노드 공통)
+  url_discovery_official_hours: 7200   # url_discovery_official 노드 결과(공식 URL 선정) 고정 — TTL 내 재탐색 금지
   relevance_tag_hours:          7200   # relevance_tagger per-item 라벨 (텍스트 불변 → 장기)
   owned_channel_hours:          7200   # url_discovery_owned_channels
   blog_rss_hours:               7200   # blog_rss_collection (휴면)
