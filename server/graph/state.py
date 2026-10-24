@@ -424,6 +424,19 @@ class DomainAnalysisState(TypedDict, total=False):
     blog_posts:                list[dict[str, Any]]
     app_store_reviews:         list[dict[str, Any]]
     reaction_analysis:         dict[str, Any]
+    # ── 신 반응 파이프라인 (통합계획 §4-1, 이행기 — 구 reaction_analysis 와 병행) ──
+    # reaction_extract_node  → reaction_units / reaction_questions
+    # reaction_cluster_node  → reaction_axis(Phase A/store) / reaction_clustered(Phase B)
+    # 각 노드는 자기 키만 반환(replace). 누적 아님 → operator.add 리듀서 불필요.
+    reaction_gate:             dict[str, Any]   # ① 영상 게이트 통과 video_id (중간)
+    reaction_prescreened:      dict[str, Any]   # ②③④ 프리스크린 통과 스레드 (중간, youtube)
+    reaction_community_prescreened: dict[str, Any]  # 커뮤니티 gate 통과 스레드 (신 커뮤니티 gate 노드)
+    reaction_units:            list[dict[str, Any]]
+    reaction_questions:        list[dict[str, Any]]
+    reaction_axis:             dict[str, Any]
+    reaction_clustered:        dict[str, Any]
+    reaction_report_output:    dict[str, Any]   # ⑦ reaction_report_node 산출(신 인사이트, §4-3)
+    reaction_usage_start:      dict[str, Any]   # gate 진입 시 usage 스냅샷(세션 토큰 추적 시작점)
     youtube_channel_metadata:  dict[str, Any]
     blog_rss_posts:            list[dict[str, Any]]
     pr_releases:               list[dict[str, Any]]

@@ -12,9 +12,10 @@
  *   5. Agent 실행 이력
  */
 
-import { useState } from 'react';
+import { useEffect, useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
 import ReactionInsightReport from './ReactionInsightReport';
+import ReactionAxisReviewPage from './ReactionAxisReviewPage';
 import MarketingSocialReport from './MarketingSocialReport';
 
 /* ── 리포트 탭 정의 (v0.12.4 점진 렌더링) ──────────────────────────────────
@@ -52,11 +53,11 @@ function GenericReportView({ tab, report }) {
 }
 
 /* 탭 바 — 완성된 리포트만 클릭 가능, 나머지는 생성 중/준비 중 비활성 */
-function ReportTabs({ reportOutputs, reportsRunning, activeTab, onSelect }) {
+function ReportTabs({ readyMap, reportsRunning, activeTab, onSelect }) {
   return (
     <div className="mb-4 flex flex-wrap gap-2">
       {REPORT_TABS.map(tab => {
-        const ready = Boolean(reportOutputs[tab.key]);
+        const ready = Boolean(readyMap[tab.key]);
         const isActive = activeTab === tab.key;
         // 미구현(implemented=false) 리포트는 실행 중에도 '준비 중' 고정 (v0.13.1)
         const statusLabel = ready ? null
@@ -259,9 +260,19 @@ function GroupHeader({ type, count }) {
   );
 }
 
+// 엔티티 진단 섹션(자사 상품·브랜드 경쟁 상품·기능적 대안)은 리포트에서 비노출.
+const SHOW_ENTITY_SECTIONS = false;
+
 /* ── 메인 컴포넌트 ── */
-export default function ResultView({ result, reportsRunning = false, onReset }) {
-  const [activeTab, setActiveTab] = useState('comparison_matrix');
+export default function ResultView({ result, reportsRunning = false, onReset,
+                                     reactionReviewPending = false, threadId = null, onReactionApproved }) {
+  // #5 검토가 대기 중이면 '고객 반응 인사이트' 탭을 기본 활성(해야 할 작업이 그것이므로).
+  const [activeTab, setActiveTab] = useState(() => (reactionReviewPending ? 'reaction_insight' : 'comparison_matrix'));
+  const [showAgentLog, setShowAgentLog] = useState(false);   // Agent 실행 이력 — 기본 닫힘
+
+  // feature_selection → 결과 페이지 전환 시 직전 스크롤 위치가 남아 하단부터 보이는 문제 방지.
+  // ResultView 최초 마운트 시 최상단으로 이동(점진 렌더 탭 갱신엔 재실행 안 함).
+  useEffect(() => { window.scrollTo(0, 0); }, []);
   const state          = result?.state ?? {};
   const candidates     = state.competitor_candidates  ?? [];
   const functional     = state.functional_competitors ?? [];
@@ -288,6 +299,13 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
   const hasAnyReport     = Object.keys(reportOutputs).length > 0;
   const activeReport     = reportOutputs[activeTab];
   const activeTabMeta    = REPORT_TABS.find(t => t.key === activeTab);
+  // 탭 활성화 여부 — '고객 반응 인사이트'는 리포트(report_outputs.reaction_insight) 또는 검토 대기 중이면 활성.
+  const readyMap = {
+    comparison_matrix: Boolean(reportOutputs.comparison_matrix),
+    reaction_insight:  Boolean(reportOutputs.reaction_insight || reactionReviewPending),
+    marketing_social:  Boolean(reportOutputs.marketing_social),
+  };
+  const showReportArea = hasAnyReport || reportsRunning || reactionReviewPending;
   // candidate_id → 상품명 (리포트 컴포넌트 공용)
   const candidateNameMap = Object.fromEntries(
     (state.product_profiles ?? []).map(p => [p.candidate_id, p.product_name]));
@@ -334,10 +352,10 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
         )}
 
         {/* 리포트 탭 영역 (v0.12.4 — 점진 활성화) */}
-        {(hasAnyReport || reportsRunning) && (
+        {showReportArea && (
           <>
             <ReportTabs
-              reportOutputs={reportOutputs}
+              readyMap={readyMap}
               reportsRunning={reportsRunning}
               activeTab={activeTab}
               onSelect={setActiveTab}
@@ -345,12 +363,24 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
             {activeTab === 'comparison_matrix' && comparisonMatrix && (
               <ComparisonMatrixReport report={comparisonMatrix} />
             )}
-            {activeTab === 'reaction_insight' && reportOutputs.reaction_insight && (
-              <ReactionInsightReport
-                report={reportOutputs.reaction_insight}
-                candidateNames={candidateNameMap}
-                ownProductId={ownProduct.product_id}
-              />
+            {/* 고객 반응 인사이트 탭: 리포트(report_outputs.reaction_insight) 우선, 없으면 #5 검토 화면 */}
+            {activeTab === 'reaction_insight' && (
+              reportOutputs.reaction_insight ? (
+                <ReactionInsightReport
+                  report={reportOutputs.reaction_insight}
+                  candidateNames={candidateNameMap}
+                  ownProductId={ownProduct.product_id}
+                />
+              ) : reactionReviewPending ? (
+                <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
+                  <ReactionAxisReviewPage
+                    embedded
+                    state={state}
+                    threadId={threadId}
+                    onApproved={onReactionApproved}
+                  />
+                </div>
+              ) : null
             )}
             {activeTab === 'marketing_social' && reportOutputs.marketing_social && (
               <MarketingSocialReport
@@ -365,8 +395,8 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
           </>
         )}
 
-        {/* 자사 상품 요약 */}
-        {ownProduct.name && (
+        {/* 자사 상품 요약 (진단용 — 비노출) */}
+        {SHOW_ENTITY_SECTIONS && ownProduct.name && (
           <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
               자사 상품
@@ -394,8 +424,8 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
           </div>
         )}
 
-        {/* 경쟁사 후보 — competition_type별 섹션 */}
-        {candidates.length > 0 && (
+        {/* 경쟁사 후보 — competition_type별 섹션 (진단용 — 비노출) */}
+        {SHOW_ENTITY_SECTIONS && candidates.length > 0 && (
           <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-5">
               브랜드 경쟁 상품 ({candidates.length}개)
@@ -423,8 +453,8 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
           </div>
         )}
 
-        {/* 기능적 대안 섹션 */}
-        {functional.length > 0 && (
+        {/* 기능적 대안 섹션 (진단용 — 비노출) */}
+        {SHOW_ENTITY_SECTIONS && functional.length > 0 && (
           <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
             <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-4">
               기능적 대안 수단 ({functional.length}개)
@@ -442,13 +472,20 @@ export default function ResultView({ result, reportsRunning = false, onReset }) 
           </div>
         )}
 
-        {/* Agent 실행 이력 */}
+        {/* Agent 실행 이력 — 토글(기본 닫힘) */}
         {agentSteps.length > 0 && (
           <div className="bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-            <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider mb-3">
-              Agent 실행 이력
-            </h3>
-            <div className="flex flex-col gap-2">
+            <button
+              type="button"
+              onClick={() => setShowAgentLog(v => !v)}
+              className="w-full flex items-center justify-between text-left"
+            >
+              <h3 className="text-xs font-semibold text-gray-400 uppercase tracking-wider">
+                Agent 실행 이력 ({agentSteps.length})
+              </h3>
+              <span className="text-gray-400 text-xs">{showAgentLog ? '▲ 접기' : '▼ 펼치기'}</span>
+            </button>
+            <div className={`flex flex-col gap-2 ${showAgentLog ? 'mt-3' : 'hidden'}`}>
               {agentSteps.map((step, i) => (
                 <div key={i} className="flex items-center gap-3 text-sm">
                   <span className={`w-2 h-2 rounded-full shrink-0 ${

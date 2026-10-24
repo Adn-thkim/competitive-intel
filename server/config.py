@@ -130,6 +130,32 @@ REACTION_ABSA_SUBCHUNK_CHARS      = int(os.getenv("REACTION_ABSA_SUBCHUNK_CHARS"
 REACTION_ABSA_SUBSPLIT_ON_TIMEOUT = os.getenv(
     "REACTION_ABSA_SUBSPLIT_ON_TIMEOUT", "true").lower() == "true"
 
+# 신 반응 파이프라인 점수 기반 컷(gate/prescreen 등급화 → extract 앞단 물량 제어). PoC(poc_gate_score)
+# 검증: score>=2 필터가 카드-가치 무손실로 무가치 스레드를 제거(유튜브 통과분 ~60%·커뮤니티 ~12% 제외),
+# score↔카드가치 Spearman 커뮤니티 0.78·유튜브 0.74. 컷은 결정론 후처리(캐시 무효화 없음, 상한만 조정 가능).
+# 절차: ① score>=SCORE_MIN 필터 → ② 채널 스레드수 ≤ 상한이면 전량 / 초과면 score 내림차순 top-상한 절단.
+REACTION_SCORE_MIN      = int(os.getenv("REACTION_SCORE_MIN", "2"))    # 필터 임계(0~3)
+# 상한 하향(40/150→20/75, 2026-08): 커뮤니티가 밀도 높아(실측 10.8 units/thread) 40스레드=434 units 로
+# cluster 부하·429 주범. 절반으로 낮춰 총 물량 축소(≈345 units). 상한 축소는 score 접두 안정성상 기존
+# extract 캐시를 무효화하지 않는다(커뮤니티는 재추출 0, 유튜브는 축소분만). env 로 재상향 가능.
+# 상한 20/75(안정 값). 30/113 은 cluster 유닛↑로 429 반복 → 하향. dctx 안정화 후 extract 는 전량 히트.
+REACTION_MAX_COMMUNITY  = int(os.getenv("REACTION_MAX_COMMUNITY", "20"))    # 커뮤니티 스레드 상한(보수)
+REACTION_MAX_YOUTUBE    = int(os.getenv("REACTION_MAX_YOUTUBE", "75"))      # 유튜브 스레드 상한(보수, 동일 비율)
+
+# 리포트 상위 반응 항목 선정의 적응형 floor(α). 평균 점유율(1/k)의 α배 미만인 저빈도 항목은
+# 누적 50% 규칙에서 제외해 경계 아티팩트(1%짜리가 임계선 넘기려 끌려오는 문제)를 방지한다.
+# k=후보 귀속 항목 수(종합·기타 제외). floor 건수 = α × (전체건수/k). α=0.5 → 평균의 절반 미만 컷.
+REACTION_ASPECT_FLOOR_ALPHA = float(os.getenv("REACTION_ASPECT_FLOOR_ALPHA", "0.5"))
+
+# 자사 단독 긍정/부정 판정(rate-margin) — net 부호 규칙이 경계 셀(+4/−4)에 흔들리던 문제 대체.
+# 자사 단독 부정 = 자사 neg_rate ≥ MIN_RATE  그리고  (자사 neg_rate − 경쟁 **최고** neg_rate) ≥ MARGIN.
+# 평균이 아닌 최고값과 비교(강한 경쟁사가 평균에 희석돼 오판하던 문제 방지). (긍정은 pos_rate 대칭)
+# rate 분모 = tuple_count(중립 포함). MIN_SAMPLES 미만 표본은 자사·경쟁 모두 판정/비교에서 제외
+# (저표본 과대 방지). 히트맵 flag·예외 섹션·selected 태그 세 곳이 이 값·산식을 공유한다.
+REACTION_OWNONLY_MIN_RATE   = float(os.getenv("REACTION_OWNONLY_MIN_RATE", "0.5"))
+REACTION_OWNONLY_MARGIN     = float(os.getenv("REACTION_OWNONLY_MARGIN", "0.3"))
+REACTION_OWNONLY_MIN_SAMPLES = int(os.getenv("REACTION_OWNONLY_MIN_SAMPLES", "4"))
+
 # 관련성 태깅(RP-D1) — ABSA 앞단에서 Haiku 가 "카드 반응 aspect / none" 을 태깅해
 # 컷 우선순위(RP-D3)에 사용. off=비활성(기존 최신순 컷), cli=구독, api=토큰 과금(haiku).
 REACTION_RELEVANCE_ENGINE = os.getenv("REACTION_RELEVANCE_ENGINE", "api")   # off|cli|api
