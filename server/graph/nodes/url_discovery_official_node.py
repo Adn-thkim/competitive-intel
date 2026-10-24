@@ -61,11 +61,13 @@ from concurrent.futures import ThreadPoolExecutor, as_completed
 from datetime import datetime, timezone
 from urllib.parse import urlparse
 
+from server.cache_ttl import get_ttl_hours
 from server.config import (
     OFFICIAL_DYNAMIC_SUBPAGE_KW_ENABLED,
     OFFICIAL_DYNAMIC_SUBPAGE_KW_MAX,
     OFFICIAL_MAX_URLS_PER_CANDIDATE,
 )
+from server.graph.agent_cache import load_agent_output, store_agent_output
 from server.graph.progress_store import set_progress
 from server.graph.state import DomainAnalysisState, AgentStep
 from server.graph.nodes.feature_url_mapper_node import (
@@ -94,6 +96,17 @@ _OFFICIAL_SUBPAGE_KEYWORDS: tuple[str, ...] = (
 )
 
 _BRAVE_COUNT_PER_QUERY = 5
+
+# 노드 결과 캐시 (2026-10-23) — 공식 URL 선정 결과를 TTL 동안 고정한다.
+# 같은 (도메인 · 자사 상품 · candidate 집합) 이면 Brave 재탐색·도달성 재검증·상한 컷을
+# 다시 하지 않고 직전 선정 결과를 그대로 돌려준다 → feature_mapping_official 의
+# url_fingerprint 가 고정되어 하류(official_content_collection → comparison_matrix) 캐시가 히트.
+# 키에 taxonomy·official_sources 세부는 넣지 않는다(의도적: "한 번 선정하면 TTL 까지 재탐색 금지").
+# 강제 재탐색: data/cache/agent_outputs/url_discovery_official/ 의 해당 엔트리 삭제,
+#             또는 _NODE_CACHE_CONTEXT 의 "v" 증가(전체 무효화).
+_NODE_CACHE_AGENT_ID  = "url_discovery_official"
+_NODE_CACHE_CONTEXT   = {"agent_id": _NODE_CACHE_AGENT_ID, "v": 1}
+_NODE_CACHE_TTL_HOURS = get_ttl_hours("url_discovery_official_hours", 7200)  # cache_ttls.yaml
 _MAX_WORKERS           = 5     # site: 검색·_check_url_status 공통 worker 수
 _STATUS_OK_MIN         = 200
 _STATUS_OK_MAX         = 399
@@ -105,6 +118,22 @@ _GENERIC_VARIANT_FEATURES = {"issuance_eligibility", "card_structure_type"}
 
 
 # ─── 헬퍼 ────────────────────────────────────────────────────────────────────
+
+def node_cache_input(domain_name: str, own_product: dict, candidate_ids) -> dict:
+    """노드 결과 캐시 키 입력. scripts/seed_url_discovery_official_cache.py 와 공유(단일 정의).
+
+    필드 구성은 feature_mapping_official 캐시 입력의 domain/own_product/candidate_ids 와
+    동일 규칙 — 기존 하류 캐시 엔트리로부터 시드(seed) 엔트리를 재구성할 수 있게 한다.
+    """
+    return {
+        "domain":        domain_name,
+        "own_product":   {
+            "brand":        own_product.get("brand", ""),
+            "product_name": own_product.get("name") or own_product.get("product_name", ""),
+        },
+        "candidate_ids": sorted(c for c in candidate_ids if c),
+    }
+
 
 def _extract_official_domain(primary_url: str) -> str:
     """primary_url 에서 host (스킴·path 없이) 추출.
@@ -281,6 +310,38 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
         len(carried_by_candidate), len(domain_by_candidate),
     )
 
+    # ── Step 1.5: 노드 결과 캐시 조회 (TTL 내 재탐색 금지) ─────────────────────
+    cache_input = node_cache_input(domain_name, own_product, carried_by_candidate.keys())
+    cached = None
+    if carried_by_candidate:
+        cached = load_agent_output(
+            agent_id=_NODE_CACHE_AGENT_ID,
+            cache_input=cache_input,
+            context=_NODE_CACHE_CONTEXT,
+            logger=logger,
+            ttl_hours=_NODE_CACHE_TTL_HOURS,
+        )
+    if cached and cached.get("official_urls_by_candidate"):
+        cached_results: dict = cached["official_urls_by_candidate"]
+        logger.info(
+            "url_discovery_official_node: 노드 캐시 hit — 재탐색 생략 (%d candidate · 총 %d URL, 선정 %s)",
+            len(cached_results), sum(len(v) for v in cached_results.values()),
+            cached.get("selected_at", "?"),
+        )
+        print(
+            f"🏛️  [url_discovery_official_node] cache hit — {len(cached_results)} candidate",
+            flush=True,
+        )
+        return {
+            "official_urls_by_candidate": cached_results,
+            "agent_steps": [{
+                "step_name":   "UrlDiscoveryOfficial",
+                "status":      "completed",
+                "started_at":  started_at,
+                "finished_at": datetime.now(timezone.utc).isoformat(),
+            }],
+        }
+
     # ── Step 2: source_hint="official" hints 추출 ───────────────────────────
     all_active      = _extract_active_reports(domain_taxonomy)
     hints_with_meta = _extract_hints_for_source(all_active, _SOURCE_TYPE)
@@ -373,7 +434,9 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
 
     with ThreadPoolExecutor(max_workers=_MAX_WORKERS) as pool:
         futures = [pool.submit(_search, *t) for t in stage_dedup.values()]
-        for fut in as_completed(futures):
+        # 제출 순서대로 수집한다. as_completed(완료 순)로 쌓으면 스레드 타이밍에 따라 URL 순서가
+        # 바뀌고, 그 순서에 의존하는 _cap_official_urls 상한 컷이 실행마다 다른 URL 을 남긴다.
+        for fut in futures:
             cid, results, keyword = fut.result()
             domains = domain_by_candidate.get(cid) or set()
             for r in results:
@@ -452,6 +515,28 @@ def url_discovery_official_node(state: DomainAnalysisState, config: dict | None 
         sum(len(v) for v in filtered_subpage.values()),
         dropped_count, len(errors),
     )
+
+    # ── Step 7: 노드 결과 캐시 저장 — Brave 부분 실패가 없을 때만(불완전 선정 고정 방지) ──
+    if final_results and not errors and carried_by_candidate:
+        try:
+            store_agent_output(
+                agent_id=_NODE_CACHE_AGENT_ID,
+                cache_input=cache_input,
+                context=_NODE_CACHE_CONTEXT,
+                output={
+                    "official_urls_by_candidate": final_results,
+                    "selected_at": datetime.now(timezone.utc).isoformat(),
+                    "origin": "live",
+                },
+                logger=logger,
+            )
+        except Exception as exc:  # noqa: BLE001 — 캐시 저장 실패는 비치명
+            logger.warning("url_discovery_official_node: 노드 캐시 저장 실패: %s", exc)
+    elif errors:
+        logger.info(
+            "url_discovery_official_node: 부분 실패 %d건 — 노드 캐시 저장 생략(다음 실행 재탐색)",
+            len(errors),
+        )
 
     finished_at = datetime.now(timezone.utc).isoformat()
     step: AgentStep = {
