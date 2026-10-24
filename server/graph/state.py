@@ -441,6 +441,8 @@ class DomainAnalysisState(TypedDict, total=False):
     blog_rss_posts:            list[dict[str, Any]]
     pr_releases:               list[dict[str, Any]]
     market_context:            dict[str, Any]
+    # external_research_node → 외부 조사(이력·재무·시장) — insight_report 가 소비 (replace)
+    external_research:         dict[str, Any]
 
     # ── 7개 리포트 노드 출력 (§6-4 D1=B 분리형, v0.10 / CM-D3 reducer v0.12.4) ─
     report_outputs: Annotated[dict[str, dict[str, Any]], merge_report_outputs]

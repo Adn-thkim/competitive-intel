@@ -1,0 +1,33 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["metrics", "axis_phases", "profitability", "expirations", "notes"],
+  "$defs": {"quote": {"type": "string", "maxLength": 160}},
+  "properties": {
+    "metrics": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["metric", "entity", "value", "unit", "period", "scope", "source_org", "prior_value", "prior_period", "doc_id", "quote"],
+      "properties": {
+        "metric": {"enum": ["시장 이용액", "사업자 이용액", "점유율", "성장률", "가입자 수", "기타"]},
+        "entity": {"type": "string"}, "value": {"type": "number"}, "unit": {"type": "string"},
+        "period": {"type": "string"}, "scope": {"type": "string"},
+        "source_org": {"type": ["string", "null"]},
+        "prior_value": {"type": ["number", "null"]}, "prior_period": {"type": ["string", "null"]},
+        "doc_id": {"type": "string"}, "quote": {"$ref": "#/$defs/quote"}}}},
+    "axis_phases": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["period", "axis", "summary", "status", "doc_ids", "is_inference"],
+      "properties": {"period": {"type": "string"}, "axis": {"type": "string"}, "summary": {"type": "string"},
+        "status": {"enum": ["종결", "조건만 잔존", "활성"]},
+        "doc_ids": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+        "is_inference": {"type": "boolean"}}}},
+    "profitability": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["statement", "doc_id", "quote"],
+      "properties": {"statement": {"type": "string"}, "doc_id": {"type": "string"}, "quote": {"$ref": "#/$defs/quote"}}}},
+    "expirations": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["entity", "item", "ends_at", "doc_id", "quote"],
+      "properties": {"entity": {"type": "string"}, "item": {"type": "string"},
+        "ends_at": {"type": "string", "pattern": "^\\d{4}(-\\d{2}(-\\d{2})?)?$"},
+        "doc_id": {"type": "string"}, "quote": {"$ref": "#/$defs/quote"}}}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  }
+}
