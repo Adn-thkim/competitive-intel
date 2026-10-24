@@ -1,0 +1,39 @@
+{
+  "type": "object",
+  "properties": {
+    "negative_causes": {"type": "array", "items": {"type": "object", "properties": {
+      "label": {"type": "string"},
+      "resolution": {"type": "string", "enum": ["지출 필요", "비교 도구", "약속·공표", "UX 수정", "정보 개선", "대응 불가"]},
+      "solved_by_benefit": {"type": "boolean"},
+      "unit_ids": {"type": "array", "items": {"type": "string"}},
+      "quotes": {"type": "array", "items": {"type": "string"}},
+      "note": {"type": "string"}},
+      "required": ["label", "resolution", "solved_by_benefit", "unit_ids"]}},
+    "focus_negative_causes": {"type": "array", "items": {"type": "object", "properties": {
+      "label": {"type": "string"}, "solved_by_benefit": {"type": "boolean"},
+      "unit_ids": {"type": "array", "items": {"type": "string"}}, "note": {"type": "string"}},
+      "required": ["label", "solved_by_benefit", "unit_ids"]}},
+    "focus_positive_contexts": {"type": "array", "items": {"type": "object", "properties": {
+      "label": {"type": "string"}, "unit_ids": {"type": "array", "items": {"type": "string"}}},
+      "required": ["label", "unit_ids"]}},
+    "focus_question_breakdown": {"type": "array", "items": {"type": "object", "properties": {
+      "label": {"type": "string"}, "complains_about_level": {"type": "boolean"},
+      "question_ids": {"type": "array", "items": {"type": "string"}}},
+      "required": ["label", "complains_about_level", "question_ids"]}},
+    "question_shapes": {"type": "array", "items": {"type": "object", "properties": {
+      "shape": {"type": "string", "enum": ["확인 요청형", "들은 정보 검증형", "정보 충돌 해소형", "가격 정보 질문"]},
+      "question_ids": {"type": "array", "items": {"type": "string"}},
+      "meaning": {"type": "string"}},
+      "required": ["shape", "question_ids", "meaning"]}},
+    "value_language": {"type": "array", "items": {"type": "object", "properties": {
+      "unit_id": {"type": "string"}, "phrase": {"type": "string"}}, "required": ["unit_id", "phrase"]}},
+    "combination_use": {"type": "array", "items": {"type": "object", "properties": {
+      "id": {"type": "string"}, "quote": {"type": "string"}, "partner": {"type": "string"}},
+      "required": ["id", "quote"]}},
+    "domain_boundary_flags": {"type": "array", "items": {"type": "object", "properties": {
+      "id": {"type": "string"}, "reason": {"type": "string"}}, "required": ["id", "reason"]}}
+  },
+  "required": ["negative_causes", "focus_negative_causes", "focus_positive_contexts",
+               "focus_question_breakdown", "question_shapes", "value_language",
+               "combination_use", "domain_boundary_flags"]
+}

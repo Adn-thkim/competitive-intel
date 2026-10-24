@@ -26,6 +26,9 @@ defaults:
   relevance_tag_hours:          7200   # relevance_tagger per-item 라벨 (텍스트 불변 → 장기)
   owned_channel_hours:          7200   # url_discovery_owned_channels
   blog_rss_hours:               7200   # blog_rss_collection (휴면)
+  external_search_hours:        7200   # external_research 탐색 agent(LLM + WebSearch·WebFetch) — 재탐색 금지
+  external_fetch_hours:         7200   # external_research 원문 대조용 본문(서버 직접 수집)
+  external_research_hours:      7200   # external_research 추출 agent 출력(이력·재무·시장)
 
   # ── 인메모리 캐시 (서버 재시작 시 소멸 — 파일 캐시 전환은 Future_Improvements 5번) ──
   brave_result_hours:           7200   # url_cache E-1 (official_source_resolver 인메모리)

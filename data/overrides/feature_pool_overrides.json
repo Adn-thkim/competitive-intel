@@ -1,0 +1,143 @@
+{
+  "_meta": {
+    "description": "feature_pool 셀 수동 보정. assemble_feature_pool 직후 적용(server/graph/feature_pool_overrides.py). 키: '<candidate_id>::<feature_id>'. build_feature_table 가 override 셀은 정규화를 건너뛰고 아래 headline/condition/items 를 그대로 사용한다(표=headline 짧게, 후버=condition·value 전체).",
+    "version": 9,
+    "updated_at": "2026-10-25"
+  },
+  "overrides": {
+    "comp_트래블월렛카드::feat_issuance_eligibility": {
+      "headline": "만 17세 이상",
+      "condition": "본인 명의 휴대폰·국내 계좌·신분증 필요; 만 17세 미만 제한",
+      "value": "만 17세 이상 (본인 명의 휴대폰·국내 계좌·신분증 보유; 내국인 및 국내 거주 외국인). 만 17세 미만 발급 제한",
+      "evidence": "본인 명의의 휴대전화, 국내 은행 계좌, 신분증을 가지고 있는 만 17세 이상 누구나 가입 가능. 만 17세 미만은 여권이 있어도 발급 제한. 대한민국 국민 및 국내 거주 외국인(외국인등록증·국내거소신고증) 가입 가능.",
+      "source_url": "https://docs.channel.io/travelwallet/ko/articles/트래블페이-카드-발급-조건-d590d6c6",
+      "extraction_status": "explicit",
+      "confidence": 1.0
+    },
+    "comp_트래블월렛카드::feat_exchange_rate_type": {
+      "headline": "100% 우대",
+      "condition": "앱 고시 실시간 환율; 원화·USD·JPY·EUR 충전 0%, 그 외 0.5~2.5%",
+      "value": "앱 고시 실시간 환율 적용 (원화·USD·JPY·EUR 충전 수수료 0%, 그 외 통화 0.5~2.5%)",
+      "evidence": "대한민국 원화·달러·엔·유로는 통화 충전 수수료 0%, 이 외 통화는 충전 시 0.5%~2.5% 수수료 부과. 자세한 내용은 앱 내 고시된 실시간 환율 참고.",
+      "source_url": "https://docs.channel.io/travelwallet/ko/articles/충전-시-적용-환율은-어떻게-되나요-531308ca",
+      "extraction_status": "explicit",
+      "confidence": 0.9
+    },
+    "comp_트래블월렛카드::feat_atm_withdrawal_fee_benefit": {
+      "headline": "면제",
+      "condition": "월 $500까지(초과분 2%); 현지 ATM 업체 수수료 별도; 한도 1회 $400·1일 $1,000·월 $2,000",
+      "value": "월 $500 이하 인출 시 카드사 수수료 무료(초과분 2%); 현지 ATM 업체 수수료 별도. 한도 1회 $400·1일 $1,000·월 $2,000",
+      "evidence": "월 500달러(USD) 이하 인출 시 카드사 출금 수수료 무료(월 500달러 초과 시 초과 금액에 2% 수수료). 해당 국가·ATM 기기에 따라 현지 ATM 업체 수수료 발생 가능. 출금 한도 1회 $400·1일 $1,000·월 $2,000.",
+      "source_url": "https://docs.channel.io/travelwallet/ko/articles/해외-ATM-출금-한도-수수료는-얼마인가요-5d51ec3d",
+      "extraction_status": "explicit",
+      "confidence": 0.95
+    },
+    "comp_트래블월렛카드::feat_reexchange_fee_rate": {
+      "headline": "면제",
+      "condition": "",
+      "value": "면제 (충전 통화 환불 시 별도 수수료 없음)",
+      "evidence": "트래블월렛에 충전된 통화를 환불 시 별도 수수료는 발생하지 않으며(환불 시점 앱 고시 환율로 원화 환산).",
+      "source_url": "https://docs.channel.io/travelwallet/ko/articles/환불-시-적용-환율은-어떻게-되나요-0cc2f37d",
+      "extraction_status": "explicit",
+      "confidence": 0.9
+    },
+    "comp_트래블월렛카드::feat_app_fx_convenience": {
+      "items": [
+        "앱 내 충전·통화 교환",
+        "잔액 환급·친구 송금",
+        "46종 통화 충전 지원"
+      ],
+      "value": "앱 내 충전·통화 간 교환·잔액 환급·친구 송금; 46종 통화 충전 지원",
+      "evidence": "앱 내 충전(Top up in the app)·통화 간 교환·잔액 환급·친구 송금 기능. 충전 가능한 외화 46종 통화 지원.",
+      "source_url": "https://docs.channel.io/travelwallet/ko/articles/충전-가능한-외화-종류가-궁금해요-aaa9a48b",
+      "extraction_status": "partial",
+      "confidence": 0.8
+    },
+    "comp_신한sol트래블체크카드::feat_exchange_rate_type": {
+      "headline": "100% 우대",
+      "condition": "매매기준율 적용; USD 기준, 타 통화는 USD 환산 후",
+      "value": "매매기준율 적용 (환율 100% 우대); USD 기준, 타 통화는 USD 환산 후 적용",
+      "evidence": "SOL트래블 체크카드 — 해외 결제·환전 시 매매기준율(환율 100% 우대) 적용(무실적). USD 기준이며, 달러 이외 통화는 국제브랜드사 환율로 USD 환산 후 매매기준율 적용.",
+      "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+      "extraction_status": "explicit",
+      "confidence": 0.9
+    },
+    "comp_신한sol트래블체크카드::feat_app_fx_convenience": {
+      "items": [
+        "슈퍼SOL 앱 개설·신청·환전",
+        "42종 통화 환전 100% 우대"
+      ],
+      "value": "슈퍼SOL 앱에서 외화예금 계좌 개설·카드 신청·환전; 42종 통화 환전 100% 우대",
+      "evidence": "신한 슈퍼SOL 앱에서 SOL트래블 외화예금 계좌 개설 및 카드 신청·앱 내 환전 가능. 42종 통화 환전 100% 우대.",
+      "source_url": "https://www.shinhangroup.com/kr/archive/business/detail/291",
+      "extraction_status": "partial",
+      "confidence": 0.8
+    },
+    "comp_신한sol트래블체크카드::feat_atm_withdrawal_fee_benefit": {
+      "headline": "면제",
+      "condition": "전월 실적 무관(체크); 인출 수수료 면제 한도 없음; 별도 월 출금한도 US$10,000(2024.11~); 현지 ATM Surcharge 별도",
+      "value": "해외 ATM 인출 수수료(건당 US$3·국제브랜드 1%) 면제 — 전월 실적 무관, 면제 횟수·금액 한도 없음. 별도 월 출금한도 US$10,000(2024.11~). 현지 ATM 업체 수수료(Surcharge) 별도",
+      "evidence": "신한 SOL트래블 체크카드 — 해외 ATM 인출 수수료 면제는 전월 이용금액과 무관(무실적)하며 면제 횟수·금액 한도 없음(신용카드만 전월 40만원 실적 조건). 단 2024.11부터 해외 ATM 월 출금한도 US$10,000로 제한(종전 US$50,000). 현지 ATM 운영사 Surcharge 별도 부과 가능.",
+      "source_url": "https://www.shinhancard.com/pconts/html/card/travel/travel_check.html",
+      "extraction_status": "explicit",
+      "confidence": 0.85
+    },
+    "comp_하나트래블로그카드::feat_atm_withdrawal_fee_benefit": {
+      "headline": "면제",
+      "condition": "외화 하나머니 인출 시 면제(무실적); 인출한도 일 US$6,000·월 US$10,000; 현지 ATM Surcharge 별도",
+      "value": "외화 하나머니 해외 ATM 인출 시 해외서비스수수료(건당 US$3)·국제브랜드수수료(1%) 면제(무실적). 인출한도 일 US$6,000·월 US$10,000. 현지 ATM 업체 수수료(Surcharge) 별도",
+      "evidence": "하나 트래블로그 체크카드 — 외화 하나머니로 설정 시 해외 ATM 인출 수수료(해외서비스수수료 건당 US$3·국제브랜드수수료 1%) 면제. 인출한도 USD 6,000/일·USD 10,000/월(USD 환산 기준). 환전한 외화 하나머니의 현금 인출은 해외 ATM에서만 가능. 현지 ATM 기기 이용수수료(Surcharge) 별도.",
+      "source_url": "https://www.hanacard.co.kr/OPI41000000D.web?CD_PD_SEQ=15414",
+      "extraction_status": "explicit",
+      "confidence": 0.85
+    },
+    "own_토스트래블카드::feat_overseas_payment_fee_rate": {
+      "headline": "수수료 1% + 건당 USD 0.5 부과, 2% 캐시백",
+      "condition": "외화통장 보유 조건; 2026-04-01 변경(기존 면제→부과+캐시백); 건당 약 $50 이상부터 캐시백>수수료 순이득(소액은 약불리); 일본 한정 3% 캐시백 2026-06-30까지",
+      "value": "해외 결제 시 국제브랜드수수료(1%)·해외이용수수료(건당 USD 0.5) 부과, 해외결제 금액 2% 즉시 캐시백(외화통장 보유 조건). 일본 결제는 2026-06-30까지 한시적으로 3% 즉시 캐시백. 기존 고객 동일 적용. 경쟁사 면제(0) 대비 건당 약 $50 이상에서 순이득.",
+      "evidence": "2026년 4월 1일(수)부터 토스뱅크 체크카드+외화통장 보유 고객 대상 해외 결제 혜택 변경. 기존 국제브랜드 수수료(1%)와 해외이용 수수료(건당 USD 0.5)가 면제됐으나, 변경 후 해당 수수료가 부과되고 대신 해외 결제 금액의 2%가 즉시 캐시백으로 제공. 일본 결제는 2026년 6월 30일(화)까지 한시적으로 3% 즉시 캐시백. 변경 사항은 기존 고객에게도 동일 적용.",
+      "source_url": "https://support.toss.im/faq/tossbank/5265",
+      "extraction_status": "explicit",
+      "confidence": 0.95
+    },
+    "own_토스트래블카드::feat_exchange_rate_application_method": {
+      "headline": "환전수수료 0원(외화통장)",
+      "condition": "외화통장 연결 시; 잔액 부족분은 원화통장에서 자동환전",
+      "value": "토스뱅크 외화통장 기반 — 외화 살 때·팔 때 환전수수료 0원(100% 우대). 체크카드는 외화통장 잔액으로 현지 통화 결제, 잔액 부족 시 원화통장에서 자동환전되어 결제",
+      "evidence": "토스뱅크 외화통장은 외화를 살 때도 팔 때도 환전수수료가 없어요. … 토스뱅크 외화통장을 보유한 상태에서 체크카드로 결제하면 현지 통화로 결제돼요. 외화통장 잔액이 부족해도 부족한 금액만큼 원화 통장에서 자동으로 환전되어 결제할 수 있어요.",
+      "source_url": "https://www.tossbank.com/articles/currency-exchange",
+      "extraction_status": "explicit",
+      "confidence": 0.9
+    },
+    "own_토스트래블카드::feat_reexchange_fee_rate": {
+      "headline": "면제",
+      "condition": "외화통장 연결 시; 통화별·환급·보관 한도 제한 없음",
+      "value": "면제 (외화→원화 재환전 시 환급수수료 없음, 전 통화·보관 한도 제한 없음)",
+      "evidence": "여행 후 남은 외화를 다시 원화로 바꿀 때도 수수료가 나가지 않아요. … 토스뱅크 외화통장은 통화별 수수료, 환급 수수료, 보관 한도 모두 없어요.",
+      "source_url": "https://www.tossbank.com/articles/currency-exchange",
+      "extraction_status": "explicit",
+      "confidence": 0.95
+    },
+    "own_토스트래블카드::feat_supported_currency_count": {
+      "headline": "17종",
+      "condition": "토스뱅크 외화통장 지원 통화",
+      "value": "17종 (USD·EUR·JPY·GBP·CAD·AUD·NZD·SGD·HKD·CNY·CHF·MYR·PHP·IDR·THB·VND·TWD)",
+      "value_numeric": 17,
+      "unit": "종",
+      "evidence": "토스뱅크 외화통장은 하나의 계좌에서 총 17개 통화를 동시에 보유하고 거래할 수 있어요 (USD·EUR·JPY·GBP·CAD·AUD·NZD·SGD·HKD·CNY·CHF·MYR·PHP·IDR·THB·VND·TWD).",
+      "source_url": "https://www.tossbank.com/articles/currency-exchange",
+      "extraction_status": "explicit",
+      "confidence": 0.95
+    },
+    "own_토스트래블카드::feat_atm_withdrawal_fee_benefit": {
+      "headline": "월 5회·US$700까지 면제",
+      "condition": "매월 1일~말일 누적 출금 5회 또는 누적 인출 US$700까지 면제(2025.05.01. 적용); 6회차부터 인출액 1% + US$3; US$700 초과 시점 거래는 초과 차액 1% + US$3, 이후 거래는 인출액 1% + US$3; 해외 ATM 기기 자체 수수료 별도",
+      "value": "해외 ATM 출금 시 국제브랜드 수수료(1%) 및 출금 건당 US$3 면제. 단, 매월 1일~말일 기준 누적 출금 횟수 5회 또는 누적 인출 금액 US$700까지만 면제(2025.05.01. 적용). ① 출금 횟수가 인출 금액보다 먼저 또는 동시에 초과 시: 누적 인출 금액 관계없이 출금 6회차 거래부터 인출 금액의 1% + US$3 부과. ② 인출 금액이 출금 횟수보다 먼저 초과 시: 누적 인출 금액 US$700을 초과하는 시점의 거래는 US$700 초과 차액의 1% + US$3, 이후 거래는 인출 금액의 1% + US$3 부과. 초과 수수료가 없어도 해외 ATM 기기 자체 수수료는 발생 가능",
+      "evidence": "해외 ATM 출금 시, 국제브랜드 수수료(1%) 및 출금 건 당 US$ 3 면제되어요. 다만, 매월 1일 ~ 말일 기준 누적 출금 횟수 5회 또는 누적 인출 금액 US$ 700까지만 면제되며, 초과 시점부터 다음과 같이 수수료가 부과되니 참고해 주세요. (2025. 05. 01. 적용) / 수수료 부과 조건 ① 출금 횟수가 인출 금액 보다 먼저 또는 동시에 초과 시 — 누적 인출 금액 관계 없이, 출금 6회차 거래부터 인출 금액의 1% + US$ 3 부과 ② 인출 금액이 출금 횟수 보다 먼저 초과 시 — 누적 인출 금액 US$ 700을 초과하는 시점의 거래: US$ 700 초과 차액의 1% + US$ 3 부과, 상기 이후 거래: 인출 금액의 1% + US$ 3 부과 / 참고사항: 초과 수수료가 발생하지 않는 경우라도, 해외 ATM 기기 자체의 수수료는 발생할 수 있어요.",
+      "source_url": "https://support.toss.im/faq/tossbank/5515",
+      "as_of": "2025-05-01",
+      "extraction_status": "explicit",
+      "confidence": 1.0
+    }
+  }
+}

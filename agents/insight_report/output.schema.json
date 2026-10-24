@@ -1,0 +1,74 @@
+{
+  "type": "object",
+  "properties": {
+    "summary": {"type": "object", "properties": {
+      "conclusions": {"type": "array", "items": {"type": "object", "properties": {
+        "headline": {"type": "string"}, "body": {"type": "string"}, "is_inference": {"type": "boolean"}},
+        "required": ["headline", "body"]}},
+      "position_rows": {"type": "array", "items": {"type": "object", "properties": {
+        "axis": {"type": "string"}, "matrix": {"type": "string"}, "reaction": {"type": "string"},
+        "verdict": {"type": "string", "enum": ["우위", "접전", "열위", "동률", "판단 불가", "표본 부족"]}},
+        "required": ["axis", "matrix", "reaction", "verdict"]}}},
+      "required": ["conclusions", "position_rows"]},
+    "position": {"type": "object", "properties": {
+      "premise": {"type": "string"}, "premise_is_inference": {"type": "boolean"},
+      "differentiators": {"type": "array", "items": {"type": "string"}},
+      "weaknesses": {"type": "array", "items": {"type": "string"}},
+      "bottleneck": {"type": "string"},
+      "recovery_structure": {"type": "string"},
+      "combination_use_note": {"type": "string"}},
+      "required": ["premise", "differentiators", "weaknesses", "bottleneck"]},
+    "competitor": {"type": "object", "properties": {
+      "lead": {"type": "string"}, "why_competitors_hold": {"type": "string"}},
+      "required": ["lead"]},
+    "reaction": {"type": "object", "properties": {
+      "aspect_table":    {"$ref": "#/$defs/leadTake"},
+      "channel_split":   {"$ref": "#/$defs/leadTake"},
+      "negative_causes": {"$ref": "#/$defs/leadTake"},
+      "questions":       {"$ref": "#/$defs/leadTake"},
+      "focus":           {"$ref": "#/$defs/leadTake"},
+      "question_shapes": {"$ref": "#/$defs/leadTake"},
+      "strong_opinions": {"$ref": "#/$defs/leadTake"},
+      "sample_limits": {"type": "array", "items": {"type": "string"}}},
+      "required": ["aspect_table", "channel_split", "negative_causes", "questions", "sample_limits"]},
+    "opportunity": {"type": "object", "properties": {
+      "facts": {"type": "array", "items": {"type": "string"}},
+      "perspective_takeaway": {"type": "string"},
+      "items": {"type": "array", "items": {"type": "object", "properties": {
+        "id": {"type": "string"}, "title": {"type": "string"},
+        "kind": {"type": "string", "enum": ["기회", "선결 조건", "방어", "재분류"]},
+        "intersection": {"type": "object", "properties": {
+          "competitor_gap": {"type": "string"}, "customer_signal": {"type": "string"},
+          "own_capability": {"type": "string"}}},
+        "observation": {"type": "string"}, "interpretation": {"type": "string"},
+        "is_inference": {"type": "boolean"}, "counter_evidence": {"type": "string"},
+        "evidence_quotes": {"type": "array", "items": {"type": "string"}},
+        "action_refs": {"type": "array", "items": {"type": "string"}}},
+        "required": ["id", "title", "kind", "observation"]}},
+      "gaps": {"type": "array", "items": {"type": "object", "properties": {
+        "gap": {"type": "string"}, "status": {"type": "string"}, "baseline": {"type": "string"},
+        "nature": {"type": "string"}}, "required": ["gap", "status", "nature"]}}},
+      "required": ["facts", "items"]},
+    "recommendation": {"type": "object", "properties": {
+      "position": {"type": "object", "properties": {
+        "statement": {"type": "string"}, "rationale": {"type": "array", "items": {"type": "string"}}},
+        "required": ["statement"]},
+      "actions": {"type": "array", "items": {"type": "object", "properties": {
+        "id": {"type": "string"}, "action": {"type": "string"}, "detail": {"type": "string"},
+        "rationale": {"type": "string"}, "timing": {"type": "string"},
+        "cost": {"type": "string", "enum": ["없음", "낮음", "중간", "높음"]}},
+        "required": ["id", "action", "rationale", "timing", "cost"]}},
+      "kpi_layers": {"type": "array", "items": {"type": "object", "properties": {
+        "layer": {"type": "string"}, "metric": {"type": "string"}, "current_state": {"type": "string"},
+        "side_effect": {"type": "string"}}, "required": ["layer", "metric", "current_state", "side_effect"]}},
+      "kpi_note": {"type": "string"},
+      "decision_requests": {"type": "array", "items": {"type": "object", "properties": {
+        "title": {"type": "string"}, "body": {"type": "string"}}, "required": ["title", "body"]}},
+      "limitations": {"type": "array", "items": {"type": "string"}}},
+      "required": ["position", "actions", "decision_requests", "limitations"]},
+    "data_gaps": {"type": "array", "items": {"type": "string"}}
+  },
+  "required": ["summary", "position", "competitor", "reaction", "opportunity", "recommendation", "data_gaps"],
+  "$defs": {"leadTake": {"type": "object", "properties": {
+    "lead": {"type": "string"}, "takeaway": {"type": "string"}}, "required": ["takeaway"]}}
+}

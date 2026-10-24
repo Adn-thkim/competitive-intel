@@ -15,6 +15,7 @@
 import { useEffect, useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
 import ReactionInsightReport from './ReactionInsightReport';
+import InsightReport from './InsightReport';
 import ReactionAxisReviewPage from './ReactionAxisReviewPage';
 import MarketingSocialReport from './MarketingSocialReport';
 
@@ -30,6 +31,7 @@ const REPORT_TABS = [
   { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스',      implemented: true },
   { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트', implemented: true },
   { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜',        implemented: true },
+  { key: 'insight_report',    icon: '📋', label: '리서치 리포트',      implemented: true },   // 매트릭스·반응·외부 조사 종합
 ];
 
 /* 전용 뷰가 없는 리포트의 임시 뷰어 — envelope 표준 필드만 표시 */
@@ -304,6 +306,7 @@ export default function ResultView({ result, reportsRunning = false, onReset,
     comparison_matrix: Boolean(reportOutputs.comparison_matrix),
     reaction_insight:  Boolean(reportOutputs.reaction_insight || reactionReviewPending),
     marketing_social:  Boolean(reportOutputs.marketing_social),
+    insight_report:    Boolean(reportOutputs.insight_report),
   };
   const showReportArea = hasAnyReport || reportsRunning || reactionReviewPending;
   // candidate_id → 상품명 (리포트 컴포넌트 공용)
@@ -389,7 +392,14 @@ export default function ResultView({ result, reportsRunning = false, onReset,
                 ownProductId={ownProduct.product_id}
               />
             )}
-            {!['comparison_matrix', 'reaction_insight', 'marketing_social'].includes(activeTab) && activeReport && (
+            {activeTab === 'insight_report' && reportOutputs.insight_report && (
+              <InsightReport
+                report={reportOutputs.insight_report}
+                candidateNames={candidateNameMap}
+                ownProductId={ownProduct.product_id}
+              />
+            )}
+            {!['comparison_matrix', 'reaction_insight', 'marketing_social', 'insight_report'].includes(activeTab) && activeReport && (
               <GenericReportView tab={activeTabMeta} report={activeReport} />
             )}
           </>

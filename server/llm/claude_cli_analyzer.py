@@ -92,10 +92,15 @@ class ClaudeCodeCliAnalyzer:
         model: str = "claude-sonnet-4-6",
         timeout: int = 120,
         system_prompt: str | None = None,
+        allowed_tools: list[str] | None = None,
+        max_turns: int | None = None,
     ):
         self.model = model
         self.timeout = timeout
         self.system_prompt = system_prompt
+        # 도구 사용 agent(예: external_search — WebSearch·WebFetch)만 지정. 기본 None = 기존과 동일(도구 미허용).
+        self.allowed_tools = list(allowed_tools or [])
+        self.max_turns = max_turns
 
     def call_with_schema(
         self,
@@ -280,6 +285,14 @@ class ClaudeCodeCliAnalyzer:
         # CLI가 --system-prompt 플래그를 지원하는 버전인지 실행 환경에서 확인 필요
         if self.system_prompt:
             cmd += ["--system-prompt", self.system_prompt]
+
+        # 도구 허용(비대화형 -p 는 권한이 필요한 도구를 기본 거부 → 명시 허용).
+        # 파일·셸 도구는 명시적으로 막아 서버 작업 디렉터리를 건드리지 못하게 한다.
+        if self.allowed_tools:
+            cmd += ["--allowedTools", ",".join(self.allowed_tools),
+                    "--disallowedTools", "Bash,Edit,Write,MultiEdit,NotebookEdit"]
+        if self.max_turns:
+            cmd += ["--max-turns", str(self.max_turns)]
 
         cmd.append(prompt)
 

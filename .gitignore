@@ -18,7 +18,9 @@ data/projects/
 # 수집 노드 관측성 산출물 (raw 응답·feature_pool·backlog)
 data/collection/
 # 사용자 정정 오버라이드 (human_review 편집 — 로컬 사용자 데이터)
-data/overrides/
+data/overrides/*
+# 단, feature_pool 셀 보정은 공식 출처 기반 데이터 정정이라 추적한다 — 파이프라인이 매 실행 적용
+!data/overrides/feature_pool_overrides.json
 
 # ── SQLite (향후 마이그레이션 후 생성될 파일) ────────────
 *.db

@@ -107,6 +107,8 @@ from server.graph.nodes.additional_urls_validation_node import additional_urls_v
 # report generation 시리즈 (v0.12) — official → comparison_matrix 경로
 from server.graph.nodes.official_content_collection_node import official_content_collection_node
 from server.graph.nodes.comparison_matrix_node import comparison_matrix_node
+from server.graph.nodes.external_research_node import external_research_node
+from server.graph.nodes.insight_report_node import insight_report_node
 # report generation 시리즈 (v0.13) — reaction 경로 (RI-D1: youtube_query_planner 폐기)
 from server.graph.nodes.youtube_reaction_collection_node import youtube_reaction_collection_node
 from server.graph.nodes.community_collection_node import community_collection_node
@@ -254,6 +256,8 @@ def build_graph() -> object:
     # report generation 시리즈 (v0.12) — official 계열 수집 + comparison_matrix
     builder.add_node("official_content_collection",  official_content_collection_node)
     builder.add_node("comparison_matrix",            comparison_matrix_node)
+    builder.add_node("external_research_run",        external_research_node)   # 외부 조사(이력·재무·시장) — 노드명은 state 키와 달라야 함
+    builder.add_node("insight_report",               insight_report_node)      # 최종 인사이트(리서치) 리포트
     # report generation 시리즈 (v0.13) — reaction 계열 수집 2종 + ABSA + 리포트
     # ※ 노드명 reaction_absa: LangGraph 는 노드명이 state 키와 같으면 거부하는데
     #   'reaction_analysis' 는 state 키(ABSA 산출)로 선점되어 있다 (구설계 §6-7 충돌).
@@ -388,7 +392,8 @@ def build_graph() -> object:
     # ── 경로 1: official → comparison_matrix (v0.12) ──
     builder.add_edge("feature_selection",           "official_content_collection")
     builder.add_edge("official_content_collection", "comparison_matrix")
-    builder.add_edge("comparison_matrix",           END)
+    # ── 경로 1b: 외부 조사 — product_profiles(official_content_collection 산출)만 필요, 매트릭스와 병렬 ──
+    builder.add_edge("official_content_collection", "external_research_run")
     # ── 경로 2: reaction 수집 2종 → ABSA → reaction_insight (v0.13, RI-D1) ──
     #    youtube_query_planner 는 폐기 — 검색·선별이 상류(url_discovery 체인)에 흡수됨.
     builder.add_edge("feature_selection",           "youtube_reaction_collection")
@@ -410,7 +415,10 @@ def build_graph() -> object:
     builder.add_edge("reaction_extract",            "reaction_cluster")
     builder.add_edge("reaction_cluster",            "reaction_review")   # human_review#5(확인 전용)
     builder.add_edge("reaction_review",             "reaction_report")
-    builder.add_edge("reaction_report",             END)
+    # ── 경로 4: 최종 인사이트 리포트 — 매트릭스 · 반응 · 외부 조사 3중 list-fan-in ──
+    #    (이전: comparison_matrix → END, reaction_report → END)
+    builder.add_edge(["comparison_matrix", "reaction_report", "external_research_run"], "insight_report")
+    builder.add_edge("insight_report",              END)
     # ── 경로 3: 운영 채널 수집 2종 → marketing_social (v1.0 §6-6a, MS-D2·MS-D12) ──
     #    pr_release_collection 은 구현돼 있으나 1차 미배선 — MS-D12 (2026-06-07 사용자:
     #    PR URL 이 수집 의도와 불일치, 리포트는 presence-only 표기만).

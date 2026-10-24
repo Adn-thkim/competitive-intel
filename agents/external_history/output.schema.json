@@ -1,0 +1,44 @@
+{
+  "$schema": "http://json-schema.org/draft-07/schema#",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["events", "statements", "structure", "action_summaries", "contradictions", "notes"],
+  "$defs": {
+    "date": {"type": "string", "pattern": "^\\d{4}(-\\d{2}(-\\d{2})?)?$"},
+    "docs": {"type": "array", "items": {"type": "string"}, "minItems": 1},
+    "quote": {"type": "string", "maxLength": 160}
+  },
+  "properties": {
+    "events": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["cid", "date", "feature", "change_type", "before", "after", "ends_at", "stated_reason", "doc_ids", "quote"],
+      "properties": {
+        "cid": {"type": "string"}, "date": {"$ref": "#/$defs/date"}, "feature": {"type": "string"},
+        "change_type": {"enum": ["신설", "확대", "축소", "원복", "연장", "종료", "제휴", "기타"]},
+        "before": {"type": ["string", "null"]}, "after": {"type": "string"},
+        "ends_at": {"anyOf": [{"$ref": "#/$defs/date"}, {"type": "null"}]},
+        "stated_reason": {"type": ["string", "null"]},
+        "doc_ids": {"$ref": "#/$defs/docs"}, "quote": {"$ref": "#/$defs/quote"}}}},
+    "statements": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["cid", "date", "topic", "quote", "doc_id"],
+      "properties": {"cid": {"type": "string"}, "date": {"$ref": "#/$defs/date"}, "topic": {"type": "string"},
+        "quote": {"$ref": "#/$defs/quote"}, "doc_id": {"type": "string"}}}},
+    "structure": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["cid", "field", "value", "status", "doc_ids", "quote"],
+      "properties": {"cid": {"type": "string"},
+        "field": {"enum": ["국내 락인", "예수금 조달", "규제 특례", "발급 구조"]},
+        "value": {"type": "string"}, "status": {"enum": ["확인", "미확인"]},
+        "doc_ids": {"type": "array", "items": {"type": "string"}},
+        "quote": {"anyOf": [{"$ref": "#/$defs/quote"}, {"type": "null"}]}}}},
+    "action_summaries": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["cid", "headline", "detail", "event_refs", "is_inference"],
+      "properties": {"cid": {"type": "string"}, "headline": {"type": "string"}, "detail": {"type": "string"},
+        "event_refs": {"type": "array", "items": {"type": "integer", "minimum": 0}},
+        "is_inference": {"type": "boolean"}}}},
+    "contradictions": {"type": "array", "items": {"type": "object", "additionalProperties": false,
+      "required": ["cid", "statement_refs", "note", "is_inference"],
+      "properties": {"cid": {"type": "string"},
+        "statement_refs": {"type": "array", "items": {"type": "integer", "minimum": 0}, "minItems": 2},
+        "note": {"type": "string"}, "is_inference": {"const": true}}}},
+    "notes": {"type": "array", "items": {"type": "string"}}
+  }
+}
