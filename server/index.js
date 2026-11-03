@@ -13,7 +13,7 @@
  * 환경 변수
  * ---------
  *   PORT              Express 포트 (기본값: 3000)
- *   PYTHON_SERVER_PORT Python FastAPI 포트 (기본값: 8001)
+ *   PYTHON_SERVER_PORT Python FastAPI 포트 (기본값: 8000)
  *
  * 라우트 구조
  * -----------
