@@ -273,7 +273,9 @@ def build_graph() -> object:
     builder.add_node("reaction_prescreen",           _timed(reaction_prescreen_node, "prescreen"))
     builder.add_node("reaction_extract",             _timed(reaction_extract_node, "extract"))
     builder.add_node("reaction_cluster",             _timed(reaction_cluster_node, "cluster"))
-    builder.add_node("reaction_review",              reaction_review_node)
+    # 2026-11 — human_review#5(reaction_review, 축 확인 전용) 비활성: 축 수정 기능 개발 계획 없음.
+    #   되돌리려면 이 줄 + 하단 cluster→review→report 엣지 2줄을 복원한다. 노드 정의·import 는 보존.
+    # builder.add_node("reaction_review",              reaction_review_node)
     builder.add_node("reaction_report",              _timed(reaction_report_node, "report"))
 
     # 2026-06-11 — blog_collection_node 분리(미배선/휴면). 활성 파이프라인은 커뮤니티만
@@ -284,10 +286,13 @@ def build_graph() -> object:
     #   builder.add_edge([... , "blog_collection"], "reaction_absa")  # fan-in 확장
 
     # v1.0 §6-6a — marketing_social 시리즈 (수집 2종 + 리포트, MS-D2·MS-D12)
-    builder.add_node("youtube_channel_metadata_collection",
-                     youtube_channel_metadata_collection_node)
-    builder.add_node("blog_rss_collection",          blog_rss_collection_node)
-    builder.add_node("marketing_social",             marketing_social_node)
+    # 2026-11 비활성 — 리포트 화면에서 마케팅 소셜 제거. 상류 url_discovery_owned_channels
+    #   (cross_reference 의 공식 YouTube channel_id 제외 필터 입력)는 그대로 유지한다.
+    #   되돌리려면 아래 3줄 + 하단 '경로 3' 엣지 블록 주석을 해제한다. 노드 정의·import 는 보존.
+    # builder.add_node("youtube_channel_metadata_collection",
+    #                  youtube_channel_metadata_collection_node)
+    # builder.add_node("blog_rss_collection",          blog_rss_collection_node)
+    # builder.add_node("marketing_social",             marketing_social_node)
     # TODO (v0.10 + §6-6a): 아래 노드는 구현 후 주석 해제
     # ── 신규 수집 노드 (나머지 4계열) ────────────────────────────────────
     # builder.add_node("community_collection",               community_collection_node)
@@ -413,8 +418,10 @@ def build_graph() -> object:
     builder.add_edge("community_collection",        "reaction_community_gate")  # 신 커뮤니티 게이트
     builder.add_edge(["reaction_prescreen", "reaction_community_gate"], "reaction_extract")  # 2채널 fan-in
     builder.add_edge("reaction_extract",            "reaction_cluster")
-    builder.add_edge("reaction_cluster",            "reaction_review")   # human_review#5(확인 전용)
-    builder.add_edge("reaction_review",             "reaction_report")
+    # 2026-11 — #5 검토 제거: cluster → report 직결 (reaction_review 는 state 를 바꾸지 않았으므로 산출 동일)
+    # builder.add_edge("reaction_cluster",            "reaction_review")   # human_review#5(확인 전용)
+    # builder.add_edge("reaction_review",             "reaction_report")
+    builder.add_edge("reaction_cluster",            "reaction_report")
     # ── 경로 4: 최종 인사이트 리포트 — 매트릭스 · 반응 · 외부 조사 3중 list-fan-in ──
     #    (이전: comparison_matrix → END, reaction_report → END)
     builder.add_edge(["comparison_matrix", "reaction_report", "external_research_run"], "insight_report")
@@ -422,11 +429,12 @@ def build_graph() -> object:
     # ── 경로 3: 운영 채널 수집 2종 → marketing_social (v1.0 §6-6a, MS-D2·MS-D12) ──
     #    pr_release_collection 은 구현돼 있으나 1차 미배선 — MS-D12 (2026-06-07 사용자:
     #    PR URL 이 수집 의도와 불일치, 리포트는 presence-only 표기만).
-    builder.add_edge("feature_selection",           "youtube_channel_metadata_collection")
-    builder.add_edge("feature_selection",           "blog_rss_collection")
-    builder.add_edge(["youtube_channel_metadata_collection", "blog_rss_collection"],
-                     "marketing_social")            # list-fan-in barrier (2채널)
-    builder.add_edge("marketing_social",            END)
+    #    2026-11 비활성 (상단 add_node 주석 참고).
+    # builder.add_edge("feature_selection",           "youtube_channel_metadata_collection")
+    # builder.add_edge("feature_selection",           "blog_rss_collection")
+    # builder.add_edge(["youtube_channel_metadata_collection", "blog_rss_collection"],
+    #                  "marketing_social")            # list-fan-in barrier (2채널)
+    # builder.add_edge("marketing_social",            END)
 
     # TODO (§6-7 v0.6 v0.10 D11 반영) — 노드 구현 후 아래 엣지 활성화
     # ── 1) feature_selection 이후: feature_extraction + 신규 수집 노드 fan-out ──
@@ -552,11 +560,10 @@ try:
         ("reaction_prescreen",           "reaction_extract"),
         ("reaction_community_gate",      "reaction_extract"),
         ("reaction_extract",             "reaction_cluster"),
-        ("reaction_cluster",             "reaction_review"),
-        ("reaction_review",              "reaction_report"),
+        ("reaction_cluster",             "reaction_report"),   # 2026-11 — #5 검토 제거
     ])
-    # v1.0 §6-6a — marketing_social 경로 (수집 2종 fan-out + list-fan-in → 리포트)
-    _e8 = all(p in _edge_pairs for p in [
+    # v1.0 §6-6a — marketing_social 경로 — 2026-11 비활성: 엣지가 **없어야** 정상
+    _e8 = not any(p in _edge_pairs for p in [
         ("feature_selection",                    "youtube_channel_metadata_collection"),
         ("feature_selection",                    "blog_rss_collection"),
         ("youtube_channel_metadata_collection",  "marketing_social"),
@@ -568,8 +575,8 @@ try:
         print(
             "[graph.py] ✅ v1.0 토폴로지 확인 — "
             "… feature_selection → {official→comparison_matrix ∥ "
-            "(youtube·community)→gate→prescreen→extract→cluster→review→report ∥ "
-            "(channel_meta·blog_rss)→marketing_social}",
+            "(youtube·community)→gate→prescreen→extract→cluster→report ∥ "
+            "(marketing_social 비활성)}",
             flush=True,
         )
     else:
@@ -584,7 +591,7 @@ try:
         if not _e5:             _missing.append("additional_urls_validation → feature_selection")
         if not _e6:             _missing.append("feature_selection → official_content_collection → comparison_matrix")
         if not _e7:             _missing.append("reaction 경로 (수집 2종 → reaction_analysis → reaction_insight)")
-        if not _e8:             _missing.append("marketing_social 경로 (수집 2종 → marketing_social)")
+        if not _e8:             _missing.append("marketing_social 경로가 아직 배선됨 (2026-11 비활성 대상)")
         print(f"[graph.py] ❌ v1.0 토폴로지 엣지 누락: {_missing}", flush=True)
 except Exception as _diag_exc:  # noqa: BLE001
     print(f"[graph.py] 진단 출력 실패: {_diag_exc}", flush=True)
