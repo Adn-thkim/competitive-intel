@@ -11,7 +11,7 @@
 
 ```text
 Web Prompt UI (브라우저)
-        ↕ REST API (localhost:4000)
+        ↕ REST API (localhost:3000)
 Express.js 로컬 서버 (오케스트레이터)
         ↕ HTTP (localhost:8000)
 Python FastAPI (uvicorn)
@@ -154,16 +154,17 @@ competitive-intel/
 ### 환경 변수
 
 ```bash
-# server/.env
-SERVER_PORT=4000
-PYTHON_API_PORT=8000
+# 포트 — Node(Express)는 .env 를 읽지 않으므로 필요 시 셸 환경변수로 지정
+# PORT=3000                   # Express (기본값 3000)
+# PYTHON_SERVER_PORT=8000     # Python FastAPI (기본값 8000)
+
+# .env (competitive-intel/ 루트 — server/config.py 가 로드)
 YOUTUBE_API_KEY=...
 ANTHROPIC_API_KEY=...         # Claude API (ProductIdResolver 전용)
 BRAVE_SEARCH_API_KEY=...      # url_retry Phase 1 재탐색
 USE_CLAUDE_CODE_CLI=true       # 기본 LLM 경로: Claude Code CLI
 
-# client/.env
-VITE_API_BASE_URL=http://localhost:4000
+# client — 별도 .env 불필요: vite.config.js 의 /api 프록시가 http://127.0.0.1:3000 으로 중계
 ```
 
 ### 의존성 설치

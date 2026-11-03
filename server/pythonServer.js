@@ -36,7 +36,7 @@ const { existsSync } = require('node:fs');
 const http           = require('node:http');
 const path           = require('node:path');
 
-const PYTHON_SERVER_PORT = parseInt(process.env.PYTHON_SERVER_PORT || '8001', 10);
+const PYTHON_SERVER_PORT = parseInt(process.env.PYTHON_SERVER_PORT || '8000', 10);
 const PYTHON_SERVER_HOST = '127.0.0.1';
 
 /** Express 라우트에서 사용할 Python 서버 기본 URL */

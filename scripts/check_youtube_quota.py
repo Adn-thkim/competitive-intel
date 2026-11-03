@@ -5,7 +5,7 @@ YouTube Data API v3 quota 사용량 조회 스크립트.
 ----
   cd competitive-intel
   python -m scripts.check_youtube_quota          # 서버 실행 중일 때
-  python -m scripts.check_youtube_quota --port 8001
+  python -m scripts.check_youtube_quota --port 8000
 
 출력 예시
 ---------

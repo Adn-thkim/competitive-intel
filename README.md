@@ -100,7 +100,7 @@ _(작성 예정)_
 
 ```text
 React (Vite) Client
-        ↕ REST (localhost:4000)
+        ↕ REST (localhost:3000, Vite dev 서버 프록시 /api)
 Express.js Orchestrator
         ↕ HTTP (localhost:8000)
 Python FastAPI (uvicorn)
@@ -132,7 +132,7 @@ Python FastAPI (uvicorn)
 | 레이어 | 기술 |
 |--------|------|
 | Frontend | React 18 + Vite + Tailwind CSS |
-| Orchestrator | Node.js 20+ / Express.js (포트 4000) |
+| Orchestrator | Node.js 20+ / Express.js (포트 3000) |
 | Agent Runtime | Python 3.11+ / FastAPI / uvicorn (포트 8000) |
 | Workflow Engine | LangGraph (StateGraph + MemorySaver) |
 | LLM | Claude (Code CLI 기본 / API `temperature=0` 결정론 경로) |
@@ -211,7 +211,7 @@ cp .env.example .env
 
 ```bash
 # Python LangGraph 서버
-uvicorn server.api:app --reload --port 8000
+python3 -m uvicorn server.graph.api:app --host 127.0.0.1 --port 8000 --reload
 
 # Express 오케스트레이터
 npm run dev

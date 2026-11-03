@@ -33,7 +33,7 @@ interrupt 흐름
    → 응답: { is_interrupted: false, state: <최종 상태> }
 
 실행 방법 (pythonServer.js가 자동 실행):
-    uvicorn server.graph.api:app --host 127.0.0.1 --port 8001
+    uvicorn server.graph.api:app --host 127.0.0.1 --port 8000
 """
 
 import hashlib
