@@ -1,4 +1,4 @@
-import { useEffect, useState } from 'react';
+import { useEffect, useLayoutEffect, useState } from 'react';
 import SearchPage from './components/SearchPage';
 import ReviewForm from './components/ReviewForm';
 import CompetitorSelectionPage from './components/CompetitorSelectionPage';
@@ -6,6 +6,7 @@ import UrlRetryPage from './components/UrlRetryPage';
 import FeatureSelectionPage from './components/FeatureSelectionPage';
 import ResultView from './components/ResultView';
 import CriticalErrorPage from './components/CriticalErrorPage';
+import ScrollNav from './components/ScrollNav';
 
 /**
  * 앱 상태 머신
@@ -39,6 +40,14 @@ export default function App() {
   const [intakeResult, setIntakeResult]   = useState(null);
   const [approveResult, setApproveResult] = useState(null);
   const [criticalError, setCriticalError] = useState(null);
+
+  // 2026-11 — 페이지 이동 시 항상 최상단에서 시작. page 가 바뀔 때와, 같은 종류의 페이지라도
+  // 새 interrupt 응답(intakeResult)이 오면(예: url_retry 재시도 라운드) 스크롤을 0 으로 되돌린다.
+  // 결과 화면의 점진 렌더링(liveState 갱신)은 같은 페이지 안의 갱신이라 대상이 아니다.
+  // useLayoutEffect — 그리기 전에 이동해 이전 스크롤 위치가 한 프레임 보이는 깜빡임을 막는다.
+  useLayoutEffect(() => {
+    window.scrollTo(0, 0);
+  }, [page, intakeResult]);
 
   // ── v0.12.4 점진 렌더링 (progressive report tabs) ─────────────────────────
   // feature_selection 재개 직후 graph 가 END 까지 도는 동안, LangGraph 체크포인터가
@@ -155,6 +164,8 @@ export default function App() {
 
   return (
     <>
+      {/* 2026-11 — 모든 페이지 공통: 우하단 맨 위/맨 아래 이동 버튼 */}
+      <ScrollNav />
       {page === 'search' && (
         <SearchPage onIntakeComplete={handleIntakeComplete} />
       )}
@@ -209,6 +220,12 @@ export default function App() {
           message={criticalError}
           onReset={handleReset}
         />
+      )}
+
+      {/* 좁은 화면에서는 우하단 이동 버튼이 페이지 맨 아래 버튼을 가리지 않도록 하단 여백 확보.
+          화면 높이에 맞춘 짧은 페이지(검색·오류)는 여백 때문에 스크롤이 생기지 않도록 제외. */}
+      {page !== 'search' && page !== 'critical_error' && (
+        <div className="h-24 bg-gray-50 md:hidden" aria-hidden="true" />
       )}
     </>
   );
