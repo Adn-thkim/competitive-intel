@@ -226,21 +226,14 @@ def url_discovery_owned_channels_node(
         prompt_version="url_discovery_owned_channels:v0.13.4",
     )
 
-    # ── candidate × platform 6종 호출 (병렬) ─────────────────────────────────
-    logger.info(
-        "url_discovery_owned_channels_node: 시작 (candidates=%d × platforms=%d = %d 작업)",
-        len(targets), len(_PLATFORM_QUERIES), len(targets) * len(_PLATFORM_QUERIES),
-    )
-
+    # ── candidate × platform 호출 (병렬) ─────────────────────────────────────
+    # 2026-11 — marketing_social 비활성으로 활성 소비자는 cross_reference(youtube_official
+    #   channel_id)뿐이다. 1단계로 youtube_official 만 검색하고, YouTube 를 못 찾은 candidate
+    #   에 한해 2단계로 나머지 platform 을 검색한다 — 그 결과는 아래 핸들 프로브 폴백(MS-D14)
+    #   의 입력이므로 프로브 대상 candidate 는 기존과 동일한 입력을 받는다.
+    #   (candidate, platform) 단위 캐시 키는 그대로라 기존 캐시 엔트리가 그대로 적중한다.
     results_by_candidate: dict[str, list[dict]] = {}
     errors: list[dict[str, str]] = []
-
-    # 작업 list (cid, cname, cbrand, platform)
-    jobs = [
-        (cid, cname, cbrand, platform)
-        for cid, cname, cbrand in targets
-        for platform in _PLATFORM_QUERIES
-    ]
 
     analyzer = ClaudeCodeCliAnalyzer(
         model=CLI_MODEL, timeout=CLI_TIMEOUT, system_prompt=system_prompt,
@@ -366,27 +359,49 @@ def url_discovery_owned_channels_node(
         )
         return cid, final_handles
 
-    with ThreadPoolExecutor(max_workers=3) as pool:
-        future_map = {
-            pool.submit(_process_one, *job): job for job in jobs
-        }
-        for fut in as_completed(future_map):
-            cid, _cname, _cbrand, platform = future_map[fut]
-            try:
-                _c, handles = fut.result()
-            except Exception as exc:  # noqa: BLE001
-                logger.error(
-                    "url_discovery_owned_channels: (%s, %s) 실패 — %s",
-                    cid, platform, exc,
-                )
-                errors.append({
-                    "node":      "url_discovery_owned_channels_node",
-                    "error":     f"({cid}, {platform}): {str(exc)[:120]}",
-                    "timestamp": datetime.now(timezone.utc).isoformat(),
-                })
-                continue
-            for h in handles:
-                results_by_candidate.setdefault(cid, []).append(h)
+    def _run_jobs(jobs: list[tuple[str, str, str, str]]) -> None:
+        with ThreadPoolExecutor(max_workers=3) as pool:
+            future_map = {
+                pool.submit(_process_one, *job): job for job in jobs
+            }
+            for fut in as_completed(future_map):
+                cid, _cname, _cbrand, platform = future_map[fut]
+                try:
+                    _c, handles = fut.result()
+                except Exception as exc:  # noqa: BLE001
+                    logger.error(
+                        "url_discovery_owned_channels: (%s, %s) 실패 — %s",
+                        cid, platform, exc,
+                    )
+                    errors.append({
+                        "node":      "url_discovery_owned_channels_node",
+                        "error":     f"({cid}, {platform}): {str(exc)[:120]}",
+                        "timestamp": datetime.now(timezone.utc).isoformat(),
+                    })
+                    continue
+                for h in handles:
+                    results_by_candidate.setdefault(cid, []).append(h)
+
+    # 1단계 — youtube_official
+    _run_jobs([(cid, cname, cbrand, "youtube_official") for cid, cname, cbrand in targets])
+
+    # 2단계 — YouTube 미발견 candidate 만 나머지 platform (핸들 프로브 입력용).
+    #   프로브는 YOUTUBE_API_KEY 가 있을 때만 동작하므로 키가 없으면 생략한다.
+    probe_targets = [
+        (cid, cname, cbrand) for cid, cname, cbrand in targets
+        if not any(h.get("platform") == "youtube_official"
+                   for h in results_by_candidate.get(cid, []))
+    ] if YOUTUBE_API_KEY else []
+    _run_jobs([
+        (cid, cname, cbrand, platform)
+        for cid, cname, cbrand in probe_targets
+        for platform in _PLATFORM_QUERIES
+        if platform != "youtube_official"
+    ])
+    logger.info(
+        "url_discovery_owned_channels_node: candidates=%d (YouTube 미발견 → 타 platform 검색 %d)",
+        len(targets), len(probe_targets),
+    )
 
     # ── v1.0.2 (MS-D14) — YouTube 핸들 프로브 폴백 ──────────────────────────
     # Brave 가 채널을 노출하지 않는 케이스(실측: @travelwallet — 두 쿼리 40건 전부
@@ -406,6 +421,12 @@ def url_discovery_owned_channels_node(
                     cid, probed["handle"], probed.get("channel_title", ""),
                 )
                 results_by_candidate.setdefault(cid, []).append(probed)
+
+    # ── 2026-11 — /channel/UC… 로만 발견된 YouTube 채널의 @핸들 보강 (화면 표시용) ──
+    # cross_reference 는 channel_id 만 사용하므로 handle 보강은 제외 필터 결과에 무관하다.
+    # 별도 agent_id 캐시(채널당 1엔트리)로 저장해 기존 (candidate, platform) 캐시와 독립.
+    if YOUTUBE_API_KEY:
+        _enrich_youtube_handles(results_by_candidate)
 
     total = sum(len(v) for v in results_by_candidate.values())
     logger.info(
@@ -657,6 +678,89 @@ def _fetch_youtube_channel_meta(url: str, handle: str) -> dict | None:
         "subscriber_count": int(stats.get("subscriberCount", 0) or 0),
         "verified":         (it.get("status") or {}).get("isLinked", False),
     }
+
+
+# 2026-11 — YouTube @핸들 보강 (channels.list?id= → snippet.customUrl) ─────────────
+_HANDLE_CACHE_AGENT_ID = "youtube_channel_handle"
+_HANDLE_CACHE_CONTEXT  = {"agent_id": _HANDLE_CACHE_AGENT_ID, "v": 1}
+_HANDLE_BATCH_SIZE     = 50   # channels.list id 파라미터 최대 50개 (1 unit/호출)
+
+
+def _fetch_channel_handles(channel_ids: list[str]) -> dict[str, dict]:
+    """channels.list?id=a,b,… 로 {channel_id: {"handle", "title"}} 조회 (1 unit/50채널).
+
+    응답에 없는 id(삭제·비공개 채널)와 네트워크·HTTP 오류는 결과에서 빠진다 — 호출부는
+    결과가 있는 채널만 캐시한다(실패 박제 방지, v0.13.5 교훈).
+    """
+    out: dict[str, dict] = {}
+    for i in range(0, len(channel_ids), _HANDLE_BATCH_SIZE):
+        batch = channel_ids[i:i + _HANDLE_BATCH_SIZE]
+        try:
+            resp = requests.get(
+                _YOUTUBE_CHANNELS_ENDPOINT,
+                params={"part": "snippet", "id": ",".join(batch), "key": YOUTUBE_API_KEY},
+                timeout=_HTTP_TIMEOUT,
+            )
+        except requests.RequestException as exc:
+            logger.debug("youtube channels.list(handle) 네트워크 오류: %s", exc)
+            continue
+        if not resp.ok:
+            logger.debug("youtube channels.list(handle) 응답 오류 %d", resp.status_code)
+            continue
+        for it in resp.json().get("items") or []:
+            snippet = it.get("snippet") or {}
+            out[it.get("id", "")] = {
+                "handle": (snippet.get("customUrl") or "").lstrip("@"),
+                "title":  snippet.get("title", ""),
+            }
+    return out
+
+
+def _enrich_youtube_handles(results_by_candidate: dict[str, list[dict]]) -> None:
+    """handle 이 비어 있고 channel_id 가 있는 youtube_official 항목에 handle·channel_title 을 채운다.
+
+    제자리 변형. 캐시 적중 채널은 API 미호출. handle 이 이미 있는 항목은 건드리지 않는다.
+    """
+    targets = [
+        h for items in results_by_candidate.values() for h in items
+        if h.get("platform") == "youtube_official"
+        and not h.get("handle") and h.get("channel_id")
+    ]
+    if not targets:
+        return
+
+    resolved: dict[str, dict] = {}
+    for cid in sorted({h["channel_id"] for h in targets}):
+        hit = load_agent_output(
+            agent_id=_HANDLE_CACHE_AGENT_ID, cache_input={"channel_id": cid},
+            context=_HANDLE_CACHE_CONTEXT, logger=logger,
+            ttl_hours=_OWNED_CHANNEL_CACHE_TTL_HOURS,
+        )
+        if hit is not None:
+            resolved[cid] = hit
+
+    missing = sorted({h["channel_id"] for h in targets} - set(resolved))
+    if missing:
+        fetched = _fetch_channel_handles(missing)
+        for cid, meta in fetched.items():
+            store_agent_output(
+                agent_id=_HANDLE_CACHE_AGENT_ID, cache_input={"channel_id": cid},
+                context=_HANDLE_CACHE_CONTEXT, output=meta, logger=logger,
+            )
+        resolved.update(fetched)
+
+    for h in targets:
+        meta = resolved.get(h["channel_id"])
+        if not meta:
+            continue
+        if meta.get("handle"):
+            h["handle"] = meta["handle"]
+        if meta.get("title"):
+            h["channel_title"] = meta["title"]
+    logger.info(
+        "url_discovery_owned_channels: YouTube 핸들 보강 %d/%d (API 조회 %d)",
+        sum(1 for h in targets if h.get("handle")), len(targets), len(missing),
+    )
 
 
 def _skipped(started_at: str, reason: str) -> dict:
