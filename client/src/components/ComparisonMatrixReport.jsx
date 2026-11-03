@@ -108,100 +108,160 @@ const splitAxes = (s) =>
 
 /* 두괄식 분석 요약 — 핵심 선택 기준 + 세그먼트(use_case)별 자사 포지션.
  * 기존 envelope(zone_summary × use_case_weights)를 클라이언트에서 결정론 조인. 백엔드 무변경. */
-/* 제품 관점 요약 (v2.0) — 상품별 설계 · 자사 특징 · 공통점/차이점 · 조건부 강점/약점.
+/* 제품 관점 요약 (v2.0 · 2026-11 UI 개편) — 두 묶음으로 구분.
+ *   [상품 비교]  상품별 설계(카드) · 공통점 / 차이점("축: 내용" 의 축을 굵게)
+ *   [자사 관점]  자사 강점 / 약점(조건 칩)
+ *   ※ own_characteristics(자사 특징)는 표시하지 않음 — 강점·약점·자사 설계 카드와 같은 사실을
+ *     반복하는 경우가 많아 화면에서 제외(데이터·프롬프트는 유지).
  * 활용유형(use_case) 분류는 positioning_map 으로 이관. */
-function ProductSummary({ product, nameOf }) {
+
+// "축: 내용" 형태면 축과 내용을 분리 (첫 콜론 기준, 앞부분이 짧을 때만)
+function splitLabel(text) {
+  const s = String(text || '');
+  const i = s.indexOf(':');
+  return i > 0 && i <= 16 ? [s.slice(0, i).trim(), s.slice(i + 1).trim()] : [null, s];
+}
+
+function SummaryGroup({ title, children }) {
+  return (
+    <section className="space-y-3">
+      <h4 className="text-sm font-semibold text-gray-800">{title}</h4>
+      {children}
+    </section>
+  );
+}
+
+function SubHead({ children, tone = 'text-gray-700' }) {
+  return <p className={`text-xs font-semibold mb-1.5 ${tone}`}>{children}</p>;
+}
+
+function LabeledList({ items }) {
+  return (
+    <ul className="space-y-1.5 text-sm text-gray-800 leading-relaxed">
+      {items.map((t, i) => {
+        const [label, body] = splitLabel(t);
+        return (
+          <li key={i} className="flex gap-2">
+            <span className="mt-[9px] w-1 h-1 rounded-full bg-gray-400 shrink-0" />
+            <span>{label && <b className="font-semibold">{label} </b>}{body}</span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function TradeoffList({ items, tone }) {
+  const isStrength = tone === 'strength';
+  return (
+    <ul className="space-y-2">
+      {items.map((t, i) => {
+        const always = !t.condition || t.condition === '무조건';
+        return (
+          <li key={i} className="text-sm text-gray-800 leading-relaxed">
+            <div className="flex gap-1.5">
+              <span className={`shrink-0 font-bold ${isStrength ? 'text-green-600' : 'text-red-500'}`}>
+                {isStrength ? '+' : '−'}
+              </span>
+              <span>{t.point}</span>
+            </div>
+            <span
+              className={`ml-4 mt-1 inline-block text-[11px] px-1.5 py-0.5 rounded ${
+                always ? 'bg-gray-100 text-gray-500' : 'bg-amber-50 text-amber-800'}`}
+            >
+              {always ? '항상' : `조건 · ${t.condition}`}
+            </span>
+          </li>
+        );
+      })}
+    </ul>
+  );
+}
+
+function ProductSummary({ product, nameOf, ownId }) {
   const p          = product ?? {};
   const perProduct = p.per_product ?? [];
-  const own        = p.own_characteristics ?? [];
   const common     = p.commonalities ?? [];
   const diff       = p.differences ?? [];
   const strengths  = p.strengths ?? [];
   const weaknesses = p.weaknesses ?? [];
-  if (!perProduct.length && !own.length && !common.length && !diff.length &&
+  if (!perProduct.length && !common.length && !diff.length &&
       !strengths.length && !weaknesses.length) return null;
 
-  const Bullets = ({ items, mark }) => (
-    <ul className="text-sm text-gray-800 space-y-1">
-      {items.map((s, i) => (
-        <li key={i} className="flex gap-1.5"><span className="shrink-0 text-gray-300">{mark}</span><span>{s}</span></li>
-      ))}
-    </ul>
-  );
-  const Tradeoffs = ({ items, mark, markColor }) => (
-    <ul className="text-sm text-gray-800 space-y-1">
-      {items.map((t, i) => (
-        <li key={i} className="flex gap-1.5">
-          <span className={`shrink-0 ${markColor}`}>{mark}</span>
-          <span>
-            {t.point}
-            {t.condition && t.condition !== '무조건' && (
-              <span className="ml-1 text-[11px] text-gray-500">— 조건: {t.condition}</span>
-            )}
-          </span>
-        </li>
-      ))}
-    </ul>
-  );
+  // 자사 카드 먼저
+  const products = [...perProduct].sort((a, b) =>
+    (b.candidate_id === ownId) - (a.candidate_id === ownId));
 
   return (
-    <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 space-y-3">
-      <p className="text-xs font-bold text-indigo-700">📌 제품 관점 요약</p>
+    <div className="mb-5 rounded-xl border border-gray-200 bg-gray-50/60 p-4 space-y-5">
+      <p className="text-base font-bold text-gray-900">📌 제품 관점 요약</p>
 
-      {perProduct.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold text-gray-500">상품별 설계</p>
-          <ul className="text-sm text-gray-800 space-y-1">
-            {perProduct.map((it, i) => (
-              <li key={i} className="flex gap-1.5">
-                <span className="shrink-0 font-medium text-gray-700">{nameOf?.[it.candidate_id] ?? it.candidate_id}:</span>
-                <span>{it.design_summary}</span>
-              </li>
-            ))}
-          </ul>
-        </div>
+      {(products.length > 0 || common.length > 0 || diff.length > 0) && (
+        <SummaryGroup title="상품 비교">
+          {products.length > 0 && (
+            <div>
+              <SubHead>상품별 설계</SubHead>
+              <div className="grid grid-cols-1 sm:grid-cols-2 gap-2">
+                {products.map((it, i) => {
+                  const isOwn = it.candidate_id === ownId;
+                  return (
+                    <div
+                      key={i}
+                      className={`rounded-lg border bg-white p-3 ${isOwn ? 'border-indigo-300' : 'border-gray-200'}`}
+                    >
+                      <p className={`text-xs font-semibold mb-1.5 ${isOwn ? 'text-indigo-700' : 'text-gray-700'}`}>
+                        {nameOf?.[it.candidate_id] ?? it.candidate_id}
+                        {isOwn && <span className="ml-1.5 text-[10px] px-1 py-0.5 rounded bg-indigo-50 text-indigo-600 font-medium">자사</span>}
+                      </p>
+                      <p className="text-sm text-gray-800 leading-relaxed">{it.design_summary}</p>
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          )}
+          {(common.length > 0 || diff.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {common.length > 0 && (
+                <div className="rounded-lg bg-white border border-gray-200 p-3">
+                  <SubHead>공통점</SubHead>
+                  <LabeledList items={common} />
+                </div>
+              )}
+              {diff.length > 0 && (
+                <div className="rounded-lg bg-white border border-gray-200 p-3">
+                  <SubHead>차이점</SubHead>
+                  <LabeledList items={diff} />
+                </div>
+              )}
+            </div>
+          )}
+        </SummaryGroup>
       )}
 
-      {own.length > 0 && (
-        <div className="space-y-1">
-          <p className="text-[11px] font-semibold text-gray-500">자사 특징</p>
-          <Bullets items={own} mark="·" />
-        </div>
+      {(strengths.length > 0 || weaknesses.length > 0) && (
+        <SummaryGroup title="자사 관점">
+          {(strengths.length > 0 || weaknesses.length > 0) && (
+            <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
+              {strengths.length > 0 && (
+                <div className="rounded-lg bg-white border border-green-200 p-3">
+                  <SubHead tone="text-green-700">자사 강점</SubHead>
+                  <TradeoffList items={strengths} tone="strength" />
+                </div>
+              )}
+              {weaknesses.length > 0 && (
+                <div className="rounded-lg bg-white border border-red-200 p-3">
+                  <SubHead tone="text-red-600">자사 약점</SubHead>
+                  <TradeoffList items={weaknesses} tone="weakness" />
+                </div>
+              )}
+            </div>
+          )}
+          <p className="text-[11px] text-gray-400">
+            강점·약점은 사용 환경(결제액·빈도·통화 등)에 따라 유불리가 갈릴 수 있어 적용 조건을 함께 표시합니다.
+          </p>
+        </SummaryGroup>
       )}
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {common.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-gray-500">공통점</p>
-            <Bullets items={common} mark="·" />
-          </div>
-        )}
-        {diff.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-gray-500">차이점</p>
-            <Bullets items={diff} mark="·" />
-          </div>
-        )}
-      </div>
-
-      <div className="grid grid-cols-1 sm:grid-cols-2 gap-3">
-        {strengths.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-green-600">자사 강점 (조건부)</p>
-            <Tradeoffs items={strengths} mark="＋" markColor="text-green-500" />
-          </div>
-        )}
-        {weaknesses.length > 0 && (
-          <div className="space-y-1">
-            <p className="text-[11px] font-semibold text-red-600">자사 약점 (조건부)</p>
-            <Tradeoffs items={weaknesses} mark="－" markColor="text-red-500" />
-          </div>
-        )}
-      </div>
-
-      <p className="text-[10px] text-gray-400">
-        강점·약점은 사용 환경(결제액·빈도·통화 등)에 따라 유불리가 갈릴 수 있어 조건과 함께 표기됩니다.
-      </p>
     </div>
   );
 }
@@ -368,7 +428,7 @@ export default function ComparisonMatrixReport({ report }) {
         {report.rubric_version} · 생성 {String(report.generated_at ?? '').slice(0, 19).replace('T', ' ')}
       </p>
       {/* ── 두괄식 분석 요약 (표 위 최상단) — v2.0 제품 관점 요약 ── */}
-      <ProductSummary product={product} nameOf={nameOf} />
+      <ProductSummary product={product} nameOf={nameOf} ownId={ownId} />
 
       {/* ── 2. feature_table (transpose: 행=항목, 열=상품) ── */}
       {/* 범례 (표 우측 상단) — 조건부 기호 */}
@@ -416,7 +476,7 @@ export default function ComparisonMatrixReport({ report }) {
       {/* ── 3. zone_summary (셀 색상 테두리로 흡수 — 카드 비노출) ── */}
       {SHOW_ZONE_CARD && (zone.winning?.length || zone.battling?.length || zone.losing?.length) ? (
         <div className="mb-5">
-          <h4 className="text-sm font-bold text-gray-800 mb-1">
+          <h4 className="text-base font-bold text-gray-900 mb-1">
             Zone 판정 (자사 관점)
           </h4>
           <p className="text-xs text-gray-600 mb-2">자사가 각 항목에서 우위(Winning)·접전(Battling)·열위(Losing) 중 어디에 있는지 분류한 결과입니다.</p>
@@ -446,7 +506,7 @@ export default function ComparisonMatrixReport({ report }) {
       {/* ── 4. harvey_balls (셀 색상 테두리로 흡수 — 카드 비노출) ── */}
       {SHOW_HARVEY_CARD && harvey.length > 0 && (
         <div className="mb-5">
-          <h4 className="text-sm font-bold text-gray-800 mb-1">
+          <h4 className="text-base font-bold text-gray-900 mb-1">
             정성 평가 (Harvey Balls)
           </h4>
           <p className="text-xs text-gray-600 mb-2">
