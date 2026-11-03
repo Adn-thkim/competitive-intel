@@ -444,14 +444,13 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
     onStarted?.();
 
     // reaction_insight 포함 여부는 selected_purposes(deriveSelectedReportTypes)로 전달.
-    // 복합키(report::id)에서 id를 복원해 순수 feature_id만 distinct 추출(서버는 전역 집합으로 소비).
-    const pureFeatureIds = new Set(
-      reports.flatMap(r => r.features.map(f => f.feature_id))
-    );
+    // 2026-11 — 순서 고정: 선택 집합(Set)의 삽입 순서(=클릭 이력)가 아니라 **서버가 준 feature 순서**로
+    // 보낸다. comparison_matrix 는 selected_feature_ids 순서로 표·정규화 입력을 만들고 그 해시가 캐시 키라,
+    // 체크 해제→재체크만으로 순서가 바뀌면 같은 선택인데도 캐시가 미스된다(재현: 재체크 항목이 맨 뒤로 이동).
     const selectedFeatureIds = [...new Set(
-      [...selectedKeys]
-        .map(k => k.slice(k.indexOf('::') + 2))
-        .filter(id => pureFeatureIds.has(id))
+      reports.flatMap(r => r.features
+        .filter(f => selectedKeys.has(fkey(r.report_type, f.feature_id)))
+        .map(f => f.feature_id))
     )];
 
     try {
