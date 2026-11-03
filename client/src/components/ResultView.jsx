@@ -16,8 +16,6 @@ import { useEffect, useState } from 'react';
 import ComparisonMatrixReport from './ComparisonMatrixReport';
 import ReactionInsightReport from './ReactionInsightReport';
 import InsightReport from './InsightReport';
-import ReactionAxisReviewPage from './ReactionAxisReviewPage';
-import MarketingSocialReport from './MarketingSocialReport';
 
 /* ── 리포트 탭 정의 (v0.12.4 점진 렌더링) ──────────────────────────────────
  * 각 리포트는 report_outputs[key] 가 생기는 순간 탭이 활성화된다.
@@ -30,7 +28,6 @@ const REPORT_TABS = [
   // false 면 분석 실행 중에도 '생성 중'이 아니라 '준비 중'으로 표시한다 (v0.13.1 수정).
   { key: 'comparison_matrix', icon: '📊', label: '비교 매트릭스',      implemented: true },
   { key: 'reaction_insight',  icon: '💬', label: '고객 반응 인사이트', implemented: true },
-  { key: 'marketing_social',  icon: '📣', label: '마케팅 소셜',        implemented: true },
   { key: 'insight_report',    icon: '📋', label: '리서치 리포트',      implemented: true },   // 매트릭스·반응·외부 조사 종합
 ];
 
@@ -266,10 +263,8 @@ function GroupHeader({ type, count }) {
 const SHOW_ENTITY_SECTIONS = false;
 
 /* ── 메인 컴포넌트 ── */
-export default function ResultView({ result, reportsRunning = false, onReset,
-                                     reactionReviewPending = false, threadId = null, onReactionApproved }) {
-  // #5 검토가 대기 중이면 '고객 반응 인사이트' 탭을 기본 활성(해야 할 작업이 그것이므로).
-  const [activeTab, setActiveTab] = useState(() => (reactionReviewPending ? 'reaction_insight' : 'comparison_matrix'));
+export default function ResultView({ result, reportsRunning = false, onReset }) {
+  const [activeTab, setActiveTab] = useState('comparison_matrix');
   const [showAgentLog, setShowAgentLog] = useState(false);   // Agent 실행 이력 — 기본 닫힘
 
   // feature_selection → 결과 페이지 전환 시 직전 스크롤 위치가 남아 하단부터 보이는 문제 방지.
@@ -304,11 +299,10 @@ export default function ResultView({ result, reportsRunning = false, onReset,
   // 탭 활성화 여부 — '고객 반응 인사이트'는 리포트(report_outputs.reaction_insight) 또는 검토 대기 중이면 활성.
   const readyMap = {
     comparison_matrix: Boolean(reportOutputs.comparison_matrix),
-    reaction_insight:  Boolean(reportOutputs.reaction_insight || reactionReviewPending),
-    marketing_social:  Boolean(reportOutputs.marketing_social),
+    reaction_insight:  Boolean(reportOutputs.reaction_insight),
     insight_report:    Boolean(reportOutputs.insight_report),
   };
-  const showReportArea = hasAnyReport || reportsRunning || reactionReviewPending;
+  const showReportArea = hasAnyReport || reportsRunning;
   // candidate_id → 상품명 (리포트 컴포넌트 공용)
   const candidateNameMap = Object.fromEntries(
     (state.product_profiles ?? []).map(p => [p.candidate_id, p.product_name]));
@@ -366,28 +360,9 @@ export default function ResultView({ result, reportsRunning = false, onReset,
             {activeTab === 'comparison_matrix' && comparisonMatrix && (
               <ComparisonMatrixReport report={comparisonMatrix} />
             )}
-            {/* 고객 반응 인사이트 탭: 리포트(report_outputs.reaction_insight) 우선, 없으면 #5 검토 화면 */}
-            {activeTab === 'reaction_insight' && (
-              reportOutputs.reaction_insight ? (
-                <ReactionInsightReport
-                  report={reportOutputs.reaction_insight}
-                  candidateNames={candidateNameMap}
-                  ownProductId={ownProduct.product_id}
-                />
-              ) : reactionReviewPending ? (
-                <div className="mb-6 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
-                  <ReactionAxisReviewPage
-                    embedded
-                    state={state}
-                    threadId={threadId}
-                    onApproved={onReactionApproved}
-                  />
-                </div>
-              ) : null
-            )}
-            {activeTab === 'marketing_social' && reportOutputs.marketing_social && (
-              <MarketingSocialReport
-                report={reportOutputs.marketing_social}
+            {activeTab === 'reaction_insight' && reportOutputs.reaction_insight && (
+              <ReactionInsightReport
+                report={reportOutputs.reaction_insight}
                 candidateNames={candidateNameMap}
                 ownProductId={ownProduct.product_id}
               />
@@ -399,7 +374,7 @@ export default function ResultView({ result, reportsRunning = false, onReset,
                 ownProductId={ownProduct.product_id}
               />
             )}
-            {!['comparison_matrix', 'reaction_insight', 'marketing_social', 'insight_report'].includes(activeTab) && activeReport && (
+            {!['comparison_matrix', 'reaction_insight', 'insight_report'].includes(activeTab) && activeReport && (
               <GenericReportView tab={activeTabMeta} report={activeReport} />
             )}
           </>
