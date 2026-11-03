@@ -1,5 +1,5 @@
 import { useState } from 'react';
-import OwnedChannelCard from './OwnedChannelCard.jsx';
+import ReactionSourcesCard from './ReactionSourcesCard.jsx';
 
 /* ── 안내 박스 (v0.10.18a — source_flow 별 색상 분기) ────────────────────── */
 
@@ -9,361 +9,224 @@ const INTRO_BOX_CLASS = {
   B:     'bg-blue-50 border-blue-200 text-blue-900',                      // B-only — 파란색 (URL 수집 부재 명시)
 };
 
-function IntroBox({ sourceFlow, text }) {
-  if (!text) return null;
+// 2026-11 — 단계 카드의 진행 시점 배지
+const PHASE_BADGE = {
+  done:  { label: '완료',         cls: 'bg-gray-100 text-gray-500' },
+  after: { label: '선택 후 실행', cls: 'bg-indigo-100 text-indigo-700' },
+};
+
+function IntroBox({ sourceFlow, text, intro }) {
   const cls = INTRO_BOX_CLASS[sourceFlow] ?? INTRO_BOX_CLASS.A;
+
+  // 2026-11 — 구조화 안내(한 줄 요약 + 단계 목록)가 있으면 우선 렌더
+  if (intro?.steps?.length) {
+    return (
+      <div className={`rounded-lg border px-3.5 py-3 mb-3 ${cls}`}>
+        <p className="text-sm font-semibold mb-2.5">{intro.summary}</p>
+        <ol className="space-y-2">
+          {intro.steps.map((step, i) => {
+            const badge = PHASE_BADGE[step.phase] ?? PHASE_BADGE.after;
+            return (
+              <li key={i} className="flex items-start gap-2.5">
+                <span className="mt-0.5 w-5 h-5 shrink-0 rounded-full bg-white border border-gray-300 text-[11px] font-semibold flex items-center justify-center">
+                  {i + 1}
+                </span>
+                <div className="min-w-0">
+                  <div className="flex items-center gap-1.5">
+                    <span className="text-xs font-semibold">{step.title}</span>
+                    <span className={`text-[10px] font-medium px-1.5 py-0.5 rounded ${badge.cls}`}>
+                      {badge.label}
+                    </span>
+                  </div>
+                  <p className="text-xs opacity-80 leading-relaxed mt-0.5">{step.detail}</p>
+                </div>
+              </li>
+            );
+          })}
+        </ol>
+      </div>
+    );
+  }
+
+  if (!text) return null;
   return (
-    <div className={`rounded-lg border px-3.5 py-2.5 mb-3 text-xs leading-relaxed ${cls}`}>
+    <div className={`rounded-lg border px-3.5 py-2.5 mb-3 text-xs leading-relaxed whitespace-pre-line ${cls}`}>
       {text}
     </div>
   );
 }
 
-/* ── 우선순위 배지 ─────────────────────────────────────────────────────────── */
+/* ── 비교 매트릭스 feature 표 (2026-11 — feature × 상품, 셀 클릭 시 URL 목록) ──── */
 
-function PriorityBadge({ priority }) {
-  const map = {
-    high:   { label: '높음', cls: 'bg-red-100 text-red-700' },
-    medium: { label: '중간', cls: 'bg-yellow-100 text-yellow-700' },
-    low:    { label: '낮음', cls: 'bg-gray-100 text-gray-500' },
-  };
-  const { label, cls } = map[priority] ?? { label: priority, cls: 'bg-gray-100 text-gray-500' };
-  return (
-    <span className={`text-xs font-medium px-2 py-0.5 rounded-full ${cls}`}>
-      {label}
-    </span>
-  );
-}
-
-/* ── 커버리지 요약 칩 ─────────────────────────────────────────────────────── */
-
-function CoverageSummary({ summary }) {
-  const { sufficient = 0, partial = 0, not_found = 0 } = summary ?? {};
-  const total = sufficient + partial + not_found;
-  if (total === 0) return null;
-
-  return (
-    <div className="flex items-center gap-1.5 mt-1.5 flex-wrap">
-      <span className="text-xs text-gray-400">URL 커버리지:</span>
-      {sufficient > 0 && (
-        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-green-100 text-green-700">
-          충분 {sufficient}
-        </span>
-      )}
-      {partial > 0 && (
-        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-yellow-100 text-yellow-700">
-          부분 {partial}
-        </span>
-      )}
-      {not_found > 0 && (
-        <span className="text-xs font-medium px-1.5 py-0.5 rounded bg-red-100 text-red-600">
-          미확보 {not_found}
-        </span>
-      )}
-    </div>
-  );
-}
-
-/* ── Coverage 상세 (v0.10.16 — candidate × coverage × URL) ───────────────── */
-
-const COVERAGE_META = {
-  sufficient: { label: '충분',   chipCls: 'bg-green-100 text-green-700' },
-  partial:    { label: '부분',   chipCls: 'bg-yellow-100 text-yellow-700' },
-  not_found:  { label: '미확보', chipCls: 'bg-red-100 text-red-600' },
+// URL 확보 판정 = feature_mapping 단계 LLM 의 사전 예측 (실제 값 추출 전)
+const COV_META = {
+  sufficient: { label: '확보', dot: 'bg-emerald-500 border-emerald-500' },
+  partial:    { label: '일부', dot: 'bg-amber-200 border-amber-500' },
+  not_found:  { label: '없음', dot: 'bg-white border-gray-300' },
 };
 
-/* v0.10.28a (D46) — origin × source 메타 별 chip 분기.
- * macro 는 source_tier 메타가 official_statistics / news_supplement 로 추가 분기.
- * 그 외 5종 origin 은 단일 라벨.
- */
-function originChip(u) {
-  const origin = u.origin;
-  if (origin === 'macro_search') {
-    if (u.source_tier === 'official_statistics') {
-      return { label: '공식 통계', cls: 'text-purple-700 bg-purple-50' };
-    }
-    if (u.source_tier === 'news_supplement') {
-      return { label: '뉴스 보강', cls: 'text-orange-700 bg-orange-50' };
-    }
-    return { label: '매크로', cls: 'text-purple-600 bg-purple-50' };
-  }
-  if (origin === 'official_source')      return { label: '공식',        cls: 'text-gray-700 bg-gray-100' };
-  if (origin === 'official_subpage')     return { label: '공식 sub-page', cls: 'text-gray-700 bg-gray-100' };
-  if (origin === 'blog_community')       return { label: '블로그·커뮤니티', cls: 'text-teal-700 bg-teal-50' };
-  if (origin === 'youtube_reactions')    return { label: 'YouTube',      cls: 'text-red-700 bg-red-50' };
-  if (origin === 'owned_channel_search') return { label: '운영 채널',     cls: 'text-pink-700 bg-pink-50' };
-  if (origin === 'brave_search')         return { label: 'Brave',        cls: 'text-blue-600 bg-blue-50' };
-  // unknown origin — 회색 fallback
-  return { label: origin || '미상', cls: 'text-gray-500 bg-gray-100' };
+function CovDot({ cov }) {
+  const meta = COV_META[cov] ?? COV_META.not_found;
+  return <span className={`inline-block w-2.5 h-2.5 rounded-full border-2 align-[-1px] ${meta.dot}`} />;
 }
 
-function CoverageDetails({ details }) {
-  if (!details || details.length === 0) {
-    return (
-      <p className="text-xs text-gray-400 italic mt-2">
-        candidate별 coverage 상세 없음.
-      </p>
-    );
-  }
+const shortUrl = (url) =>
+  (url || '').replace(/^https?:\/\//, '').replace(/^www\./, '').replace(/\/$/, '');
 
-  return (
-    <div className="mt-3 space-y-3 border-t border-gray-200 pt-3">
-      {details.map((cov, idx) => {
-        const meta = COVERAGE_META[cov.coverage] ?? {
-          label: cov.coverage, chipCls: 'bg-gray-100 text-gray-500',
-        };
-        const existing  = cov.existing_urls   ?? [];
-        const additional = cov.additional_urls ?? [];
-        // v0.10.28a (D47 c) — candidate_label 우선 표시. server 가 macro 등 특수 라벨 부착.
-        // 미부착 시 candidate_id fallback.
-        const candidateDisplay = cov.candidate_label || cov.candidate_id || '(unknown)';
-        // macro candidate 는 자사·경쟁사와 시각적 구분 (font-mono → font-sans)
-        const candidateCls = cov.candidate_id === 'macro'
-          ? 'font-sans font-medium text-purple-700 truncate'
-          : 'font-mono text-gray-700 truncate';
-        return (
-          <div key={`${cov.candidate_id}-${idx}`} className="text-xs">
-            {/* candidate 헤더 */}
-            <div className="flex items-center gap-2 mb-1.5">
-              <span className={candidateCls}>
-                {candidateDisplay}
-              </span>
-              <span className={`px-1.5 py-0.5 rounded font-medium ${meta.chipCls}`}>
-                {meta.label}
-              </span>
-            </div>
-
-            {/* 기존 URL 목록 */}
-            <div className="ml-2 mb-1">
-              <span className="text-gray-500">기존 URL ({existing.length}건)</span>
-              {existing.length === 0 ? null : (
-                <ul className="mt-0.5 ml-2 space-y-0.5">
-                  {existing.map((u, ui) => (
-                    <li key={ui} className="flex items-center gap-1.5 text-gray-600 truncate">
-                      <span className="text-gray-400 shrink-0">•</span>
-                      <a
-                        href={u.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:underline truncate"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {u.url}
-                      </a>
-                      {(() => {
-                        // v0.10.28a (D46) — origin × source_tier 별 6종 분기.
-                        const chip = originChip(u);
-                        return (
-                          <span className={`text-[10px] px-1 rounded shrink-0 ${chip.cls}`}>
-                            {chip.label}
-                          </span>
-                        );
-                      })()}
-                      {/* v0.10.28c (D48·D49·D50 a) — youtube_reactions 다수 시 대표 1건 + N건 추가 영상 표기 */}
-                      {u.youtube_truncated_count && u.youtube_truncated_count > 0 ? (
-                        <span className="text-[10px] text-red-700 bg-red-50 border border-red-200 px-1 rounded shrink-0">
-                          + {u.youtube_truncated_count}건 추가 영상
-                        </span>
-                      ) : null}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-
-            {/* 추가 URL 목록 */}
-            <div className="ml-2">
-              <span className="text-gray-500">추가 URL ({additional.length}건)</span>
-              {additional.length === 0 ? null : (
-                <ul className="mt-0.5 ml-2 space-y-0.5">
-                  {additional.map((u, ui) => (
-                    <li key={ui} className="flex items-center gap-1.5 text-gray-600 truncate">
-                      <span className="text-gray-400 shrink-0">•</span>
-                      <a
-                        href={u.url}
-                        target="_blank"
-                        rel="noopener noreferrer"
-                        className="text-indigo-600 hover:underline truncate"
-                        onClick={(e) => e.stopPropagation()}
-                      >
-                        {u.url}
-                      </a>
-                      {u.validated ? (
-                        <span className="text-[10px] text-green-700 bg-green-50 px-1 rounded shrink-0">
-                          ✓ {u.http_status ?? 'OK'}
-                        </span>
-                      ) : (
-                        <span className="text-[10px] text-red-600 bg-red-50 px-1 rounded shrink-0">
-                          ✗ {u.http_status ?? 'fail'}
-                        </span>
-                      )}
-                    </li>
-                  ))}
-                </ul>
-              )}
-            </div>
-          </div>
-        );
-      })}
-    </div>
-  );
+// candidate 별 표시 URL — 기존 URL + 접속 확인된 추가 URL(보조). 접속 실패 URL 은 숨김.
+function urlsOf(cd) {
+  if (!cd) return [];
+  return [
+    ...(cd.existing_urls ?? []).map(u => ({ url: u.url, extra: false })),
+    ...(cd.additional_urls ?? []).filter(u => u.validated).map(u => ({ url: u.url, extra: true })),
+  ];
 }
 
-/* ── URL 프리뷰 카드 (v0.10.29 — reaction_insight 전용) ─────────────────────── */
+function FeatureMatrix({ report, selectedKeys, onToggleFeature }) {
+  const rt = report.report_type;
+  const [openId, setOpenId] = useState(null);
 
-function UrlPreviewCard({ urlPreview }) {
-  if (!urlPreview) return null;
-  const { youtube_count = 0, community_count = 0 } = urlPreview;
+  // 열 = 상품. 서버 candidates(자사 → 경쟁사 ID 순, 비교 매트릭스 리포트와 동일) 우선.
+  // 없으면(구 서버 payload) coverage_details 에서 수집 — own_/comp_ 접두사 제거, 같은 순서 규칙.
+  const cols = report.candidates?.length
+    ? report.candidates
+    : [...new Set(report.features.flatMap(f => (f.coverage_details ?? []).map(cd => cd.candidate_id)))]
+        .sort((a, b) => (b.startsWith('own_') - a.startsWith('own_')) || a.localeCompare(b))
+        .map(id => ({
+          candidate_id:   id,
+          label:          id.replace(/^(own|comp|func)_/, ''),
+          candidate_type: id.startsWith('own_') ? 'own' : 'competitor',
+        }));
+  const hasCore = report.features.some(f => f.priority === 'high');
+  // 2026-11 — 표시 순서만 핵심(★) 항목 우선 (안정 정렬). 선택 키·서버 전송 순서는 report.features 원순서 유지.
+  const rows = [...report.features].sort(
+    (a, b) => (b.priority === 'high') - (a.priority === 'high'));
+
   return (
-    <div className="rounded-lg border border-gray-200 bg-white px-4 py-3 mb-3">
-      <p className="text-[11px] font-medium text-gray-400 mb-2 uppercase tracking-wide">수집 현황</p>
-      <div className="flex gap-5">
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-red-50 text-red-700">
-            YouTube
-          </span>
-          <span className="text-sm font-semibold text-gray-800">
-            수집 완료 {youtube_count}건
-          </span>
-        </div>
-        <div className="flex items-center gap-2">
-          <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-teal-50 text-teal-700">
-            커뮤니티
-          </span>
-          <span className="text-sm font-semibold text-gray-800">
-            발견 {community_count}건
-          </span>
-        </div>
+    <>
+      {/* 범례 */}
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-1 text-[11px] text-gray-500 mb-1.5 px-1">
+        <span className="font-medium text-gray-600">URL 확보 판정</span>
+        {Object.entries(COV_META).map(([k, m]) => (
+          <span key={k}><CovDot cov={k} /> {m.label}</span>
+        ))}
+        <span className="text-gray-400">· 숫자 = 찾은 URL 수 · 행을 누르면 URL 목록</span>
+        {hasCore && <span className="ml-auto"><span className="text-amber-500">★</span> 핵심 항목</span>}
       </div>
-    </div>
-  );
-}
 
-/* ── ABSA Aspect 카드 (v0.10.29 — 체크박스 선택 가능) ───────────────────────── */
-
-function AbsaAspectCard({ aspect, isSelected, onToggle }) {
-  return (
-    <div className={[
-      'rounded-lg border-2 transition-colors',
-      isSelected
-        ? 'border-blue-400 bg-blue-50'
-        : 'border-blue-200 bg-blue-50/30 hover:border-blue-300',
-    ].join(' ')}>
-      <label className="flex items-start gap-3 px-3.5 py-3 cursor-pointer">
-        <input
-          type="checkbox"
-          className="mt-0.5 w-4 h-4 accent-indigo-600 shrink-0"
-          checked={isSelected}
-          onChange={onToggle}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-1">
-            <span className="font-mono text-[11px] text-blue-600 bg-blue-100 px-1.5 py-0.5 rounded">
-              {aspect.aspect_id}
-            </span>
-            <span className="text-sm font-semibold text-gray-900">{aspect.label}</span>
-            {aspect.domain_specific && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-indigo-100 text-indigo-700">
-                도메인 특화
-              </span>
-            )}
-          </div>
-          <p className="text-xs text-gray-500 leading-relaxed">{aspect.definition}</p>
-        </div>
-      </label>
-    </div>
-  );
-}
-
-/* ── 개별 Feature 카드 (v0.10.18a — source_flow 별 URL 영역 조건부 렌더) ──── */
-
-function FeatureCard({
-  feature,
-  isSelected,
-  onToggle,
-  urlCoverageVisible = true,   // v0.10.18a — B-only 시 false
-  checkboxDisabled   = false,  // v0.10.18a — B-only 시 자동 선택 + 비활성
-}) {
-  const [expanded, setExpanded] = useState(false);
-  const hasDetails = urlCoverageVisible
-    && Array.isArray(feature.coverage_details)
-    && feature.coverage_details.length > 0;
-
-  return (
-    <div
-      className={[
-        'rounded-lg border-2 transition-colors',
-        checkboxDisabled
-          ? 'border-blue-200 bg-blue-50/30'                              // v0.10.18a — B-only 카드: 옅은 파란색
-          : isSelected
-            ? 'border-indigo-500 bg-indigo-50'
-            : 'border-gray-200 bg-white hover:border-indigo-300',
-      ].join(' ')}
-    >
-      <label
-        className={[
-          'flex items-start gap-3 p-3.5',
-          checkboxDisabled ? 'cursor-default' : 'cursor-pointer',
-        ].join(' ')}
-      >
-        <input
-          type="checkbox"
-          className={[
-            'mt-0.5 w-4 h-4 accent-indigo-600 shrink-0',
-            checkboxDisabled ? 'opacity-60 cursor-not-allowed' : '',
-          ].join(' ')}
-          checked={isSelected}
-          onChange={checkboxDisabled ? undefined : onToggle}
-          disabled={checkboxDisabled}
-        />
-        <div className="flex-1 min-w-0">
-          <div className="flex flex-wrap items-center gap-2 mb-0.5">
-            <span className="text-sm font-semibold text-gray-900">
-              {feature.feature_name}
-            </span>
-            <PriorityBadge priority={feature.priority} />
-            {checkboxDisabled && (
-              <span className="text-[10px] font-medium px-1.5 py-0.5 rounded bg-blue-100 text-blue-700 shrink-0">
-                자동 포함
-              </span>
-            )}
-            {hasDetails && (
-              <button
-                type="button"
-                onClick={(e) => {
-                  e.preventDefault();
-                  e.stopPropagation();
-                  setExpanded(v => !v);
-                }}
-                className="ml-auto text-[11px] font-medium text-indigo-600 hover:text-indigo-800 hover:underline shrink-0"
-              >
-                {expanded ? '▲ 상세 닫기' : '▼ URL 상세 보기'}
-              </button>
-            )}
-          </div>
-          {feature.description && (
-            <p className="text-xs text-gray-500 leading-relaxed">
-              {feature.description}
-            </p>
-          )}
-          {urlCoverageVisible
-            ? <CoverageSummary summary={feature.coverage_summary} />
-            : (
-              <p className="text-[11px] text-blue-700/80 italic mt-1.5">
-                자동 도출 항목 — 다른 리포트 결과로부터 생성됩니다 (URL 수집 없음)
-              </p>
-            )
-          }
-        </div>
-      </label>
-
-      {/* v0.10.16 — 확장 시 candidate × coverage × URL 상세 (B-only 시 미렌더) */}
-      {expanded && hasDetails && (
-        <div className="px-3.5 pb-3.5">
-          <CoverageDetails details={feature.coverage_details} />
-        </div>
-      )}
-    </div>
+      {/* 좁은 화면에서는 상품 열이 잘리지 않도록 표를 가로 스크롤 */}
+      <div className="bg-white rounded-xl border border-gray-200 overflow-x-auto">
+        <table className="w-full min-w-[560px] table-fixed text-sm">
+          <colgroup>
+            <col className="w-10" />
+            <col />
+            {cols.map(c => <col key={c.candidate_id} className="w-[88px]" />)}
+            <col className="w-7" />
+          </colgroup>
+          <thead className="bg-gray-50 text-[11px] text-gray-500">
+            <tr>
+              <th />
+              <th className="text-left font-medium py-2">feature</th>
+              {cols.map(c => (
+                <th
+                  key={c.candidate_id}
+                  title={c.label}
+                  style={{ overflowWrap: 'anywhere' }}
+                  className={`px-1 py-2 font-medium leading-tight break-keep ${c.candidate_type === 'own' ? 'text-indigo-600' : ''}`}
+                >
+                  {c.label}
+                </th>
+              ))}
+              <th />
+            </tr>
+          </thead>
+          <tbody>
+            {rows.map(f => {
+              const selected = selectedKeys.has(fkey(rt, f.feature_id));
+              const byCand = Object.fromEntries((f.coverage_details ?? []).map(cd => [cd.candidate_id, cd]));
+              const isOpen = openId === f.feature_id;
+              return [
+                <tr
+                  key={f.feature_id}
+                  onClick={() => setOpenId(isOpen ? null : f.feature_id)}
+                  className={`border-t border-gray-100 cursor-pointer hover:bg-gray-50 ${isOpen ? 'bg-indigo-50/60' : ''} ${selected ? '' : 'opacity-50'}`}
+                >
+                  <td className="pl-3 py-2 align-top" onClick={e => e.stopPropagation()}>
+                    <input
+                      type="checkbox"
+                      className="mt-0.5 w-4 h-4 accent-indigo-600"
+                      checked={selected}
+                      onChange={() => onToggleFeature(rt, f.feature_id)}
+                      aria-label={f.feature_name}
+                    />
+                  </td>
+                  <td className="py-2 pr-2">
+                    <div className="font-medium text-gray-900 text-[13px]">
+                      {f.priority === 'high' && <span className="text-amber-500 mr-0.5">★</span>}
+                      {f.feature_name}
+                    </div>
+                    {f.description && (
+                      <div className="text-[11px] text-gray-400 leading-snug mt-0.5">
+                        {f.description}
+                      </div>
+                    )}
+                  </td>
+                  {cols.map(c => {
+                    const cd = byCand[c.candidate_id];
+                    return (
+                      <td key={c.candidate_id} className="text-center py-2 text-xs">
+                        <CovDot cov={cd?.coverage} /> <span className="text-gray-500">{urlsOf(cd).length}</span>
+                      </td>
+                    );
+                  })}
+                  <td className="text-center text-[10px] text-gray-400 pr-1">{isOpen ? '▲' : '▼'}</td>
+                </tr>,
+                isOpen && (
+                  <tr key={`${f.feature_id}-urls`} className="bg-indigo-50/40">
+                    <td />
+                    <td colSpan={cols.length + 2} className="py-2 pr-3">
+                      <div className="grid grid-cols-1 sm:grid-cols-2 gap-x-4 gap-y-2 text-[11px]">
+                        {cols.map(c => {
+                          const cd = byCand[c.candidate_id];
+                          const urls = urlsOf(cd);
+                          const meta = COV_META[cd?.coverage] ?? COV_META.not_found;
+                          return (
+                            <div key={c.candidate_id} className="min-w-0">
+                              <div className="font-medium text-gray-700">
+                                {c.label} <CovDot cov={cd?.coverage} /> <span className="text-gray-400 font-normal">{meta.label}</span>
+                              </div>
+                              {urls.length === 0
+                                ? <div className="text-gray-400 italic">찾은 URL 없음</div>
+                                : urls.map((u, i) => (
+                                    <div key={i} className="flex items-center gap-1 min-w-0">
+                                      <a
+                                        href={u.url}
+                                        target="_blank"
+                                        rel="noopener noreferrer"
+                                        title={u.url}
+                                        className="text-indigo-600 hover:underline truncate"
+                                      >
+                                        {shortUrl(u.url)}
+                                      </a>
+                                      {u.extra && <span className="shrink-0 text-[10px] text-gray-500 bg-gray-100 px-1 rounded">보조</span>}
+                                    </div>
+                                  ))}
+                            </div>
+                          );
+                        })}
+                      </div>
+                    </td>
+                  </tr>
+                ),
+              ];
+            })}
+          </tbody>
+        </table>
+      </div>
+      <p className="text-[11px] text-gray-400 mt-1.5 px-1">
+        판정은 찾은 URL 을 보고 내린 <b>사전 예측</b>이며, 실제 값 추출은 선택 완료 후 진행됩니다.
+      </p>
+    </>
   );
 }
 
@@ -372,28 +235,58 @@ function FeatureCard({
 // 선택 단위 복합키 — 같은 feature_id가 여러 리포트에 공유돼도 리포트별로 독립 토글되도록 한다.
 const fkey = (reportType, id) => `${reportType}::${id}`;
 
+// 2026-11 — feature_selection 화면에 노출하는 리포트 (현재 생성 중인 리포트만).
+const VISIBLE_REPORT_TYPES = new Set(['comparison_matrix', 'reaction_insight']);
+
+// 2026-11 — reaction_insight 는 feature 선택 단위가 없으므로 리포트 자체를 1개 선택 단위로 다룬다.
+// (서버로는 selected_purposes 포함 여부로만 전달 — selected_feature_ids 에는 들어가지 않음)
+const REPORT_UNIT_ID = '__report__';
+const selectionIds = (report) =>
+  report.report_type === 'reaction_insight'
+    ? [REPORT_UNIT_ID]
+    : report.features.map(f => f.feature_id);
+
+// 2026-11 — 리포트 단위 토글 스위치. on=전체 선택, partial=일부 선택, off=미선택.
+// 클릭: on → 전체 해제, 그 외 → 전체 선택.
+const TOGGLE_META = {
+  on:      { text: '켜짐', track: 'bg-indigo-600', knob: 'translate-x-5' },
+  partial: { text: '일부', track: 'bg-indigo-300', knob: 'translate-x-2.5' },
+  off:     { text: '꺼짐', track: 'bg-gray-300',   knob: 'translate-x-0' },
+};
+
+function ReportToggle({ state, onToggle, label }) {
+  const meta = TOGGLE_META[state];
+  return (
+    <button
+      type="button"
+      role="switch"
+      aria-checked={state === 'on' ? 'true' : state === 'partial' ? 'mixed' : 'false'}
+      aria-label={`${label} 생성 여부`}
+      onClick={onToggle}
+      className="flex items-center gap-2 shrink-0"
+    >
+      <span className={`relative inline-flex h-6 w-11 items-center rounded-full transition-colors ${meta.track}`}>
+        <span className={`inline-block h-5 w-5 ml-0.5 rounded-full bg-white shadow transition-transform ${meta.knob}`} />
+      </span>
+      <span className="text-xs font-medium text-gray-600 w-6 text-left">{meta.text}</span>
+    </button>
+  );
+}
+
 function ReportSection({ report, selectedKeys, onToggleFeature }) {
   // v0.10.18a — server 가 전달하는 신설 메타데이터 (후방 호환: source_flow 누락 시 "A")
   const sourceFlow         = report.source_flow ?? 'A';
   const introText          = report.intro_text  ?? '';
-  const urlCoverageVisible = report.url_coverage_visible !== false;  // 기본 true
 
-  // v0.10.28b D45 a — marketing_social 카드는 B-only 형식 + 별도 owned_channels_card 렌더링
-  const isMarketingSocial    = report.report_type === 'marketing_social';
-  const ownedChannelsCard    = report.owned_channels_card;
-  // v0.10.29 — reaction_insight: features 카드 대신 ABSA codebook 표시
+  // 2026-11 — reaction_insight: 리포트 단위 체크박스 + 수집 현황·공식 YouTube 채널 카드 표시
   const isReactionInsight    = report.report_type === 'reaction_insight';
-  const aspectCodebook       = report.aspect_codebook ?? [];
+  const ownedYoutubeCard     = report.owned_youtube_card;
   const urlPreview           = report.url_preview;
   // v0.12.1 — 모든 리포트 카드의 feature 를 사용자가 선택/해제 가능하게 함.
-  // (이전: B-only·marketing_social 은 자동 포함·체크박스 비활성. URL 영역 숨김은
-  //  urlCoverageVisible 로 별도 제어되므로 선택 가능 여부와 무관하게 유지됨.)
+  // (이전: B-only·marketing_social 은 자동 포함·체크박스 비활성.)
   const checkboxDisabled     = false;
 
-  // reaction_insight는 features 대신 aspect_codebook의 aspect_id를 선택 단위로 사용
-  const featureIds = isReactionInsight
-    ? aspectCodebook.map(a => a.aspect_id)
-    : report.features.map(f => f.feature_id);
+  const featureIds = selectionIds(report);
   const rt = report.report_type;
   const allSelected  = featureIds.length > 0 && featureIds.every(id => selectedKeys.has(fkey(rt, id)));
   const someSelected = featureIds.some(id => selectedKeys.has(fkey(rt, id)));
@@ -414,80 +307,46 @@ function ReportSection({ report, selectedKeys, onToggleFeature }) {
 
   return (
     <div className="mb-7">
-      {/* 섹션 헤더 */}
-      <div className="flex items-center justify-between mb-3">
+      {/* 섹션 헤더 — 2026-11: 리포트 단위 선택을 두 리포트 모두 우측 토글 스위치로 통일 */}
+      <div className={`flex items-center justify-between ${isReactionInsight ? 'mb-3' : 'mb-1.5'}`}>
         <div>
           <h3 className="text-base font-bold text-gray-800">
             {report.report_label}
           </h3>
-          <p className="text-xs text-gray-400 mt-0.5">
-            {checkboxDisabled
-              ? `${featureIds.length}개 자동 포함`
-              : `${selectedCount} / ${featureIds.length}개 선택됨`}
-          </p>
+          {!isReactionInsight && (
+            <p className="text-xs text-gray-500 mt-0.5">
+              <b className="text-indigo-600">{selectedCount}</b> / {featureIds.length}개 feature 선택
+            </p>
+          )}
         </div>
         {!checkboxDisabled && (
-          <button
-            type="button"
-            onClick={handleToggleAll}
-            className={[
-              'text-xs font-medium px-3 py-1.5 rounded-lg border transition-colors',
-              allSelected
-                ? 'bg-indigo-50 border-indigo-300 text-indigo-700 hover:bg-indigo-100'
-                : someSelected
-                  ? 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100'
-                  : 'bg-gray-50 border-gray-300 text-gray-600 hover:bg-gray-100',
-            ].join(' ')}
-          >
-            {allSelected ? '전체 해제' : '전체 선택'}
-          </button>
+          <ReportToggle
+            state={allSelected ? 'on' : someSelected ? 'partial' : 'off'}
+            onToggle={handleToggleAll}
+            label={report.report_label}
+          />
         )}
       </div>
 
-      {/* v0.10.18a — 안내 박스 (source_flow 별 색상 분기) */}
-      <IntroBox sourceFlow={sourceFlow} text={introText} />
-
-      {/* v0.10.28b D45 a — marketing_social 의 별도 "공식 채널" 카드 (안내 박스 아래) */}
-      {isMarketingSocial && ownedChannelsCard ? (
-        <OwnedChannelCard card={ownedChannelsCard} />
-      ) : null}
-
-      {/* v0.10.29 — reaction_insight: URL 프리뷰 + ABSA codebook 표시 */}
-      {isReactionInsight ? (
-        <>
-          <UrlPreviewCard urlPreview={urlPreview} />
-          <div className="space-y-2">
-            {aspectCodebook.length > 0
-              ? aspectCodebook.map(aspect => (
-                  <AbsaAspectCard
-                    key={aspect.aspect_id}
-                    aspect={aspect}
-                    isSelected={selectedKeys.has(fkey(rt, aspect.aspect_id))}
-                    onToggle={() => onToggleFeature(rt, aspect.aspect_id)}
-                  />
-                ))
-              : (
-                <p className="text-xs text-gray-400 italic">
-                  ABSA codebook이 없습니다. domain_modeling을 재실행하세요.
-                </p>
-              )
-            }
-          </div>
-        </>
-      ) : (
-        /* Feature 카드 목록 */
-        <div className="space-y-2">
-          {report.features.map(feature => (
-            <FeatureCard
-              key={feature.feature_id}
-              feature={feature}
-              isSelected={selectedKeys.has(fkey(rt, feature.feature_id))}
-              onToggle={() => onToggleFeature(rt, feature.feature_id)}
-              urlCoverageVisible={urlCoverageVisible}
-              checkboxDisabled={checkboxDisabled}
-            />
-          ))}
+      {/* 2026-11 — 구 '선택 현황' 바를 feature 선택 수 막대로 흡수 (비교 매트릭스 전용) */}
+      {!isReactionInsight && (
+        <div className="h-1 bg-gray-200 rounded-full mb-3 overflow-hidden">
+          <div
+            className="h-full bg-indigo-500 rounded-full transition-all duration-300"
+            style={{ width: featureIds.length ? `${(selectedCount / featureIds.length) * 100}%` : '0%' }}
+          />
         </div>
+      )}
+
+      {/* v0.10.18a — 안내 박스 (source_flow 별 색상 분기) */}
+      <IntroBox sourceFlow={sourceFlow} text={introText} intro={report.intro_steps} />
+
+      {/* 2026-11 — reaction_insight: 안내 박스 아래 수집 대상(수집 현황 + 제외 공식 채널 통합) */}
+      {isReactionInsight ? (
+        <ReactionSourcesCard preview={urlPreview} youtubeCard={ownedYoutubeCard} />
+      ) : (
+        /* 2026-11 — feature 카드 목록 → feature × 상품 표 */
+        <FeatureMatrix report={report} selectedKeys={selectedKeys} onToggleFeature={onToggleFeature} />
       )}
     </div>
   );
@@ -531,23 +390,19 @@ function ReportSection({ report, selectedKeys, onToggleFeature }) {
  */
 export default function FeatureSelectionPage({ intakeResult, threadId, onApproved, onReset, onStarted, onFailed }) {
   const iv      = intakeResult?.interrupt_value ?? {};
-  const reports = iv.reports ?? [];
+  // 2026-11 — 생성 중인 리포트(비교 매트릭스·고객 반응 인사이트)만 노출·선택 대상으로 한다.
+  // 숨긴 리포트는 selected_purposes·selected_feature_ids 에 들어가지 않는다.
+  const reports = (iv.reports ?? []).filter(r => VISIBLE_REPORT_TYPES.has(r.report_type));
 
-  // 초기 선택: 모든 feature + reaction_insight의 ABSA aspect를 (report,id) 복합키로 기본 선택.
+  // 초기 선택: 모든 선택 단위(feature, reaction_insight 는 리포트 자체)를 (report,id) 복합키로 기본 선택.
   // 복합키라 같은 feature_id가 여러 리포트에 있어도 카드별로 독립 토글된다.
-  const allKeys = reports.flatMap(r => {
-    const ids = r.report_type === 'reaction_insight'
-      ? (r.aspect_codebook ?? []).map(a => a.aspect_id)
-      : r.features.map(f => f.feature_id);
-    return ids.map(id => fkey(r.report_type, id));
-  });
+  const allKeys = reports.flatMap(r =>
+    selectionIds(r).map(id => fkey(r.report_type, id)));
   const [selectedKeys, setSelectedKeys] = useState(new Set(allKeys));
 
   const [submitting, setSubmitting] = useState(false);
   const [error, setError]           = useState('');
 
-  // 복합키는 모두 distinct — 총계와 선택 수가 자연 정합(전체 선택 시 N/N).
-  const totalFeatures = allKeys.length;
   const selectedCount = selectedKeys.size;
 
   /* ── 개별 토글 ─────────────────────────────────────────────────────────── */
@@ -566,9 +421,8 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
   function deriveSelectedReportTypes() {
     const reportTypeSet = new Set();
     for (const report of reports) {
-      const ids = report.report_type === 'reaction_insight'
-        ? (report.aspect_codebook ?? []).map(a => a.aspect_id)
-        : report.features.map(f => f.feature_id);
+      // reaction_insight 는 리포트 단위 체크박스(REPORT_UNIT_ID) 선택 여부로 포함된다.
+      const ids = selectionIds(report);
       if (ids.some(id => selectedKeys.has(fkey(report.report_type, id)))) {
         reportTypeSet.add(report.report_type);
       }
@@ -589,7 +443,6 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
     // (graph 실행 중 체크포인트에서 report_outputs 가 보이는 즉시 결과 페이지로 전환)
     onStarted?.();
 
-    // aspect_id는 server의 valid feature_id 집합에 없으므로 제외.
     // reaction_insight 포함 여부는 selected_purposes(deriveSelectedReportTypes)로 전달.
     // 복합키(report::id)에서 id를 복원해 순수 feature_id만 distinct 추출(서버는 전역 집합으로 소비).
     const pureFeatureIds = new Set(
@@ -634,55 +487,16 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
     }
   }
 
-  /* ── 전체 선택 / 전체 해제 ─────────────────────────────────────────────── */
-  const allSelected = selectedCount === totalFeatures;
-
-  function toggleAll() {
-    setSelectedKeys(allSelected ? new Set() : new Set(allKeys));
-    setError('');
-  }
-
   return (
     <div className="min-h-screen bg-gray-50 py-8 px-4">
-      <div className="max-w-2xl mx-auto">
+      <div className="max-w-4xl mx-auto">
 
         {/* 타이틀 */}
         <div className="mb-6">
           <h1 className="text-2xl font-bold text-gray-900">분석 항목 선택</h1>
           <p className="text-sm text-gray-500 mt-1">
-            이번 분석에 포함할 비교 항목을 선택하세요.
-            목적(Purpose) 단위로 전체 선택하거나, 항목별로 세부 조정할 수 있습니다.
+            생성할 리포트를 켜고, 비교 매트릭스는 비교할 feature 를 고르세요.
           </p>
-        </div>
-
-        {/* 선택 현황 패널 */}
-        <div className="bg-white rounded-xl border border-gray-200 p-4 mb-6 shadow-sm">
-          <div className="flex items-center justify-between mb-2">
-            <span className="text-sm font-medium text-gray-700">선택 현황</span>
-            <div className="flex items-center gap-3">
-              <span className="text-sm font-semibold text-indigo-600">
-                {selectedCount} / {totalFeatures}개 선택
-              </span>
-              <button
-                type="button"
-                onClick={toggleAll}
-                className="text-xs font-medium px-2.5 py-1 rounded border border-gray-300 text-gray-600 hover:bg-gray-50 transition-colors"
-              >
-                {allSelected ? '전체 해제' : '전체 선택'}
-              </button>
-            </div>
-          </div>
-          <div className="w-full h-2 bg-gray-100 rounded-full overflow-hidden">
-            <div
-              className="h-full rounded-full bg-indigo-500 transition-all duration-300"
-              style={{ width: totalFeatures > 0 ? `${(selectedCount / totalFeatures) * 100}%` : '0%' }}
-            />
-          </div>
-          {selectedCount === 0 && (
-            <p className="text-xs text-red-500 mt-1.5">
-              최소 1개 이상의 항목을 선택해야 합니다.
-            </p>
-          )}
         </div>
 
         {/* Report 섹션 목록 (v0.10 키 정합 — purpose → report) */}
@@ -708,6 +522,13 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
           ))
         )}
 
+        {/* 2026-11 — 구 선택 현황 패널의 '선택 없음' 안내 이전 (제출 버튼 비활성 사유) */}
+        {selectedCount === 0 && (
+          <p className="mb-2 text-xs text-red-500">
+            생성할 리포트를 켜거나 비교할 feature 를 1개 이상 선택해야 합니다.
+          </p>
+        )}
+
         {/* 오류 메시지 */}
         {error && (
           <div className="mb-4 p-3 bg-red-50 border border-red-200 rounded-lg text-sm text-red-700">
@@ -731,7 +552,7 @@ export default function FeatureSelectionPage({ intakeResult, threadId, onApprove
           >
             {submitting
               ? '분석 요청 중…'
-              : `선택 완료 (${selectedCount}개) → 다음 단계`}
+              : '선택 완료 → 다음 단계'}
           </button>
         </div>
 

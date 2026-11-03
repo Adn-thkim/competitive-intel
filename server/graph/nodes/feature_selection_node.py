@@ -90,12 +90,6 @@ REPORT_TYPES = (
 # 도메인 무관·결정론적. 도메인 다양성 확장 시 옵션 (a) schema 의 intro_text 필드로 이전 가능.
 # 변경 시 prompt_version 관리 무관 (server 측 정적 문자열).
 _REPORT_INTRO_TEXTS: dict[str, str] = {
-    "comparison_matrix":
-        "이 리포트는 아래 선택된 feature 데이터를 자사·경쟁사 공식 사이트에서 "
-        "수집하여 작성합니다.",
-    "reaction_insight":
-        "이 리포트는 아래 선택된 feature 데이터를 외부 후기·블로그·YouTube 영상·"
-        "커뮤니티 게시글에서 수집하여 작성합니다.",
     "marketing_social":
         "이 리포트는 자사·경쟁사 운영 SNS(Instagram·X·YouTube 공식 채널)·블로그·"
         "보도자료의 공식 채널 URL 을 식별한 뒤, 아래 채널 활성도·게시물 빈도·콘텐츠 "
@@ -114,6 +108,36 @@ _REPORT_INTRO_TEXTS: dict[str, str] = {
     "executive_summary":
         "이 리포트는 아래 표시된 feature 를 기반으로 6개 분석 리포트 결과를 통합하여 "
         "자동 도출됩니다. URL 수집은 발생하지 않습니다.",
+}
+
+# 2026-11 — CM·RI 안내 박스 구조화 (한 줄 요약 + 단계 카드). 담당 에이전트명은 노출하지 않는다.
+# phase: "done" = 이 화면 이전에 완료된 단계 / "after" = 선택 완료 후 실행되는 단계.
+# 정적 화면 문구 — 어떤 캐시 키에도 들어가지 않는다.
+_REPORT_INTRO_STEPS: dict[str, dict] = {
+    "comparison_matrix": {
+        "summary": "공식 사이트 정보로 상품별 조건을 같은 기준에서 비교합니다.",
+        "steps": [
+            {"title": "공식 페이지 탐색", "phase": "done",
+             "detail": "자사·경쟁사 공식 사이트에서 약관·수수료·한도·혜택 등 하위 페이지를 찾아 feature 별로 연결"},
+            {"title": "feature 값 추출", "phase": "after",
+             "detail": "아래에서 선택한 feature 의 값·근거·출처를 페이지 본문에서 추출"},
+            {"title": "비교표·요약 작성", "phase": "after",
+             "detail": "상품 × feature 비교표와 상품별 요약·공통점/차이점·조건부 강점/약점"},
+        ],
+    },
+    "reaction_insight": {
+        "summary": "YouTube·커뮤니티의 실사용 반응으로 자사·경쟁사의 강점과 약점을 비교합니다.",
+        "steps": [
+            {"title": "영상·게시글 탐색", "phase": "done",
+             "detail": "상품명으로 최근 2년 YouTube 영상과 커뮤니티 게시글을 탐색 (공식 채널 영상 제외)"},
+            {"title": "반응 수집·정제", "phase": "after",
+             "detail": "댓글·게시글을 수집하고 상품 리뷰와 무관한 영상·스레드를 제거"},
+            {"title": "의견·질문 분석", "phase": "after",
+             "detail": "상품별 긍정·부정 의견과 고객 질문을 추출해 반응 축으로 묶음 (축 검토 화면에서 확인)"},
+            {"title": "인사이트 작성", "phase": "after",
+             "detail": "자사·경쟁사 반응 히트맵, 자사 열위·기회 축, 질문 의도 분석"},
+        ],
+    },
 }
 
 
@@ -170,7 +194,8 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
     # ── interrupt 값 조립 (v0.10.18a — source_flow 별 UI 차별화 + B-only 카드 결합) ──
     # v0.10.28b — marketing_social 카드 재정의 (D45 a):
     #   feature 값(SNS 게시물 빈도 등) 은 v1.0 §6-6a 책임이므로 features 영역을
-    #   B-only 형식으로 렌더 + 별도 owned_channels_card 로 candidate × platform 매트릭스 표시.
+    #   B-only 형식으로 렌더. (2026-11 — owned_channels_card 는 reaction_insight 의
+    #   owned_youtube_card 로 대체, marketing_social 은 화면·그래프에서 비활성)
     reports_payload: list[dict] = []
     for rt in report_order:
         entry = report_config.get(rt, {}) or {}
@@ -199,25 +224,23 @@ def feature_selection_node(state: DomainAnalysisState) -> dict:
             "report_label":         report_label_map.get(rt, rt),
             "source_flow":          source_flow,                          # v0.10.18a 신설
             "intro_text":           _REPORT_INTRO_TEXTS.get(rt, ""),      # v0.10.18a 신설
+            "intro_steps":          _REPORT_INTRO_STEPS.get(rt),          # 2026-11 — CM·RI 구조화 안내 (없으면 None)
             "url_coverage_visible": not (is_b_only or is_marketing_social_b_view),
             "features":             feature_items,
         }
 
-        # v0.10.28b D45 a — marketing_social 에 owned_channels_card payload 부착
-        if is_marketing_social_b_view:
-            report_item["owned_channels_card"] = _build_owned_channels_card(state)
+        # 2026-11 — comparison_matrix 표의 상품 열 (자사 → 경쟁사 ID 순, 표시 이름)
+        if rt == "comparison_matrix":
+            report_item["candidates"] = [
+                {"candidate_id": cid, "label": label, "candidate_type": ctype}
+                for cid, label, ctype in _ordered_candidates(state)
+            ]
 
-        # v0.10.29 — reaction_insight 에 aspect_codebook + url_preview 부착.
-        # aspect_codebook: ABSA 축 정보 (UI에서 features 카드 대신 표시).
-        # url_preview: YouTube·커뮤니티 수집 건수 요약.
+        # reaction_insight — 수집 대상 집계(url_preview) + 제외한 공식 YouTube 채널(owned_youtube_card).
+        # 2026-11 — aspect_codebook 화면 표시 제거(taxonomy 는 유지 — 키워드 필터가 소비).
         if rt == "reaction_insight":
-            report_item["aspect_codebook"] = entry.get("aspect_codebook") or []
-            youtube_by_cand   = state.get("youtube_reactions_urls_by_candidate") or {}
-            community_by_cand = state.get("blog_community_urls_by_candidate") or {}
-            report_item["url_preview"] = {
-                "youtube_count":   sum(len(v) for v in youtube_by_cand.values()),
-                "community_count": sum(len(v) for v in community_by_cand.values()),
-            }
+            report_item["owned_youtube_card"] = _build_owned_youtube_card(state)
+            report_item["url_preview"]        = _build_reaction_preview(state)
 
         reports_payload.append(report_item)
 
@@ -435,126 +458,121 @@ def _build_feature_items_from_taxonomy(report_entry: dict) -> list[dict]:
     return items
 
 
-# v0.10.28b D45 a — owned_channels_card payload 빌더 ────────────────────────
+# 2026-11 — reaction_insight 카드의 공식 YouTube 채널 payload 빌더 ─────────────
+# (구 marketing_social owned_channels_card 의 6 platform 매트릭스를 대체)
+# cross_reference_node 는 owned_channel_urls_by_candidate 중 platform=youtube_official
+# 항목의 channel_id 를 **전 candidate 합집합**으로 모아, 그 채널이 올린 영상을 반응 수집
+# 대상에서 제외한다. 따라서 reaction_insight 에서 활용되는 정보는 youtube_official 의
+# url·handle·channel_id 뿐이며, channel_id 가 없으면 제외 필터가 적용되지 않는다.
 
-_PLATFORM_LABELS: dict[str, str] = {
-    "instagram":        "Instagram",
-    "x":                "X (Twitter)",
-    "blog_naver":       "네이버 블로그",
-    "blog_tistory":     "티스토리 블로그",
-    "blog_self_hosted": "자체 블로그",
-    "press_release":    "보도자료",
-    "youtube_official": "YouTube 공식 채널",
-}
+def _build_reaction_preview(state: dict) -> dict:
+    """2026-11 — 고객 반응 수집 대상 집계 (feature_selection 시점 = 탐색 완료, 수집 전).
 
-_PLATFORM_ORDER: tuple[str, ...] = (
-    "instagram", "x", "youtube_official",
-    "blog_naver", "blog_tistory", "blog_self_hosted", "press_release",
-)
-
-
-def _build_owned_channels_card(state: dict) -> dict:
-    """v0.10.28b D45 a — marketing_social 카드의 candidate × platform 매트릭스 payload.
-
-    `owned_channel_urls_by_candidate` (url_discovery_owned_channels_node 산출) 를
-    candidate × platform 그리드로 재구성. 각 셀은 platform 별 URL + handle +
-    account_scope + channel_id (youtube_official) + confidence 메타.
-
-    own_product / competitor_candidates 의 product_name 으로 candidate 라벨 변환.
-
-    Returns
-    -------
-    dict
-        {
-          "candidates": [
-            {
-              "candidate_id":   "own_xxx" | "comp_xxx",
-              "candidate_label": "트래블월렛" | "토스뱅크" | candidate_id,
-              "candidate_type": "own" | "competitor",
-              "platforms": [
-                {
-                  "platform":      "instagram",
-                  "platform_label": "Instagram",
-                  "found":         true,
-                  "url":           str,
-                  "handle":        str,
-                  "account_scope": "parent_company" | ... | "" ,
-                  "channel_id":    str | "",     # youtube_official 한정
-                  "subscriber_count": int | null, # youtube_official 한정
-                  "confidence":    float,
-                },
-                ...
-              ],
-            },
-            ...
-          ]
-        }
+    - youtube: 공식 채널 영상 제외(cross_reference) 후. total 은 고유 영상 수
+      (video_candidate_index), by_candidate 는 상품별 영상 수 — 한 영상이 여러 상품에
+      해당할 수 있어 합계 ≥ total.
+    - community: total 은 고유 게시글 URL 수(탐색 단계 dedup). by_candidate 는
+      matched_candidates 기준(다중 상품 게시글은 각 상품에 1회씩), by_site 는 사이트별.
     """
-    urls_by_candidate: dict = state.get("owned_channel_urls_by_candidate") or {}
-    own_product: dict        = state.get("own_product") or {}
+    yt_by_cand: dict = state.get("youtube_reactions_urls_by_candidate") or {}
+    video_index: dict = state.get("video_candidate_index") or {}
+    yt_total = len(video_index) or len({
+        v.get("video_id") for items in yt_by_cand.values() for v in items if v.get("video_id")
+    })
+
+    cm_by_cand: dict = state.get("blog_community_urls_by_candidate") or {}
+    cm_count: dict[str, int] = {}
+    site_rows: dict[str, dict] = {}
+    cm_total = 0
+    for primary, entries in cm_by_cand.items():
+        for e in entries or []:
+            cm_total += 1
+            cids = e.get("matched_candidates") or [primary]
+            site = e.get("site") or ""
+            row = site_rows.setdefault(site, {"site": site, "total": 0, "by_candidate": {}})
+            row["total"] += 1
+            for cid in cids:
+                cm_count[cid] = cm_count.get(cid, 0) + 1
+                row["by_candidate"][cid] = row["by_candidate"].get(cid, 0) + 1
+
+    return {
+        "youtube": {
+            "total":        yt_total,
+            "by_candidate": {cid: len(items or []) for cid, items in yt_by_cand.items()},
+        },
+        "community": {
+            "total":        cm_total,
+            "by_candidate": cm_count,
+            "by_site":      sorted(site_rows.values(), key=lambda r: (-r["total"], r["site"])),
+        },
+    }
+
+
+def _ordered_candidates(state: dict) -> list[tuple[str, str, str]]:
+    """(candidate_id, 표시 이름, "own"|"competitor") — 자사 → 경쟁사 candidate_id 사전순.
+
+    comparison_matrix_node._candidate_rows_order 와 같은 순서 (리포트 표와 선택 화면 일치).
+    """
+    own_product: dict           = state.get("own_product") or {}
     competitor_candidates: list = state.get("competitor_candidates") or []
-    selected_ids: list[str]   = state.get("selected_competitor_ids") or []
+    selected_ids: list[str]     = state.get("selected_competitor_ids") or []
 
     own_id = own_product.get("product_id") or "own"
     own_name = (
         own_product.get("name") or own_product.get("product_name") or "자사 상품"
     )
-
-    # candidate_id → (label, type) 매핑
-    label_by_id: dict[str, tuple[str, str]] = {own_id: (own_name, "own")}
+    competitors: list[tuple[str, str, str]] = []
     for cand in competitor_candidates:
         cid = cand.get("candidate_id", "")
         if cid and (not selected_ids or cid in selected_ids):
             name = cand.get("product_name") or cand.get("brand", "") or cid
-            label_by_id[cid] = (name, "competitor")
+            competitors.append((cid, name, "competitor"))
+    return [(own_id, own_name, "own")] + sorted(competitors)
+
+
+def _build_owned_youtube_card(state: dict) -> dict:
+    """candidate 별 공식 YouTube 채널 (cross_reference 제외 필터 입력) payload.
+
+    Returns
+    -------
+    dict
+        {"candidates": [{"candidate_id", "candidate_label", "candidate_type": "own"|"competitor",
+                         "channels": [{"url", "handle", "channel_id"}]}]}
+        channels 는 youtube_official 항목 전부 (다중 공식 계정 D17 — cross_reference 와 동일 범위),
+        channel_id 기준 중복 제거.
+    """
+    urls_by_candidate: dict = state.get("owned_channel_urls_by_candidate") or {}
 
     candidates_out: list[dict] = []
-    # 결과는 own → competitor 순서로 정렬 (label_by_id 의 own_id 우선 + 선택 경쟁사 순서)
-    ordered_ids = [own_id] + [
-        c.get("candidate_id", "") for c in competitor_candidates
-        if c.get("candidate_id") and (not selected_ids or c.get("candidate_id") in selected_ids)
-    ]
-    for cid in ordered_ids:
-        if cid not in label_by_id:
-            continue
-        candidate_label, candidate_type = label_by_id[cid]
-        # platform → url 매핑 (첫 매칭 URL 채택)
-        urls = urls_by_candidate.get(cid, []) or []
-        urls_by_platform: dict[str, dict] = {}
-        for u in urls:
-            p = u.get("platform", "")
-            if p and p not in urls_by_platform:
-                urls_by_platform[p] = u
-
-        platforms_out: list[dict] = []
-        for p in _PLATFORM_ORDER:
-            label = _PLATFORM_LABELS.get(p, p)
-            if p in urls_by_platform:
-                u = urls_by_platform[p]
-                platforms_out.append({
-                    "platform":         p,
-                    "platform_label":   label,
-                    "found":            True,
-                    "url":              u.get("url", ""),
-                    "handle":           u.get("handle", ""),
-                    "account_scope":    u.get("account_scope", ""),
-                    "channel_id":       u.get("channel_id", "") or "",
-                    "subscriber_count": u.get("follower_count"),
-                    "confidence":       float(u.get("confidence", 0)),
-                })
-            else:
-                platforms_out.append({
-                    "platform":       p,
-                    "platform_label": label,
-                    "found":          False,
-                })
+    for cid, label, ctype in _ordered_candidates(state):
+        # 2026-11 — 같은 채널이 @핸들 URL 과 /channel/UC… URL 로 중복 발견되는 경우가 있어
+        # channel_id 기준으로 1건만 표시한다(@핸들 URL 우선). cross_reference 는 channel_id
+        # 집합을 쓰므로 표시 중복 제거가 제외 필터 결과에 영향을 주지 않는다.
+        # 정렬: @핸들 URL 우선 → URL 사전순 (탐색 노드의 병렬 완료 순서와 무관하게 고정).
+        yt = sorted(
+            (u for u in (urls_by_candidate.get(cid) or [])
+             if u.get("platform") == "youtube_official"),
+            key=lambda u: (not (u.get("handle") or ""), u.get("url", "")),
+        )
+        channels: list[dict] = []
+        seen_keys: set[str] = set()
+        for u in yt:
+            key = u.get("channel_id") or u.get("url", "")
+            if not key or key in seen_keys:
+                continue
+            seen_keys.add(key)
+            channels.append({
+                "url":           u.get("url", ""),
+                "handle":        u.get("handle", "") or "",
+                "channel_id":    u.get("channel_id", "") or "",
+                "channel_title": u.get("channel_title", "") or "",   # 2026-11 — 핸들 부재 시 표시용
+            })
         candidates_out.append({
             "candidate_id":    cid,
-            "candidate_label": candidate_label,
-            "candidate_type":  candidate_type,
-            "platforms":       platforms_out,
+            "candidate_label": label,
+            "candidate_type":  ctype,
+            "channels":        channels,
         })
-
     return {"candidates": candidates_out}
 
 
