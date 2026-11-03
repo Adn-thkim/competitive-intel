@@ -130,7 +130,20 @@ function QuoteCard({ q, nameOf }) {
 
 /* 분포 가로 막대 — most_common 정렬 dist({key:count}). 대표(1위)를 ★+굵게+진한 색으로 강조.
    ownDist 제공 시 각 행에 자사 분포를 두 번째 막대(에메랄드)로 겹쳐 표시(각 계열 내부 max 정규화, %=계열 내 점유율). */
-function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false }) {
+/* 2026-11 — 차트 제목 공통 스타일 (제목 14px bold + 보조 11px). 같은 행 차트끼리 글꼴 통일. */
+function ChartTitle({ title, subtitle }) {
+  return (
+    <>
+      <h4 className="text-sm font-semibold text-gray-800 mb-0.5">{title}</h4>
+      {subtitle && <p className="text-[11px] text-gray-400 mb-1">{subtitle}</p>}
+    </>
+  );
+}
+
+/* maxRows: 같은 행의 다른 차트와 높이를 맞추기 위한 기본 표시 행 수(초과분은 '더 보기'로 펼침).
+ * labelW: 라벨 열 너비(좁은 열 배치용). */
+function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false, maxRows, labelW = 'w-28' }) {
+  const [expanded, setExpanded] = useState(false);
   const entries = Object.entries(dist || {});
   if (entries.length === 0) return null;
   const total = entries.reduce((s, [, n]) => s + n, 0) || 1;
@@ -138,9 +151,8 @@ function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false }) 
   const ownTotal = ownDist ? (Object.values(ownDist).reduce((s, n) => s + n, 0) || 1) : 0;
   const ownMax = ownDist ? (Math.max(...entries.map(([k]) => ownDist[k] || 0)) || 1) : 1;
   return (
-    <div className="flex-1 min-w-[260px]">
-      <h4 className="text-sm font-bold text-gray-800 mb-0.5">{title}</h4>
-      {subtitle && <p className="text-[11px] text-gray-400 mb-1">{subtitle}</p>}
+    <div className="min-w-0">
+      <ChartTitle title={title} subtitle={subtitle} />
       {ownDist && (
         <div className="flex items-center gap-3 text-[10px] text-gray-500 mb-1.5">
           <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-sm bg-indigo-400" />전체</span>
@@ -148,14 +160,14 @@ function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false }) 
         </div>
       )}
       <div className="space-y-1">
-        {entries.map(([k, n], i) => {
+        {(maxRows && !expanded ? entries.slice(0, maxRows) : entries).map(([k, n], i) => {
           const pct = Math.round((n / total) * 100);
           const top = i === 0;
           const on = ownDist ? (ownDist[k] || 0) : 0;
           const opct = ownDist ? Math.round((on / ownTotal) * 100) : 0;
           return (
             <div key={k} className={`flex ${ownDist ? 'items-start' : 'items-center'} gap-2 text-xs`}>
-              <span className={`w-28 shrink-0 text-right ${ownDist ? 'pt-0.5' : ''} ${top ? 'font-bold text-indigo-700' : 'text-gray-600'}`}>
+              <span className={`${labelW} shrink-0 text-right ${ownDist ? 'pt-0.5' : ''} ${top ? 'font-bold text-indigo-700' : 'text-gray-600'}`}>
                 {top && '★ '}{labelOf(k)}
               </span>
               <div className="flex-1 space-y-0.5">
@@ -185,6 +197,15 @@ function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false }) 
           );
         })}
       </div>
+      {maxRows && entries.length > maxRows && (
+        <button
+          type="button"
+          onClick={() => setExpanded(v => !v)}
+          className="mt-1 ml-1 text-[11px] text-indigo-600 hover:underline"
+        >
+          {expanded ? '접기' : `+ ${entries.length - maxRows}개 더 보기`}
+        </button>
+      )}
       {ownDist && (() => {
         // 결정론 캡션(무 LLM): ① 집중도 = 상위 M개가 전체의 ≥50% · ② 자사 편향 = 점유율차(%p) ±5 이상 over/under.
         let acc = 0, m = 0;
@@ -215,34 +236,59 @@ function DistBar({ title, subtitle, dist, ownDist, labelOf, ownFirst = false }) 
 }
 
 /* 비율 파이 — entries=[{p,tot,...}], total. 우측 범례에 라벨(labelOf)·%. perspective·question_type 공용. */
-const PSP_COLORS = ['#6366f1', '#22c55e', '#f59e0b', '#ef4444', '#06b6d4', '#a855f7', '#84cc16', '#94a3b8'];
-function PspPie({ entries, total, size = 132, labelOf = pspKo }) {
-  const cx = size / 2, cy = size / 2, r = size / 2 - 2;
+// 2026-11 — 범주 팔레트(dataviz 기준 팔레트, 고정 순서·CVD 검증 통과). 9번째 이후는 회색.
+const PSP_COLORS = ['#2a78d6', '#eb6834', '#1baf7a', '#eda100', '#e87ba4', '#008300', '#6250d6', '#e34948', '#a8a6a0'];
+// 2026-11 — 강조 방식: 모든 조각은 고유 색(파이 순서대로 팔레트 고정 배정)을 유지하고,
+// 강조 항목(highlight, 미지정 시 상위 3개)은 바깥으로 살짝 빼고(explode) 불투명,
+// 나머지는 투명도를 낮춰 뒤로 물린다. 범례도 같은 규칙.
+const PIE_DIM_OPACITY = 0.3;
+const PIE_EXPLODE = 5;   // 강조 조각을 중심각 방향으로 빼는 거리(px)
+function pieColorMap(entries) {
+  return Object.fromEntries(entries.map((e, i) => [e.p, PSP_COLORS[Math.min(i, PSP_COLORS.length - 1)]]));
+}
+function pieEmphasis(entries, highlight) {
+  return new Set(highlight ?? entries.slice(0, 3).map(e => e.p));
+}
+function PspPie({ entries, total, size = 132, labelOf = pspKo, wrap = false, highlight, stack = false }) {
+  const cx = size / 2, cy = size / 2, r = size / 2 - 2 - PIE_EXPLODE;
+  const colorOf = pieColorMap(entries);
+  const emph = pieEmphasis(entries, highlight);
   let acc = 0;
-  const slices = entries.map((e, i) => {
+  const slices = entries.map(e => {
     const a0 = (acc / total) * 2 * Math.PI, a1 = ((acc + e.tot) / total) * 2 * Math.PI;
     acc += e.tot;
+    const on = emph.has(e.p);
+    const mid = (a0 + a1) / 2;
+    const dx = on ? PIE_EXPLODE * Math.sin(mid) : 0, dy = on ? -PIE_EXPLODE * Math.cos(mid) : 0;
     const x0 = cx + r * Math.sin(a0), y0 = cy - r * Math.cos(a0);
     const x1 = cx + r * Math.sin(a1), y1 = cy - r * Math.cos(a1);
     const large = (a1 - a0) > Math.PI ? 1 : 0;
     return { path: `M${cx},${cy} L${x0},${y0} A${r},${r} 0 ${large} 1 ${x1},${y1} Z`,
-             color: PSP_COLORS[i % PSP_COLORS.length], e };
+             color: colorOf[e.p], on, dx, dy, e };
   });
   return (
-    <div className="flex items-center gap-3 shrink-0">
-      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`}>
+    <div className={stack ? 'flex flex-col items-start gap-3'
+                          : `flex items-center gap-3 ${wrap ? 'flex-wrap' : 'shrink-0'}`}>
+      <svg width={size} height={size} viewBox={`0 0 ${size} ${size}`} className="shrink-0">
         {entries.length === 1
-          ? <circle cx={cx} cy={cy} r={r} fill={PSP_COLORS[0]} />
-          : slices.map((s, i) => <path key={i} d={s.path} fill={s.color} stroke="#fff" strokeWidth="1" />)}
+          ? <circle cx={cx} cy={cy} r={r} fill={colorOf[entries[0].p]} />
+          : [...slices.filter(s => !s.on), ...slices.filter(s => s.on)].map(s => (   // 강조 조각을 위에 그림
+              <path key={s.e.p} d={s.path} fill={s.color} fillOpacity={s.on ? 1 : PIE_DIM_OPACITY}
+                transform={`translate(${s.dx} ${s.dy})`} stroke="#fff" strokeWidth="2" strokeLinejoin="round" />
+            ))}
       </svg>
       <div className="text-[11px] space-y-0.5">
-        {entries.map((e, i) => (
-          <div key={e.p} className="flex items-center gap-1.5 whitespace-nowrap">
-            <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0" style={{ background: PSP_COLORS[i % PSP_COLORS.length] }} />
-            <span className="text-gray-700">{labelOf(e.p)}</span>
-            <span className="text-gray-400">{Math.round((e.tot / total) * 100)}%</span>
-          </div>
-        ))}
+        {entries.map(e => {
+          const on = emph.has(e.p);
+          return (
+            <div key={e.p} className="flex items-center gap-1.5 whitespace-nowrap">
+              <span className="inline-block w-2.5 h-2.5 rounded-sm shrink-0"
+                style={{ background: colorOf[e.p], opacity: on ? 1 : PIE_DIM_OPACITY }} />
+              <span className={on ? 'text-gray-800 font-semibold' : 'text-gray-500'}>{labelOf(e.p)}</span>
+              <span className={on ? 'text-gray-600' : 'text-gray-400'}>{Math.round((e.tot / total) * 100)}%</span>
+            </div>
+          );
+        })}
       </div>
     </div>
   );
@@ -254,10 +300,11 @@ function PolarityBar({ pos, neu, neg }) {
   const w = n => `${(n / tot) * 100}%`;
   return (
     <div>
-      <div className="flex h-4 rounded overflow-hidden text-[9px] font-medium">
-        {pos > 0 && <div style={{ width: w(pos), background: '#22c55e' }} className="flex items-center justify-center text-white">{Math.round((pos / tot) * 100)}%</div>}
-        {neu > 0 && <div style={{ width: w(neu), background: '#cbd5e1' }} className="flex items-center justify-center text-gray-600">{Math.round((neu / tot) * 100)}%</div>}
-        {neg > 0 && <div style={{ width: w(neg), background: '#ef4444' }} className="flex items-center justify-center text-white">{Math.round((neg / tot) * 100)}%</div>}
+      {/* 2026-11 — 극성 톤 완화(긍정 청록·중립 회색·부정 적색) + 구간 사이 2px 간격 */}
+      <div className="flex gap-[2px] h-4 rounded overflow-hidden text-[9px] font-semibold">
+        {pos > 0 && <div style={{ width: w(pos), background: '#199e70' }} className="flex items-center justify-center text-white">{Math.round((pos / tot) * 100)}%</div>}
+        {neu > 0 && <div style={{ width: w(neu), background: '#dddcd6' }} className="flex items-center justify-center text-gray-600">{Math.round((neu / tot) * 100)}%</div>}
+        {neg > 0 && <div style={{ width: w(neg), background: '#e34948' }} className="flex items-center justify-center text-white">{Math.round((neg / tot) * 100)}%</div>}
       </div>
       <div className="text-[10px] text-gray-400 mt-0.5">긍정 {pos} · 중립 {neu} · 부정 {neg}</div>
     </div>
@@ -268,7 +315,7 @@ function PolarityBar({ pos, neu, neg }) {
 function AnalysisView({ data }) {
   const Section = ({ label, items, color, dot }) => (items && items.length) ? (
     <div className="mb-2.5 last:mb-0">
-      <p className={`text-[11px] font-bold ${color} mb-1 flex items-center gap-1`}>
+      <p className={`text-xs font-semibold ${color} mb-1 flex items-center gap-1`}>
         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: dot }} />{label}
       </p>
       <ul className="space-y-1 pl-0.5">
@@ -297,7 +344,7 @@ function AnalysisView({ data }) {
 function QuestionAnalysisView({ data }) {
   const Section = ({ label, items, color, dot }) => (items && items.length) ? (
     <div className="mb-2.5 last:mb-0">
-      <p className={`text-[11px] font-bold ${color} mb-1 flex items-center gap-1`}>
+      <p className={`text-xs font-semibold ${color} mb-1 flex items-center gap-1`}>
         <span className="inline-block w-1.5 h-1.5 rounded-full" style={{ background: dot }} />{label}
       </p>
       <ul className="space-y-1 pl-0.5">
@@ -337,17 +384,16 @@ function QScatter({ qabc, matrix, own, candidates, nameOf, TOPN = 6 }) {
     }
   }
   if (pts.length === 0) return null;
-  const W = 300, H = 210, ml = 32, mb = 26, mt = 8, mr = 10;
+  const W = 300, H = 280, ml = 30, mb = 26, mt = 20, mr = 10;
   const pw = W - ml - mr, ph = H - mt - mb;
   const maxX = Math.max(...pts.map(p => p.x), 1);
   const sx = v => ml + (v / maxX) * pw;
   const sy = v => mt + (1 - v / 100) * ph;
   const own_pts = pts.filter(p => p.own), comp_pts = pts.filter(p => !p.own);
   return (
-    <div className="shrink-0 w-[300px]">
-      <p className="text-xs font-bold text-gray-700 mb-1">질문량 × 의견 부정률
-        <span className="font-normal text-gray-400"> · 상위 {totals.length}개 항목</span></p>
-      <svg width={W} height={H} viewBox={`0 0 ${W} ${H}`} className="overflow-visible">
+    <div className="min-w-0">
+      <ChartTitle title="질문량 × 의견 부정률" subtitle={`상위 ${totals.length}개 항목`} />
+      <svg viewBox={`0 0 ${W} ${H}`} className="w-full h-auto">
         {/* 축 */}
         <line x1={ml} y1={mt} x2={ml} y2={mt + ph} stroke="#e5e7eb" />
         <line x1={ml} y1={mt + ph} x2={ml + pw} y2={mt + ph} stroke="#e5e7eb" />
@@ -358,21 +404,51 @@ function QScatter({ qabc, matrix, own, candidates, nameOf, TOPN = 6 }) {
           </g>
         ))}
         <text x={ml + pw} y={mt + ph + 16} textAnchor="end" className="fill-gray-400" style={{ fontSize: 9 }}>질문 수 →</text>
-        <text x={ml - 26} y={mt + 6} className="fill-gray-400" style={{ fontSize: 9 }}>부정률%</text>
+        {/* y축 이름은 플롯 위쪽 여백에 — 100 눈금과 겹치지 않게 */}
+        <text x={2} y={9} className="fill-gray-400" style={{ fontSize: 9 }}>부정률(%)</text>
         {comp_pts.map((p, i) => <circle key={`c${i}`} cx={sx(p.x)} cy={sy(p.y)} r="3.5" fill="#94a3b8" fillOpacity="0.7" />)}
-        {own_pts.map((p, i) => (
-          <g key={`o${i}`}>
-            <circle cx={sx(p.x)} cy={sy(p.y)} r="6" fill="#10b981" stroke="#065f46" strokeWidth="1.5" />
-            <text x={sx(p.x) + 8} y={sy(p.y) + 3} className="fill-emerald-700 font-semibold" style={{ fontSize: 9 }}>{p.sa}</text>
-          </g>
-        ))}
+        {own_pts.map((p, i) => {
+          // 오른쪽 절반의 점은 라벨을 점 왼쪽에 붙여 플롯 밖으로 넘치지 않게 한다.
+          const right = sx(p.x) > ml + pw * 0.55;
+          return (
+            <g key={`o${i}`}>
+              <circle cx={sx(p.x)} cy={sy(p.y)} r="5.5" fill="#10b981" stroke="#fff" strokeWidth="2" />
+              <text x={sx(p.x) + (right ? -9 : 9)} y={sy(p.y) + 3} textAnchor={right ? 'end' : 'start'}
+                className="fill-emerald-700 font-semibold" style={{ fontSize: 9 }}>{p.sa}</text>
+            </g>
+          );
+        })}
       </svg>
-      <div className="flex items-center gap-3 text-[10px] text-gray-500 mt-1">
+      <div className="flex flex-wrap items-center gap-x-3 gap-y-0.5 text-[10px] text-gray-500 mt-1">
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-emerald-500" />자사</span>
         <span className="flex items-center gap-1"><span className="inline-block w-2.5 h-2.5 rounded-full bg-slate-400" />경쟁사</span>
         <span className="text-gray-400">우상단=불만 집중 · 우하단=관심↑·불만↓</span>
       </div>
     </div>
+  );
+}
+
+/* 2026-11 — 고객 반응 집중 항목 선정 기준 (접힘 기본). 반응 항목은 주 규칙만, 관점은 3기준 모두. */
+const REP_TAG_TIP = {
+  '최다 비율': '자사 의견이 가장 많은 관점',
+  '긍정 우세': '자사 의견 중 긍정 비율이 가장 높은 관점',
+  '부정 우세': '자사 의견 중 부정 비율이 가장 높은 관점',
+};
+function SelectionCriteria() {
+  const [open, setOpen] = useState(false);
+  return (
+    <>
+      <button type="button" onClick={() => setOpen(v => !v)}
+        className="text-[11px] text-indigo-600 hover:underline">
+        선정 기준 ⓘ {open ? '▲' : '▼'}
+      </button>
+      {open && (
+        <div className="basis-full mt-1 mb-1 rounded-lg border border-gray-200 bg-white px-3 py-2 text-xs text-gray-700 leading-relaxed space-y-1">
+          <p><b className="font-semibold">반응 항목</b> — 전체 상품의 의견 수가 많은 순서로, 누적 의견이 전체의 50%가 될 때까지 선정했습니다(‘종합’·‘기타’ 제외).</p>
+          <p><b className="font-semibold">관점</b> — 항목마다 자사 의견을 기준으로 의견이 가장 많은 관점(최다 비율), 긍정 비율이 가장 높은 관점(긍정 우세), 부정 비율이 가장 높은 관점(부정 우세)을 보여 줍니다.</p>
+        </div>
+      )}
+    </>
   );
 }
 
@@ -385,7 +461,7 @@ function OwnPerspectiveCard({ sa, label, ownPsp, analysis, badge = null, note = 
     .sort((a, b) => b.tot - a.tot);
   const totAll = entries.reduce((s, e) => s + e.tot, 0);
   const header = (
-    <p className="text-sm font-bold text-gray-800 mb-2">
+    <p className="text-sm font-semibold text-gray-800 mb-2">
       {label ?? sa}{badge}
       <span className="ml-2 text-xs font-normal text-gray-400">· 자사 의견 {totAll}건</span>
       {flagTag}
@@ -409,13 +485,19 @@ function OwnPerspectiveCard({ sa, label, ownPsp, analysis, badge = null, note = 
       <div className="flex flex-wrap items-stretch gap-6">
         {/* 좌: 관점 파이 + 대표 관점 긍/중립/부정. 고정 폭(파이 블록)으로 카드 간 우측 박스 x축 정렬. */}
         <div className="shrink-0 space-y-3 w-[240px]">
-          <PspPie entries={entries} total={totAll} />
+          <PspPie entries={entries} total={totAll} highlight={[...repMap.keys()]} />
           <div className="space-y-1.5">
             {[...repMap.values()].map(({ e, tags }) => (
               <div key={e.p}>
                 <p className="text-[11px] text-gray-500 mb-0.5">
+                  <span className="inline-block w-2 h-2 rounded-sm mr-1 align-[1px]"
+                    style={{ background: pieColorMap(entries)[e.p] }} />
                   <span className="font-semibold text-gray-700">{pspKo(e.p)}</span>
-                  {' · '}{tags.join('·')} · {e.tot}건
+                  {' · '}{tags.map((t, i) => (
+                    <span key={t} title={REP_TAG_TIP[t]} className="cursor-help underline decoration-dotted decoration-gray-300 underline-offset-2">
+                      {i > 0 && '·'}{t}
+                    </span>
+                  ))} · {e.tot}건
                 </p>
                 <PolarityBar pos={e.pos} neu={e.neu} neg={e.neg} />
               </div>
@@ -640,10 +722,10 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
         ) : null;
         return (
           <div className="mb-4 rounded-xl border border-indigo-100 bg-indigo-50/40 p-3.5 text-xs">
-            <p className="font-bold text-indigo-700 mb-2">📌 한눈 요약</p>
+            <p className="text-base font-bold text-gray-900 mb-2">📌 한눈 요약</p>
             {hasA && (
               <div className="mb-2.5">
-                <p className="text-[11px] font-semibold text-gray-500 mb-1">고객 관심 · 질문 기준</p>
+                <p className="text-xs font-semibold text-gray-600 mb-1">고객 관심 · 질문 기준</p>
                 <div className="space-y-1">
                   <QRow label="집중" items={qo.focus} />
                   <QRow label="공통" items={qo.common} />
@@ -653,7 +735,7 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
             )}
             {hasB && (
               <div>
-                <p className="text-[11px] font-semibold text-gray-500 mb-1">고객 평가 · 의견 기준</p>
+                <p className="text-xs font-semibold text-gray-600 mb-1">고객 평가 · 의견 기준</p>
                 <div className="space-y-1">
                   <BRow label="강점" items={strength} color="text-green-700" />
                   <BRow label="약점" items={weakness} color="text-red-600" />
@@ -671,7 +753,7 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       {/* ── 반응 항목 설명 (sub_cluster 근거 LLM 한 문장) — 한눈 요약 하단 ── */}
       {content.aspect_descriptions && Object.keys(content.aspect_descriptions).length > 0 && (
         <div className="mb-3 rounded-xl bg-gray-50 border border-gray-100 p-3">
-          <p className="text-[11px] font-semibold text-gray-500 mb-1.5">반응 항목 설명</p>
+          <p className="text-sm font-semibold text-gray-800 mb-1.5">반응 항목 설명</p>
           <div className="space-y-1">
             {aspects.filter(a => content.aspect_descriptions[a]).map(a => (
               <p key={a} className="text-[11px] text-gray-600 leading-snug">
@@ -686,8 +768,11 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       {/* ── 전체 반응 성향: 반응 항목·관점 분포 (전체 candidate 종합 + 자사 분포 겹침, 대표 강조).
              질문 유형 분포는 unit 분석 단계 이후 다룰 예정이라 보류. ── */}
       {(aspects.length > 0 || content.perspective_overall) && (
-        <div className="mb-5 flex flex-wrap gap-x-8 gap-y-4">
+        <div className="mb-5">
+        <h4 className="text-base font-bold text-gray-900 mb-3">전체 반응 성향</h4>
+        <div className="grid grid-cols-1 md:grid-cols-2 gap-x-8 gap-y-4 items-start">
           <DistBar
+            maxRows={8}
             title="반응 항목(super_aspect) 분포"
             subtitle={`전체 종합 vs 자사 · ★=전체 대표`}
             dist={Object.fromEntries(aspects.map(a => [a, aspectTotal(a)]))}
@@ -695,6 +780,7 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
             labelOf={a => labels[a] ?? a}
           />
           <DistBar
+            maxRows={8}
             title="관점(perspective) 분포"
             subtitle={`전체 종합 vs 자사 · ★=전체 대표`}
             dist={content.perspective_overall}
@@ -702,10 +788,11 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
             labelOf={pspKo}
           />
         </div>
+        </div>
       )}
 
       {/* ── 3. aspect × candidate 히트맵 ── */}
-      <h4 className="text-sm font-bold text-gray-800 mb-1">고객 반응 히트맵</h4>
+      <h4 className="text-base font-bold text-gray-900 mb-1">고객 반응 히트맵</h4>
       {/* 1줄: 설명 */}
       <p className="text-xs text-gray-600 mb-1">
         <b>항목명</b>을 클릭하면 그 항목의 전 상품 대표 반응, <b>셀</b>을 클릭하면 그 상품·항목의 긍/부정 대표 반응(각 최대 3건)을 아래에 펼쳐 봅니다.
@@ -792,6 +879,50 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
         </table>
       </div>
 
+      {/* ── 대표 반응 (히트맵 직하단) — 미선택 시 접힘, 셀/항목명 클릭 시 펼침 ── */}
+      {sel && (
+        <div className="mb-5">
+          <h4 className="text-base font-bold text-gray-900 mb-2">
+            {sel.candidate ? `${nameOf[sel.candidate] ?? sel.candidate} ` : ''}{labelOf(sel.aspect)} 대표 반응
+            <button type="button" onClick={() => setSel(null)}
+              className="ml-2 text-xs font-normal text-indigo-600 underline">접기</button>
+          </h4>
+          <div className="space-y-4">
+            {selCids.map(cid => {
+              const pos = positiveQuotes.filter(q => q.candidate_id === cid);
+              const neg = negativeQuotes.filter(q => q.candidate_id === cid);
+              return (
+                <div key={cid} className={!sel.candidate ? 'rounded-xl border border-gray-100 p-3' : ''}>
+                  {!sel.candidate && (
+                    <p className="text-xs font-semibold text-gray-700 mb-2">{nameOf[cid] ?? cid}</p>
+                  )}
+                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
+                    <div>
+                      <p className="text-xs font-semibold text-green-700 mb-2">👍 긍정 반응 ({pos.length})</p>
+                      <div className="space-y-3">
+                        {pos.map((q, i) => <QuoteCard key={i} q={q} nameOf={nameOf} />)}
+                        {pos.length === 0 && (
+                          <p className="text-xs text-gray-400">표시할 긍정 반응이 없습니다.</p>
+                        )}
+                      </div>
+                    </div>
+                    <div>
+                      <p className="text-xs font-semibold text-red-700 mb-2">👎 부정 반응 ({neg.length})</p>
+                      <div className="space-y-3">
+                        {neg.map((q, i) => <QuoteCard key={i} q={q} nameOf={nameOf} />)}
+                        {neg.length === 0 && (
+                          <p className="text-xs text-gray-400">표시할 부정 반응이 없습니다.</p>
+                        )}
+                      </div>
+                    </div>
+                  </div>
+                </div>
+              );
+            })}
+          </div>
+        </div>
+      )}
+
       {/* ── 자사 관점 분포 (의견 상위 누적 50% 항목) — 항목별 파이 + 대표 관점 긍/중립/부정 ── */}
       {(() => {
         const pspBySC = content.perspective_by_super_candidate || {};
@@ -841,12 +972,13 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
         return (
           <div className="mb-6">
             <div className="flex items-baseline gap-2 mb-2 flex-wrap">
-              <h4 className="text-sm font-bold text-gray-800">고객 반응 집중 항목 — 자사 관점 분석</h4>
+              <h4 className="text-base font-bold text-gray-900">고객 반응 집중 항목 — 자사 관점 분석</h4>
               <span className="text-[11px] text-gray-400">의견량 누적 50% 상위 항목(종합·기타 제외)</span>
+              <SelectionCriteria />
             </div>
             {/* 결정론 요약 박스 — 한눈에 자사 인식(강점·약점·기회). 데이터 기반, 서술 아님. */}
             <div className="mb-4 rounded-xl border border-gray-200 bg-gray-50/60 p-3 text-xs">
-              <p className="font-bold text-gray-700 mb-2">자사 인식 요약
+              <p className="text-sm font-semibold text-gray-800 mb-2">자사 인식 요약
                 <span className="font-normal text-gray-400"> · 상위 {selected.length}개 항목 기준</span></p>
               <div className="space-y-1.5">
                 <div className="flex gap-2">
@@ -918,7 +1050,7 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       {/* ── 4. 항목별 고객 반응 분석 (LLM 서술) — 히트맵과 추이 사이 해석 층 ── */}
       {aspectInsights.length > 0 && (
         <div className="mb-5">
-          <h4 className="text-sm font-bold text-gray-800 mb-2">항목별 고객 반응 분석</h4>
+          <h4 className="text-base font-bold text-gray-900 mb-2">항목별 고객 반응 분석</h4>
           <div className="space-y-3">
             {aspectInsights.map(ins => (
               <div key={ins.aspect}
@@ -929,57 +1061,13 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
                   {labelOf(ins.aspect)} 대표 반응 보기 ▾
                 </button>
                 {ins.headline && (
-                  <p className="text-sm font-bold text-gray-900 mb-1">{ins.headline}</p>
+                  <p className="text-sm font-semibold text-gray-900 mb-1">{ins.headline}</p>
                 )}
                 {ins.narrative && (
                   <p className="text-xs leading-relaxed text-gray-700">{ins.narrative}</p>
                 )}
               </div>
             ))}
-          </div>
-        </div>
-      )}
-
-      {/* ── 대표 반응 (히트맵 직하단) — 미선택 시 접힘, 셀/항목명 클릭 시 펼침 ── */}
-      {sel && (
-        <div className="mb-5">
-          <h4 className="text-sm font-bold text-gray-800 mb-2">
-            {sel.candidate ? `${nameOf[sel.candidate] ?? sel.candidate} ` : ''}{labelOf(sel.aspect)} 대표 반응
-            <button type="button" onClick={() => setSel(null)}
-              className="ml-2 text-xs font-normal text-indigo-600 underline">접기</button>
-          </h4>
-          <div className="space-y-4">
-            {selCids.map(cid => {
-              const pos = positiveQuotes.filter(q => q.candidate_id === cid);
-              const neg = negativeQuotes.filter(q => q.candidate_id === cid);
-              return (
-                <div key={cid} className={!sel.candidate ? 'rounded-xl border border-gray-100 p-3' : ''}>
-                  {!sel.candidate && (
-                    <p className="text-xs font-bold text-gray-700 mb-2">{nameOf[cid] ?? cid}</p>
-                  )}
-                  <div className="grid grid-cols-1 md:grid-cols-2 gap-4">
-                    <div>
-                      <p className="text-xs font-semibold text-green-700 mb-2">👍 긍정 반응 ({pos.length})</p>
-                      <div className="space-y-3">
-                        {pos.map((q, i) => <QuoteCard key={i} q={q} nameOf={nameOf} />)}
-                        {pos.length === 0 && (
-                          <p className="text-xs text-gray-400">표시할 긍정 반응이 없습니다.</p>
-                        )}
-                      </div>
-                    </div>
-                    <div>
-                      <p className="text-xs font-semibold text-red-700 mb-2">👎 부정 반응 ({neg.length})</p>
-                      <div className="space-y-3">
-                        {neg.map((q, i) => <QuoteCard key={i} q={q} nameOf={nameOf} />)}
-                        {neg.length === 0 && (
-                          <p className="text-xs text-gray-400">표시할 부정 반응이 없습니다.</p>
-                        )}
-                      </div>
-                    </div>
-                  </div>
-                </div>
-              );
-            })}
           </div>
         </div>
       )}
@@ -1014,8 +1102,10 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
       {/* ── 질문 유형 — 자사 관점 분석(최하단). 상: 좌=자사 질문의 반응 항목 파이 / 우=질문 유형 전체 vs 자사, 하: LLM. ── */}
       {content.question_type_overall && Object.keys(content.question_type_overall).length > 0 && (
         <div className="mt-6 pt-4 border-t border-gray-100">
-          <h4 className="text-sm font-bold text-gray-800 mb-3">질문 유형 — 자사 관점 분석</h4>
-          <div className="flex flex-wrap items-stretch gap-6 mb-5">
+          <h4 className="text-base font-bold text-gray-900 mb-3">질문 유형 — 자사 관점 분석</h4>
+          {/* 2026-11 — 열 배치: 원형은 내용 폭, 분포·산점도는 각 34% 고정. 남는 폭은 justify-between 으로
+               두 간격에 똑같이 나눈다(3등분이면 원형 옆이, 1fr 분배면 오른쪽 두 차트가 커져 한쪽으로 쏠림). */}
+          <div className="flex flex-col md:flex-row md:justify-between md:items-start gap-6 mb-5">
             {/* 좌: 자사 질문의 반응 항목(super_aspect) 분포 파이 — 긍부정 없음 */}
             {(() => {
               const entries = Object.entries(content.question_aspect_own || {})
@@ -1023,27 +1113,31 @@ export default function ReactionInsightReport({ report, candidateNames = {}, own
                 .sort((a, b) => b.tot - a.tot);
               const totAll = entries.reduce((s, e) => s + e.tot, 0);
               return (
-                <div className="shrink-0 w-[300px]">
-                  <p className="text-xs font-bold text-gray-700 mb-2">자사 질문 — 반응 항목 분포
-                    <span className="font-normal text-gray-400"> · 자사 질문 {totAll}건</span></p>
+                <div className="min-w-0 md:shrink-0">
+                  <ChartTitle title="자사 질문 — 반응 항목 분포" subtitle={`자사 질문 ${totAll}건`} />
                   {totAll > 0
-                    ? <PspPie entries={entries} total={totAll} labelOf={labelOf} />
+                    ? <div className="mt-2"><PspPie entries={entries} total={totAll} labelOf={labelOf} size={176} stack /></div>
                     : <p className="text-xs text-gray-400">자사 질문 표본 없음</p>}
                 </div>
               );
             })()}
             {/* 중: 질문 유형 분포(전체 vs 자사, 자사 바가 전체 바 위) */}
-            <DistBar
-              title="질문 유형(question_type) 분포"
-              subtitle="전체 종합 vs 자사 · ★=전체 대표"
-              dist={content.question_type_overall}
-              ownDist={content.question_type_own}
-              labelOf={qtKo}
-              ownFirst
-            />
+            <div className="min-w-0 md:w-[34%]">
+              <DistBar
+                title="질문 유형(question_type) 분포"
+                subtitle="전체 종합 vs 자사 · ★=전체 대표"
+                dist={content.question_type_overall}
+                ownDist={content.question_type_own}
+                labelOf={qtKo}
+                ownFirst
+                labelW="w-16"
+              />
+            </div>
             {/* 우: 질문량 × 의견 부정률 산점도(중요도×불확실성 분리) */}
-            <QScatter qabc={content.question_aspect_by_candidate} matrix={matrix}
-              own={ownProductId} candidates={candidates} nameOf={nameOf} />
+            <div className="min-w-0 md:w-[34%]">
+              <QScatter qabc={content.question_aspect_by_candidate} matrix={matrix}
+                own={ownProductId} candidates={candidates} nameOf={nameOf} />
+            </div>
           </div>
           {/* 하: LLM 분석(전체 폭) */}
           <div className="rounded-xl border border-gray-200 p-3.5 text-xs">
