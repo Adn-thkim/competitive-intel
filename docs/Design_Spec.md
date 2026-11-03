@@ -119,7 +119,7 @@
 │ Mac 로컬 환경                                                       │
 │                                                                    │
 │ Web Prompt UI (React + Vite)                                        │
-│    ↕ HTTP REST (localhost:4000)                                     │
+│    ↕ HTTP REST (localhost:3000)                                     │
 │ Express.js 로컬 서버                                                │
 │    ├── LangGraph Pipeline (Python / uvicorn :8000)                 │
 │    │    ├── QueryIntakeAgent                                        │
