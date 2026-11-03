@@ -424,7 +424,8 @@ function SectionHeader({ title, subtitle, count, selected }) {
 export default function CompetitorSelectionPage({ intakeResult, threadId, onApproved, onReset }) {
   const iv = intakeResult?.interrupt_value ?? {};
   const candidates  = iv.competitor_candidates  ?? [];
-  const functional  = iv.functional_competitors ?? [];
+  // 2026-11 — 기능적 대안(functional_competitors, func_*)은 이후 단계에서 소비하지 않을 예정이라 화면에서 제외.
+  //   서버 interrupt payload 에는 그대로 실려 오지만 표시·선택 대상이 아니다(선택은 빈 상태에서 시작).
 
   const [selected, setSelected]     = useState(new Set());
   const [submitting, setSubmitting] = useState(false);
@@ -545,7 +546,6 @@ export default function CompetitorSelectionPage({ intakeResult, threadId, onAppr
           <h1 className="text-2xl font-bold text-gray-900">경쟁사 선택</h1>
           <p className="text-sm text-gray-500 mt-1">
             분석할 경쟁 상품을 최소 {MIN_SELECT}개, 최대 {MAX_SELECT}개 선택하세요.
-            브랜드 경쟁사와 기능적 대안을 합산해 {MAX_SELECT}개 한도가 적용됩니다.
           </p>
         </div>
 
@@ -584,34 +584,6 @@ export default function CompetitorSelectionPage({ intakeResult, threadId, onAppr
                   item={c}
                   isSelected={selected.has(c.candidate_id)}
                   onToggle={() => toggle(c.candidate_id)}
-                  disabled={atMax}
-                />
-              ))}
-            </div>
-          </div>
-        )}
-
-        {/* ── 섹션 2: 기능적 대안 ── */}
-        {functional.length > 0 && (
-          <div className="mb-8">
-            <div className="flex items-center gap-2 mb-3">
-              <div className="flex-1 h-px bg-gray-200" />
-              <span className="text-xs font-semibold text-gray-400 uppercase tracking-wider">전통적·기능적 대안 수단</span>
-              <div className="flex-1 h-px bg-gray-200" />
-            </div>
-            <SectionHeader
-              title="기능적 대안 수단"
-              subtitle="브랜드 없이 동일한 문제를 해결하는 전통적 방법 (선택 한도 공유)"
-              count={functional.length}
-              selected={[...selected].filter(id => id.startsWith('func_')).length}
-            />
-            <div className="space-y-2">
-              {functional.map(f => (
-                <CandidateCard
-                  key={f.candidate_id}
-                  item={f}
-                  isSelected={selected.has(f.candidate_id)}
-                  onToggle={() => toggle(f.candidate_id)}
                   disabled={atMax}
                 />
               ))}
