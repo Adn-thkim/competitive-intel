@@ -209,7 +209,7 @@ export default function InsightReport({ report, candidateNames = {}, ownProductI
       {/* ── 헤더 ── */}
       <div className="mb-4 bg-white rounded-2xl border border-gray-200 shadow-sm p-5">
         <div className="flex flex-wrap items-center gap-2 mb-1">
-          <h3 className="text-lg font-bold text-gray-900">📋 {(c.title ?? '최종 인사이트 리포트').replace(/\s*—\s*축약판$/, '')}</h3>
+          <h3 className="text-lg font-bold text-gray-900">📋 리서치 리포트</h3>{/* 탭 이름과 통일 — 서버 c.title('최종 인사이트 리포트')은 표시 안 함, 축약판 여부는 배지로 */}
           {(c.pending ?? []).length > 0 && <Badge text="축약판" cls="bg-gray-900 text-white" />}
           {X && <Badge text={`외부 조사 ${X.as_of} 기준`} cls="bg-indigo-100 text-indigo-700" />}
           {proxy && <Badge text="LLM·수집 대행 작성본" cls="bg-amber-100 text-amber-800" />}
