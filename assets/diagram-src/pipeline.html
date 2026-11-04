@@ -1,0 +1,72 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>분석 파이프라인</title>
+<link rel="stylesheet" href="style.css"></head><body>
+<div class="wrap" id="root">
+
+  <div class="stage">
+    <div class="label"><span class="no">STEP 1</span><span class="nm">질의 해석</span></div>
+    <div class="row">
+      <div class="card ghost">검색어 한 줄</div><span class="arr"></span>
+      <div class="card">검색어 해석<small>자사 상품 · 도메인 초안 생성</small></div><span class="arr"></span>
+      <div class="card hitl">① 초안 검토</div>
+    </div>
+  </div>
+  <div class="down"></div>
+
+  <div class="stage">
+    <div class="label"><span class="no">STEP 2</span><span class="nm">경쟁 구도 확정<br><span style="font-size:12px;font-weight:500;color:var(--sub);line-height:1.45">두 작업 병렬 실행,<br>STEP 3 전에 합류</span></span></div>
+    <div class="lanes">
+      <div class="lane">
+        <div class="card">경쟁사 발굴<small>ID 정규화 (comp_*)</small></div><span class="arr"></span>
+        <div class="card hitl">② 경쟁사 선택</div><span class="arr"></span>
+        <div class="card">공식 URL 검증<small>실패 시 자동 재탐색</small></div><span class="arr"></span>
+        <div class="card hitl">③ URL 재시도<small>그래도 실패한 경우만</small></div>
+      </div>
+      <div class="lane">
+        <div class="card">도메인 분석 체계(taxonomy) 생성<small>분석 항목 · 검색 키워드</small></div>
+      </div>
+    </div>
+  </div>
+  <div class="down"></div>
+
+  <div class="stage">
+    <div class="label"><span class="no">STEP 3</span><span class="nm">근거 URL 탐색</span></div>
+    <div class="row">
+      <div class="card">5개 출처 병렬 탐색<small>공식 · 커뮤니티 · YouTube · 운영 채널 · 시장</small></div><span class="arr"></span>
+      <div class="card">항목별 URL 매핑<small>추가 URL 검증</small></div><span class="arr"></span>
+      <div class="card hitl">④ 분석 항목 선택</div>
+    </div>
+  </div>
+  <div class="down"></div>
+
+  <div class="stage">
+    <div class="label"><span class="no">STEP 4</span><span class="nm">분석<br><span style="font-size:12px;font-weight:500;color:var(--sub)">세 경로 병렬</span></span></div>
+    <div class="lanes">
+      <div class="lane"><span class="tag">공식 정보</span>
+        <div class="card">공식 페이지 본문 수집</div><span class="arr"></span>
+        <div class="card">항목별 값 · 근거 추출</div><span class="arr"></span>
+        <div class="card out">비교 매트릭스</div>
+      </div>
+      <div class="lane"><span class="tag">외부 조사</span>
+        <div class="card">이력 · 재무 · 시장 자료 탐색</div><span class="arr"></span>
+        <div class="card">원문 대조 · 수치 재계산</div>
+      </div>
+      <div class="lane"><span class="tag">고객 반응</span>
+        <div class="card">YouTube · 커뮤니티 수집</div><span class="arr"></span>
+        <div class="card">무관 영상 · 글 필터링</div><span class="arr"></span>
+        <div class="card">의견 · 질문 추출</div><span class="arr"></span>
+        <div class="card">주제별 군집</div><span class="arr"></span>
+        <div class="card out">고객 반응 인사이트</div>
+      </div>
+    </div>
+  </div>
+  <div class="down"></div>
+
+  <div class="final"><div class="card out">리서치 리포트<small style="color:#3b5ea8">비교 매트릭스 + 고객 반응 + 외부 조사 통합</small></div></div>
+
+  <div class="legend">
+    <span><i style="background:var(--hitl);border:1.5px solid var(--hitl-b)"></i>사용자 검토 지점</span>
+    <span><i style="background:var(--out);border:1.5px solid var(--out-b)"></i>산출물</span>
+  </div>
+</div>
+<script src="arrows.js"></script>
+</body></html>
