@@ -147,6 +147,7 @@ LLM이 앞선 단계에서 입력된 검색어를 기반으로 질의 해석 초
 
 <details>
 <summary>노드 단위 상세 그래프 보기 (LangGraph 노드 · 병렬 분기 · 합류 지점)</summary>
+
 ```mermaid
 %%{init: {"flowchart": {"nodeSpacing": 10, "rankSpacing": 32, "diagramPadding": 4}}}%%
 flowchart TD
