@@ -89,3 +89,6 @@ data/taxonomy/aspect_codebook_v2_draft.json
 # ── 목업 빌드 스크립트 (세션 경로 하드코딩 — 추적 제외) ──────
 docs/mockups/build_final_tab.py
 docs/mockups/rebuild_matrix.py
+
+# 수집 원문이 포함된 목업 데이터 (공개 저장소 제외)
+docs/mockups/

@@ -1,0 +1,47 @@
+<!doctype html><html lang="ko"><head><meta charset="utf-8"><title>시스템 구성</title>
+<link rel="stylesheet" href="style.css">
+<style>
+.sys{display:flex;align-items:center;justify-content:space-between}
+.col{display:flex;flex-direction:column;align-items:stretch}
+.node{background:#fff;border:1px solid var(--line);border-radius:12px;padding:14px 14px;text-align:center;width:168px}
+.node .k{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.06em}
+.node .t{font-size:15px;font-weight:700;margin-top:3px;line-height:1.3}
+.node .d{font-size:11.5px;color:var(--sub);margin-top:5px;line-height:1.45}
+.node.core{border:1.5px solid var(--out-b);background:var(--out)}
+.node.core .t{color:var(--out-ink)}
+.link{display:flex;flex-direction:column;align-items:center;width:64px}
+.link .lb{font-size:10.5px;color:var(--sub);line-height:1.3;text-align:center;margin-bottom:2px;white-space:nowrap}
+.ext{display:flex;flex-direction:column;gap:10px;width:212px}
+.grp{background:var(--panel);border:1px solid #e8ecf2;border-radius:12px;padding:10px 12px}
+.grp .gh{font-size:11px;font-weight:700;color:var(--sub);margin-bottom:6px;letter-spacing:.04em}
+.grp .it{font-size:12.5px;line-height:1.5;display:flex;justify-content:space-between;gap:8px}
+.grp .it span:last-child{color:var(--sub);font-size:11px}
+.fan{width:40px;align-self:stretch}
+</style></head><body>
+<div class="wrap" id="root" style="padding:26px 24px">
+  <div class="sys">
+    <div class="node"><div class="k">CLIENT</div><div class="t">React (Vite)</div><div class="d">:5173<br>검토 화면 · 리포트</div></div>
+    <div class="link"><div class="lb">REST<br>/api 프록시</div><span class="harr"></span></div>
+    <div class="node"><div class="k">ORCHESTRATOR</div><div class="t">Express.js</div><div class="d">:3000<br>실행 · 재개 중계<br>Python 서버 자동 기동</div></div>
+    <div class="link"><div class="lb">HTTP</div><span class="harr"></span></div>
+    <div class="node core"><div class="k">AGENT RUNTIME</div><div class="t">FastAPI + LangGraph</div><div class="d">:8000<br>StateGraph 30여 개 노드<br>검토 지점 4곳 (interrupt)</div></div>
+    <svg class="fan" viewBox="0 0 40 240" preserveAspectRatio="none">
+      <path d="M2 120 C 20 120, 20 38, 38 38" fill="none" stroke="#9aa3b2" stroke-width="1.6"/>
+      <path d="M2 120 H38" fill="none" stroke="#9aa3b2" stroke-width="1.6"/>
+      <path d="M2 120 C 20 120, 20 202, 38 202" fill="none" stroke="#9aa3b2" stroke-width="1.6"/>
+    </svg>
+    <div class="ext">
+      <div class="grp"><div class="gh">LLM</div>
+        <div class="it"><span>Claude Code CLI</span><span>기본 경로</span></div>
+        <div class="it"><span>Claude API</span><span>temperature 0</span></div></div>
+      <div class="grp"><div class="gh">외부 API</div>
+        <div class="it"><span>Brave Search API</span><span>URL 탐색</span></div>
+        <div class="it"><span>YouTube Data API v3</span><span>영상 · 댓글</span></div></div>
+      <div class="grp"><div class="gh">로컬 저장</div>
+        <div class="it"><span>JSON 파일 캐시</span><span>입력 해시 키</span></div>
+        <div class="it"><span>도메인 taxonomy</span><span>TTL 관리</span></div></div>
+    </div>
+  </div>
+</div>
+<script src="arrows.js"></script>
+</body></html>

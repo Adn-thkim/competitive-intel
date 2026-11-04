@@ -1,0 +1,33 @@
+:root{
+  --ink:#1f2430; --sub:#5b6474; --line:#d9dee7; --bg:#ffffff; --panel:#f6f8fb;
+  --card:#ffffff; --hitl:#fff6e9; --hitl-b:#e8a13a; --hitl-ink:#7a4a00;
+  --out:#eef4ff; --out-b:#3b6fd8; --out-ink:#173a85; --arrow:#9aa3b2; --accent:#3b6fd8;
+}
+*{box-sizing:border-box;margin:0;padding:0}
+body{background:var(--bg);font-family:"Noto Sans CJK KR","Noto Sans KR",sans-serif;color:var(--ink);-webkit-font-smoothing:antialiased}
+.wrap{width:1040px;padding:28px 28px 30px}
+.title{font-size:15px;font-weight:700;color:var(--sub);letter-spacing:.02em;margin:0 0 16px 4px}
+.stage{display:grid;grid-template-columns:118px 1fr;gap:14px;align-items:stretch;background:var(--panel);border:1px solid #e8ecf2;border-radius:14px;padding:14px 16px}
+.stage+.down{height:26px;display:flex;justify-content:center;align-items:center}
+.label{display:flex;flex-direction:column;justify-content:center;padding-left:2px}
+.label .no{font-size:11px;font-weight:700;color:var(--accent);letter-spacing:.08em}
+.label .nm{font-size:16px;font-weight:700;margin-top:2px;line-height:1.3}
+.row{display:flex;align-items:center;gap:0;flex-wrap:nowrap}
+.lanes{display:flex;flex-direction:column;gap:10px}
+.lane{display:flex;align-items:center;min-width:0}
+.stage{overflow:hidden}
+.lane .tag{font-size:11px;font-weight:700;color:var(--sub);width:54px;flex:none}
+.card{background:var(--card);border:1px solid var(--line);border-radius:10px;padding:9px 12px;font-size:13.5px;line-height:1.35;text-align:center;white-space:nowrap;box-shadow:0 1px 0 rgba(20,30,50,.03)}
+.card small{display:block;font-size:11.5px;color:var(--sub);margin-top:2px}
+.card.hitl{background:var(--hitl);border:1.5px solid var(--hitl-b);color:var(--hitl-ink);font-weight:700}
+.card.hitl small{color:#9a6a1f;font-weight:500}
+.card.out{background:var(--out);border:1.5px solid var(--out-b);color:var(--out-ink);font-weight:700}
+.card.ghost{background:transparent;border:1px dashed #c3cad6;color:var(--sub)}
+.arr{width:26px;height:14px;flex:none;display:flex;align-items:center;justify-content:center}
+.arr svg{display:block}
+.down svg{display:block}
+.legend{display:flex;gap:18px;margin:16px 0 0 4px;font-size:12px;color:var(--sub)}
+.legend i{display:inline-block;width:14px;height:10px;border-radius:3px;margin-right:6px;vertical-align:-1px}
+.final{display:flex;justify-content:center}
+.final .card{font-size:15px;padding:11px 26px}
+.par{font-size:11px;color:var(--sub);margin-left:12px;white-space:nowrap}
